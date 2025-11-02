@@ -1,39 +1,54 @@
-# === CORE DEPENDENCIES ===
-# Flask Web Framework
-Flask==3.0.0
-Flask-SQLAlchemy==3.1.1
+# Core camera and image processing
+picamera2                # Raspberry Pi camera library for capturing images and video
+opencv-python-headless   # OpenCV for image processing (headless version, no GUI)
+simplejpeg               # JPEG encoding/decoding, used with picamera2
+Pillow                   # Python Imaging Library for image manipulation
 
-# Raspberry Pi Camera (install via apt on Raspberry Pi OS)
-# DO NOT install picamera2 via pip in this project.
-# Use: sudo apt install -y python3-picamera2 python3-libcamera libcamera-apps
+# Flask for web server or REST API
+flask                    # Web framework for building the server and REST API
 
-# Image Processing and Computer Vision
-opencv-python==4.9.0.80
-numpy==1.24.3
+# Database support
+flask_sqlalchemy
+sqlalchemy
 
-# Database
-SQLAlchemy==2.0.23
 
-# Security (for password hashing)
-Werkzeug==3.0.1
 
-# Advanced Camera Control Dependencies  
-# Threading support (built-in)
-# JSON handling (built-in)
-# Time utilities (built-in)
-# Type hints (built-in in Python 3.7+)
+# # === CORE DEPENDENCIES ===
+# # Flask Web Framework
+# Flask=
+# Flask-SQLAlchemy==3.1.1
 
-# === OPTIONAL DEPENDENCIES ===
-# Uncomment if you want to add these features later:
+# # Raspberry Pi Camera (install via apt on Raspberry Pi OS)
+# # DO NOT install picamera2 via pip in this project.
+# # Use: sudo apt install -y python3-picamera2 python3-libcamera libcamera-apps
 
-# Authentication and Sessions
-# Flask-Login==0.6.3
-# Flask-WTF==1.2.1
+# # Image Processing and Computer Vision
+# opencv-python==4.9.0.80
+# numpy==1.24.3
 
-# API Development
-# Flask-RESTful==0.3.10
-# marshmallow==3.20.1
+# # Database
+# SQLAlchemy==2.0.23
 
-# Testing
-# pytest==7.4.3
-# pytest-flask==1.3.0
+# # Security (for password hashing)
+# Werkzeug==3.0.1
+
+# # Advanced Camera Control Dependencies  
+# # Threading support (built-in)
+# # JSON handling (built-in)
+# # Time utilities (built-in)
+# # Type hints (built-in in Python 3.7+)
+
+# # === OPTIONAL DEPENDENCIES ===
+# # Uncomment if you want to add these features later:
+
+# # Authentication and Sessions
+# # Flask-Login==0.6.3
+# # Flask-WTF==1.2.1
+
+# # API Development
+# # Flask-RESTful==0.3.10
+# # marshmallow==3.20.1
+
+# # Testing
+# # pytest==7.4.3
+# # pytest-flask==1.3.0

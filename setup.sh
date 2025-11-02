@@ -1,84 +1,115 @@
 #!/bin/bash
 
-# Raspberry Pi Camera Control Setup Script
-# This script sets up the Python environment and installs dependencies
+#-------------------------------------------
+# Fungi Forge Setup Script
+#-------------------------------------------
+# This script performs:
+#   - System package updates and dependency installation
+#   - Python virtual environment creation and setup
+#   - Python dependencies installation
+#   - Optional systemd service configuration and startup
+#-------------------------------------------
 
-echo "🎥 Raspberry Pi Camera Control Setup"
-echo "=================================="
-
-# Check if running on Raspberry Pi
-if ! grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null; then
-    echo "⚠️  Warning: This doesn't appear to be a Raspberry Pi"
-    echo "   The camera functionality may not work properly"
-fi
-
-# Update system packages
-echo "📦 Updating system packages..."
+echo "Updating system packages..."
 sudo apt update
-sudo apt upgrade -y
 
-# Install system dependencies for camera and OpenCV
-echo "🔧 Installing system dependencies..."
+# Install required system packages for camera and Python development
+echo "Installing required system dependencies..."
 sudo apt install -y \
-    python3-dev \
-    python3-pip \
-    python3-venv \
-    libcamera-dev \
-    libcamera-apps \
-    python3-libcamera \
-    python3-kms++ \
-    libatlas-base-dev \
-    libjpeg-dev \
-    libpng-dev \
-    libtiff-dev \
-    libavcodec-dev \
-    libavformat-dev \
-    libswscale-dev \
-    libv4l-dev
+  libcamera-dev libcamera-apps python3-libcamera \
+  python3-picamera2 python3-kms++ \
+  python3-venv python3-dev libcap-dev libopenblas-dev libopenjp2-7 libtiff-dev cmake
 
-# Enable camera interface
-echo "📷 Enabling camera interface..."
-if ! grep -q "camera_auto_detect=1" /boot/config.txt; then
-    echo "camera_auto_detect=1" | sudo tee -a /boot/config.txt
-    echo "⚠️  Camera interface enabled - reboot required after setup"
+#-------------------------------------------
+# Python virtual environment setup
+#-------------------------------------------
+
+if [ -d ".venv" ]; then
+    read -p "The .venv virtual environment already exists. Do you want to delete and recreate it? (y/n): " answer
+    if [[ "$answer" =~ ^[yY]$ ]]; then
+        echo "Deleting existing virtual environment..."
+        rm -rf .venv
+    else
+        echo "Using the existing virtual environment."
+    fi
 fi
 
-# Create virtual environment
-echo "🐍 Creating Python virtual environment..."
-python3 -m venv venv
-source venv/bin/activate
+if [ ! -d ".venv" ]; then
+    echo "Creating Python virtual environment with access to system packages..."
+    python3 -m venv .venv --system-site-packages
+fi
 
-# Upgrade pip
-echo "⬆️  Upgrading pip..."
+echo "Activating virtual environment and installing Python dependencies..."
+source .venv/bin/activate
 pip install --upgrade pip
 
-# Install Python dependencies
-echo "📦 Installing Python dependencies..."
+echo "Uninstalling system-wide numpy to avoid conflicts with venv..."
+sudo apt remove -y python3-numpy
+
 pip install -r requirements.txt
 
-# Create necessary directories
-echo "📁 Creating necessary directories..."
-mkdir -p /home/pi/Desktop/logs
-mkdir -p /home/pi/Desktop/timelapse
-mkdir -p Pictures
+#-------------------------------------------
+# Picamera2 sanity check
+#-------------------------------------------
+echo "Verifying picamera2 module import..."
 
-# Set proper permissions
-chmod 755 /home/pi/Desktop/logs
-chmod 755 /home/pi/Desktop/timelapse
-chmod 755 Pictures
+python3 -c "from picamera2 import Picamera2; print('✅ Picamera2 imported successfully')" || {
+    echo "❌ Failed to import Picamera2. Try rebooting or manually checking system packages."
+}
 
-echo ""
-echo "✅ Setup complete!"
-echo ""
-echo "📋 Next steps:"
-echo "1. Activate the virtual environment: source venv/bin/activate"
-echo "2. Run the application: python app.py"
-echo "3. Access the camera stream at: http://localhost:5000"
-echo ""
-echo "🌐 The server will be accessible from other devices on your network at:"
-echo "   http://$(hostname -I | awk '{print $1}'):5000"
-echo ""
-if grep -q "camera_auto_detect=1" /boot/config.txt && ! lsmod | grep -q bcm2835_v4l2; then
-    echo "⚠️  Please reboot your Raspberry Pi to enable the camera interface:"
-    echo "   sudo reboot"
+#-------------------------------------------
+# Virtual environment prompt
+#-------------------------------------------
+read -p "Setup complete. Do you want to activate the virtual environment now? (y/n): " activate_env
+if [[ "$activate_env" =~ ^[yY]$ ]]; then
+    source .venv/bin/activate
+    echo "Virtual environment activated."
+else
+    echo "You can activate the environment later with: source .venv/bin/activate"
 fi
+
+#-------------------------------------------
+# systemd service setup
+#-------------------------------------------
+
+echo "Starting the Fungi Forge service configuration..."
+
+read -p "Do you want to set up fungiforge.service in systemd to start on boot? (y/n): " setup_choice
+if [[ "$setup_choice" =~ ^[Yy]$ ]]; then
+    export FUNGIFORCE_PATH="$(pwd)"
+    echo "Detected repository path: $FUNGIFORCE_PATH"
+
+    echo "Rendering systemd service file with correct path..."
+    envsubst < fungiforge.service.in > /tmp/fungiforge.service
+
+    echo "Installing systemd service file..."
+    sudo cp /tmp/fungiforge.service /etc/systemd/system/fungiforge.service
+
+    echo "Reloading systemd to recognize the new service..."
+    sudo systemctl daemon-reload
+
+    echo "Enabling the service to start on boot..."
+    sudo systemctl enable fungiforge.service
+    echo "Service enabled to start on boot."
+else
+    echo "Skipped systemd setup."
+fi
+
+read -p "Do you want to start the fungiforge.service now? (y/n): " start_choice
+if [[ "$start_choice" =~ ^[Yy]$ ]]; then
+    echo "Starting the service..."
+    sudo systemctl start fungiforge.service
+    echo "Service started successfully."
+else
+    echo "Skipped starting the service now."
+fi
+
+#-------------------------------------------
+# Final notes
+#-------------------------------------------
+echo
+echo "You can always manage the service with the following commands:"
+echo "  To start the service:   sudo systemctl start FungiForge.service"
+echo "  To stop the service:    sudo systemctl stop FungiForge.service"
+echo "  To check the status:    sudo systemctl status FungiForge.service"
+echo "  To view the logs:       journalctl -u FungiForge.service -f"
