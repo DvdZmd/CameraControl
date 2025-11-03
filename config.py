@@ -6,7 +6,7 @@ from typing import List, Tuple
 
 # === GLOBAL CONSTANTS (used by imports) ===
 # Logging
-LOG_FILE_PATH = "/home/pi/Desktop/logs/server.log"
+LOG_FILE_PATH = "/home/dvdzmd/Desktop/logs/server.log"
 LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 # Camera settings 
@@ -32,7 +32,7 @@ LENS_POSITION = None  # Manual focus
 AF_MODE = 2           # Autofocus mode: 0=manual, 1=auto, 2=continuous
 
 # Timelapse folder
-TIMELAPSE_DIR = os.path.abspath("/home/pi/Desktop/timelapse")
+TIMELAPSE_DIR = os.path.abspath("/home/dvdzmd/Desktop/timelapse")
 
 # Available camera resolutions (width, height)
 AVAILABLE_RESOLUTIONS = [
@@ -49,7 +49,7 @@ AVAILABLE_RESOLUTIONS = [
 
 @dataclass
 class LoggingConfig:
-    log_file_path: str = "/home/pi/Desktop/logs/server.log"
+    log_file_path: str = "/home/dvdzmd/Desktop/logs/server.log"
     log_level: str = "INFO"
 
 @dataclass
@@ -83,7 +83,7 @@ class CameraConfig:
 
 @dataclass
 class TimelapseConfig:
-    timelapse_dir: str = os.path.abspath("/home/pi/Desktop/timelapse")
+    timelapse_dir: str = os.path.abspath("/home/dvdzmd/Desktop/timelapse")
 
 # Combined AppConfig
 @dataclass
