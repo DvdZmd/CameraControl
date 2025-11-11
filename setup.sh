@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #-------------------------------------------
-# Fungi Forge Setup Script
+# Camera Control Setup Script
 #-------------------------------------------
 # This script performs:
 #   - System package updates and dependency installation
@@ -72,33 +72,33 @@ fi
 # systemd service setup
 #-------------------------------------------
 
-echo "Starting the Fungi Forge service configuration..."
+echo "Starting the Camera Control service configuration..."
 
-read -p "Do you want to set up fungiforge.service in systemd to start on boot? (y/n): " setup_choice
+read -p "Do you want to set up cameracontrol.service in systemd to start on boot? (y/n): " setup_choice
 if [[ "$setup_choice" =~ ^[Yy]$ ]]; then
-    export FUNGIFORCE_PATH="$(pwd)"
-    echo "Detected repository path: $FUNGIFORCE_PATH"
+    export CAMERACONTROL_PATH="$(pwd)"
+    echo "Detected repository path: $CAMERACONTROL_PATH"
 
     echo "Rendering systemd service file with correct path..."
-    envsubst < fungiforge.service.in > /tmp/fungiforge.service
+    envsubst < cameracontrol.service.in > /tmp/cameracontrol.service
 
     echo "Installing systemd service file..."
-    sudo cp /tmp/fungiforge.service /etc/systemd/system/fungiforge.service
+    sudo cp /tmp/cameracontrol.service /etc/systemd/system/cameracontrol.service
 
     echo "Reloading systemd to recognize the new service..."
     sudo systemctl daemon-reload
 
     echo "Enabling the service to start on boot..."
-    sudo systemctl enable fungiforge.service
+    sudo systemctl enable cameracontrol.service
     echo "Service enabled to start on boot."
 else
     echo "Skipped systemd setup."
 fi
 
-read -p "Do you want to start the fungiforge.service now? (y/n): " start_choice
+read -p "Do you want to start the cameracontrol.service now? (y/n): " start_choice
 if [[ "$start_choice" =~ ^[Yy]$ ]]; then
     echo "Starting the service..."
-    sudo systemctl start fungiforge.service
+    sudo systemctl start cameracontrol.service
     echo "Service started successfully."
 else
     echo "Skipped starting the service now."
@@ -109,7 +109,7 @@ fi
 #-------------------------------------------
 echo
 echo "You can always manage the service with the following commands:"
-echo "  To start the service:   sudo systemctl start FungiForge.service"
-echo "  To stop the service:    sudo systemctl stop FungiForge.service"
-echo "  To check the status:    sudo systemctl status FungiForge.service"
-echo "  To view the logs:       journalctl -u FungiForge.service -f"
+echo "  To start the service:   sudo systemctl start cameracontrol.service"
+echo "  To stop the service:    sudo systemctl stop cameracontrol.service"
+echo "  To check the status:    sudo systemctl status cameracontrol.service"
+echo "  To view the logs:       journalctl -u cameracontrol.service -f"

@@ -1,0 +1,13 @@
+[Unit]
+Description=Camera Control App
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${CAMERACONTROL_PATH}/init.sh
+Restart=always
+User=pi
+WorkingDirectory=${CAMERACONTROL_PATH}
+
+[Install]
+WantedBy=multi-user.target
