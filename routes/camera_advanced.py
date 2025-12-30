@@ -28,60 +28,6 @@ def get_camera_resolution():
     })
 
 
-@camera_advanced_bp.route('/camera_resolution/validate', methods=['POST'])
-def validate_custom_resolution():
-    """Validate if a custom resolution is supported by the camera"""
-    if not camera_controller.picam2:
-        return jsonify({"error": "Camera not available"}), 503
-    
-    try:
-        data = request.get_json()
-        width = int(data.get('width'))
-        height = int(data.get('height'))
-        
-        # Basic bounds validation
-        if width < 64 or width > 4608 or height < 64 or height > 2592:
-            return jsonify({
-                "valid": False,
-                "error": "Resolution out of bounds",
-                "limits": "Width: 64-4608, Height: 64-2592"
-            })
-        
-        # Check if it's a standard resolution
-        resolution = (width, height)
-        is_standard = resolution in AVAILABLE_RESOLUTIONS
-        
-        # Try to test the resolution (without actually changing camera config)
-        try:
-            # Create a test configuration to see if camera supports it
-            test_config = camera_controller.picam2.create_video_configuration(
-                main={"size": resolution}
-            )
-            
-            return jsonify({
-                "valid": True,
-                "resolution": resolution,
-                "is_standard": is_standard,
-                "message": "Resolution appears to be supported" if not is_standard else "Standard resolution",
-                "aspect_ratio": round(width / height, 2)
-            })
-            
-        except Exception as test_error:
-            return jsonify({
-                "valid": False,
-                "resolution": resolution,
-                "error": "Camera does not support this resolution",
-                "details": str(test_error)
-            })
-            
-    except Exception as e:
-        logger.exception("[Camera] Error validating resolution")
-        return jsonify({
-            "valid": False,
-            "error": str(e)
-        }), 500
-
-
 @camera_advanced_bp.route('/camera_resolution', methods=['POST'])
 def set_camera_resolution():
     """Set camera resolution using CameraController (supports custom resolutions)"""
