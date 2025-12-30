@@ -2,10 +2,7 @@
 from flask import Flask
 from camera.timelapse import load_saved_config
 from database.models import db
-from routes.camera_routes import camera_bp
-from database.models import db
-
-
+from routes.camera_routes import camera_bp, register_camera_blueprints
 import os
 
 def create_app():
@@ -19,6 +16,7 @@ def create_app():
 
     # Register routes
     app.register_blueprint(camera_bp)
+    register_camera_blueprints(app)
 
     # Secret key for session management
     app.secret_key = 'REPLACE_WITH_RANDOM_SECRET_KEY'  # use os.urandom(24) in production

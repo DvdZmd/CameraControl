@@ -126,9 +126,6 @@ The server will start on `http://0.0.0.0:5000` and be accessible from:
 }
 ```
 
-#### Camera Configuration
-- `POST /set_stream_resolution` - Change streaming resolution
-
 **Resolution Change Example:**
 ```json
 {

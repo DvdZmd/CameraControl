@@ -301,7 +301,6 @@
                     <input type="number" id="custom-width" placeholder="Width" min="64" max="4608" value="1280">
                     <span>×</span>
                     <input type="number" id="custom-height" placeholder="Height" min="64" max="2592" value="720">
-                    <button onclick="validateCustomResolution()">✓ Validate</button>
                     <button onclick="applyCustomResolution()">📐 Apply</button>
                     <div id="resolution-status" style="margin-top: 5px; font-size: 12px;"></div>
                 </div>
@@ -346,9 +345,7 @@
                 <label>Manual Position (0=∞, 32=Macro)</label>
                 <input type="range" id="lens-position" min="0" max="32" step="0.5" value="16" onchange="setManualFocus(this.value)">
                 <span id="lens-position-value">16.0</span>
-                <span id="focus-distance"></span>
-                
-                <button onclick="focusSweep()">🔍 Focus Sweep</button>
+                <span id="focus-distance"></span>   
             </div>
 
             <div class="control-group">
@@ -499,52 +496,12 @@
             }
         }
 
-        async function validateCustomResolution() {
-            const width = parseInt(document.getElementById('custom-width').value);
-            const height = parseInt(document.getElementById('custom-height').value);
-            const statusDiv = document.getElementById('resolution-status');
-            
-            if (!width || !height) {
-                statusDiv.textContent = 'Please enter both width and height';
-                statusDiv.className = 'invalid';
-                return false;
-            }
-            
-            statusDiv.textContent = 'Validating resolution...';
-            statusDiv.className = 'testing';
-            
-            const result = await apiRequest('/camera_resolution/validate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ width, height })
-            });
-            
-            if (result.success && result.data.valid) {
-                const aspectRatio = result.data.aspect_ratio;
-                const standardNote = result.data.is_standard ? ' (Standard)' : ' (Custom)';
-                statusDiv.textContent = `✓ Valid: ${width}x${height} (${aspectRatio}:1)${standardNote}`;
-                statusDiv.className = 'valid';
-                return true;
-            } else {
-                statusDiv.textContent = `✗ Invalid: ${result.data?.error || 'Unsupported resolution'}`;
-                statusDiv.className = 'invalid';
-                return false;
-            }
-        }
-
         async function applyCustomResolution() {
             const width = parseInt(document.getElementById('custom-width').value);
             const height = parseInt(document.getElementById('custom-height').value);
             
             if (!width || !height) {
                 updateStatus('Please enter valid width and height values', 'error');
-                return;
-            }
-            
-            // First validate the resolution
-            const isValid = await validateCustomResolution();
-            if (!isValid) {
-                updateStatus('Cannot apply invalid resolution', 'error');
                 return;
             }
             
@@ -847,27 +804,6 @@
                 updateControlsFromServer();
             } else {
                 updateStatus(`Failed to apply ${presetName} preset`, 'error');
-            }
-        }
-
-        async function focusSweep() {
-            updateStatus('Performing focus sweep...');
-            
-            const result = await apiRequest('/camera_focus/sweep', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    start: 0,
-                    end: 32,
-                    steps: 10
-                })
-            });
-            
-            if (result.success) {
-                updateStatus(`Focus sweep: ${result.data.steps} positions generated`, 'success');
-                console.log('Focus positions:', result.data.positions);
-            } else {
-                updateStatus('Failed to perform focus sweep', 'error');
             }
         }
 
