@@ -33,5 +33,5 @@ def register_camera_blueprints(app):
         app: Flask application instance
     """
     app.register_blueprint(camera_basic_bp)
-    app.register_blueprint(camera_controls_bp)
-    app.register_blueprint(camera_advanced_bp)
+    #app.register_blueprint(camera_controls_bp)
+    #app.register_blueprint(camera_advanced_bp)
