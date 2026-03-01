@@ -22,6 +22,15 @@ def generate_frames():
 def video_feed():
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+
+@camera_basic_bp.route('/camera_status')
+def camera_status():
+    return jsonify({
+        "af_supported": camera_controller.af_supported,
+        "current_controls": camera_controller.controls
+    })
+
+
 @camera_basic_bp.route('/update_settings', methods=['POST'])
 def update_settings():
     """Endpoint para actualizar calidad y rotación"""

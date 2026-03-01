@@ -16,6 +16,8 @@ class CameraController:
             "Sharpness": 1.0      # 0.0 a 16.0
         }
 
+        self.af_supported = False # Bandera de detección
+
         self.lock = threading.Lock()
         self.current_rotation = 0
 
@@ -27,6 +29,7 @@ class CameraController:
 
     def _initialize_camera(self):
         """Configura la cámara con rotación y controles por hardware"""
+        # 1. Configuración básica
         # Evitamos resoluciones 0,0 forzando un estándar si no están definidas
         width = CAMERA_WIDTH if CAMERA_WIDTH > 0 else 1280
         height = CAMERA_HEIGHT if CAMERA_HEIGHT > 0 else 720
@@ -37,6 +40,21 @@ class CameraController:
             controls=self.controls
         )
         self.picam2.configure(config)
+
+        # 2. DETECCIÓN DE HARDWARE: Verificamos si AfMode está disponible
+        # Debe hacerse después de .configure() pero antes o justo al .start()
+        available_controls = self.picam2.camera_controls
+        if "AfMode" in available_controls:
+            self.af_supported = True
+            self.controls["AfMode"] = 2  # Continuous AF por defecto
+            print("Cámara con Autofocus detectada.")
+        else:
+            self.af_supported = False
+            print("Cámara de foco fijo detectada (V1/V2/HQ). AF desactivado.")
+
+        # 3. Aplicar controles iniciales y arrancar
+        self.picam2.set_controls(self.controls)
+
         self.picam2.start()
 
     def _get_transform(self, angle):
@@ -50,7 +68,17 @@ class CameraController:
         return mapping.get(angle, Transform())
 
     def update_control(self, name, value):
-        """Valida y aplica cambios de hardware (incluyendo AF)"""
+        """Valida y aplica cambios de hardware"""
+
+        # Evitar que el JS intente mover el AF si la cámara no puede
+        if name == "AfMode" and not self.af_supported:
+            return
+        
+        if name in self.controls or name == "AfMode":
+            with self.lock:
+                self.controls[name] = float(value)
+                self.picam2.set_controls({name: self.controls[name]})
+
         is_valid, adjusted_value = validate_control_value(name, value)
         if is_valid:
             with self.lock:

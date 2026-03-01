@@ -1,3 +1,14 @@
+window.onload = async () => {
+    const res = await fetch('/camera_status');
+    const status = await res.json();
+    
+    if (!status.af_supported) {
+        // Ocultamos el div de AF si no se soporta
+        const afControl = document.getElementById('AfModeDiv');
+        if (afControl) afControl.style.display = 'none';
+    }
+};
+
 // Listener para los Sliders de Calidad de Imagen
 let timeout;
 document.querySelectorAll('.camera-slider').forEach(slider => {
