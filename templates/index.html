@@ -36,7 +36,21 @@
                     <input type="range" id="Saturation" min="0.0" max="10.0" step="0.1" value="1.0" class="camera-slider">
                 </div>
             </section>
-
+            <section class="control-group">
+                <h3>Configuración de Stream</h3>
+                <div class="slider-item">
+                    <label>Resolución</label>
+                    <select id="resolution" onchange="changeResolution(this.value)">
+                        <option value="640x480">480p (VGA)</option>
+                        <option value="1280x720" selected>720p (HD)</option>
+                        <option value="1920x1080">1080p (Full HD)</option>
+                        <option value="1640x1232">1640x1232</option>
+                    </select>
+                </div>
+                <button class="btn-primary" onclick="capturePhoto()" style="margin-top: 10px; width: 100%;">
+                    📸 Capturar Foto Ahora
+                </button>
+            </section>
             <section class="control-group">
                 <h3>Orientación</h3>
                 <div class="btn-grid">
@@ -54,6 +68,17 @@
                     <option value="1">Automático (AF-S)</option>
                     <option value="0">Manual</option>
                 </select>
+            </div>
+            <div id="manual-focus-container" style="display: none;" class="slider-item">
+                <label>Distancia de Enfoque (Manual)</label>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span>Infinito</span>
+                    <input type="range" id="LensPosition" 
+                        min="0.0" max="12.0" step="0.1" value="0.0" 
+                        class="camera-slider" 
+                        oninput="updateCameraSettings({LensPosition: parseFloat(this.value)})">
+                    <span>Cerca</span>
+                </div>
             </div>
             
             <section class="control-group">

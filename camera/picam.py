@@ -13,9 +13,14 @@ class CameraController:
             "Brightness": 0.0,    # -1.0 a 1.0
             "Contrast": 1.0,      # 0.0 a 15.99
             "Saturation": 1.0,    # 0.0 a 32.0
-            "Sharpness": 1.0      # 0.0 a 16.0
+            "Sharpness": 1.0,     # 0.0 a 16.0
+            #"LensPosition": 0.0   # Añadimos valor inicial para el foco
         }
 
+        self.is_running = False
+        self.current_width = 1640
+        self.current_height = 1232
+        self.current_rotation = 0
         self.af_supported = False # Bandera de detección
 
         self.lock = threading.Lock()
@@ -28,21 +33,20 @@ class CameraController:
         self._initialize_camera()
 
     def _initialize_camera(self):
-        """Configura la cámara con rotación y controles por hardware"""
-        # 1. Configuración básica
-        # Evitamos resoluciones 0,0 forzando un estándar si no están definidas
-        width = CAMERA_WIDTH if CAMERA_WIDTH > 0 else 1280
-        height = CAMERA_HEIGHT if CAMERA_HEIGHT > 0 else 720
-        
+        """Configura e inicia la cámara con la resolución y rotación actual"""
+        # Detener si ya estaba corriendo
+        if self.is_running:
+            self.picam2.stop()        
+            
+        # 1. Configuración básica        
         config = self.picam2.create_video_configuration(
-            main={"size": (width, height), "format": "XRGB8888"},
+            main={"size": (self.current_width, self.current_height), "format": "XRGB8888"},
             transform=self._get_transform(self.current_rotation),
             controls=self.controls
         )
         self.picam2.configure(config)
 
         # 2. DETECCIÓN DE HARDWARE: Verificamos si AfMode está disponible
-        # Debe hacerse después de .configure() pero antes o justo al .start()
         available_controls = self.picam2.camera_controls
         if "AfMode" in available_controls:
             self.af_supported = True
@@ -56,6 +60,7 @@ class CameraController:
         self.picam2.set_controls(self.controls)
 
         self.picam2.start()
+        self.is_running = True
 
     def _get_transform(self, angle):
         """Retorna el objeto Transform de libcamera adecuado"""
@@ -66,6 +71,21 @@ class CameraController:
             270: Transform(rotation=270)
         }
         return mapping.get(angle, Transform())
+
+    def set_resolution(self, width, height):
+        with self.lock:
+            self.current_width = width
+            self.current_height = height
+            self._initialize_camera()
+
+    def take_snapshot(self):
+        """Captura una imagen JPEG de alta calidad"""
+        with self.lock:
+            # Captura directamente del stream actual
+            buf = io.BytesIO()
+            self.picam2.capture_file(buf, format="jpeg")
+            return buf.getvalue()
+
 
     def update_control(self, name, value):
         """Valida y aplica cambios de hardware"""

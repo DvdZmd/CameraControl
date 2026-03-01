@@ -1,6 +1,9 @@
-from flask import Blueprint, Response, request, jsonify, render_template
+from flask import Blueprint, Response, request, jsonify, render_template, send_file
 from camera.picam import camera_controller
 import time
+import io
+from datetime import datetime
+
 
 camera_basic_bp = Blueprint('camera_basic', __name__)
 
@@ -9,6 +12,18 @@ def index():
     """Sirve el archivo index.html"""
     return render_template('index.html')
 
+@camera_basic_bp.route('/take_photo')
+def take_photo():
+    """Captura una foto y la envía al navegador para descarga"""
+    image_binary = camera_controller.take_snapshot()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    return send_file(
+        io.BytesIO(image_binary),
+        mimetype='image/jpeg',
+        as_attachment=True,
+        download_name=f"capture_{timestamp}.jpg"
+    )
 
 def generate_frames():
     while True:
@@ -36,6 +51,10 @@ def update_settings():
     """Endpoint para actualizar calidad y rotación"""
     data = request.json
     
+    # Cambio de resolución
+    if 'width' in data and 'height' in data:
+        camera_controller.set_resolution(int(data['width']), int(data['height']))
+
     # Manejo de Rotación
     if 'rotation' in data:
         camera_controller.set_rotation(int(data['rotation']))
