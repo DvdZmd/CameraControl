@@ -135,6 +135,40 @@ class CameraController:
             self.picam2.stop()
             self._initialize_camera() # Aplica el nuevo transform
 
+    def take_custom_photo(self, width, height):
+        """Captura una foto a resolución específica y restaura el stream original"""
+        with self.lock:
+            # 1. Guardar configuración actual del stream
+            old_w, old_h = self.current_width, self.current_height
+            
+            try:
+                # 2. Detener stream y configurar resolución de la FOTO
+                self.picam2.stop()
+                
+                # Validar que no exceda el máximo del sensor
+                max_w, max_h = self.max_sensor_res
+                target_w = min(int(width), max_w)
+                target_h = min(int(height), max_h)
+
+                still_config = self.picam2.create_still_configuration(
+                    main={"size": (target_w, target_h), "format": "XRGB8888"},
+                    transform=self._get_transform(self.current_rotation)
+                )
+                self.picam2.configure(still_config)
+                self.picam2.start()
+                
+                # 3. Capturar frame
+                buf = io.BytesIO()
+                self.picam2.capture_file(buf, format="jpeg")
+                data = buf.getvalue()
+                return data
+                
+            finally:
+                # 4. RESTAURAR siempre el stream original
+                self.picam2.stop()
+                self.current_width, self.current_height = old_w, old_h
+                self._initialize_camera()
+
     def get_jpeg_frame(self):
         """Captura directa del ISP a memoria (máxima calidad)"""
         buf = io.BytesIO()
@@ -143,33 +177,44 @@ class CameraController:
         return buf.getvalue()
 
     # --- Lógica de Timelapse ---
-    def start_timelapse(self, interval_seconds):
+    def start_timelapse(self, interval_seconds, width=None, height=None):
+        """
+        Inicia el timelapse. 
+        Si no se pasan width/height, usará la resolución máxima del sensor.
+        """
         if not self.timelapse_active:
+            # Si no se define resolución, usamos el máximo detectado
+            t_width = width or self.max_sensor_res[0]
+            t_height = height or self.max_sensor_res[1]
+            
             self.timelapse_active = True
             self.timelapse_thread = threading.Thread(
                 target=self._timelapse_worker, 
-                args=(interval_seconds,),
+                args=(interval_seconds, t_width, t_height),
                 daemon=True
             )
             self.timelapse_thread.start()
 
     def stop_timelapse(self):
         self.timelapse_active = False
-
-    def _timelapse_worker(self, interval):
-        """Hilo secundario para no bloquear el servidor Flask"""
+        
+    def _timelapse_worker(self, interval, width, height):
         save_path = "captures/timelapse"
         os.makedirs(save_path, exist_ok=True)
         
         while self.timelapse_active:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{save_path}/shot_{timestamp}.jpg"
+            # Usamos take_custom_photo para que cambie la resolución, 
+            # capture a alta calidad y restaure el stream automáticamente.
+            frame = self.take_custom_photo(width, height)
             
-            # Capturamos usando el método existente
-            frame = self.get_jpeg_frame()
-            with open(filename, "wb") as f:
-                f.write(frame)
+            if frame:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"{save_path}/shot_{timestamp}.jpg"
+                with open(filename, "wb") as f:
+                    f.write(frame)
             
-            time.sleep(interval)
+            # El tiempo de espera debe considerar que take_custom_photo 
+            # tarda ~1-2 segundos en resetear la cámara
+            time.sleep(max(1, interval))
 
 camera_controller = CameraController()

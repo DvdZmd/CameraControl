@@ -12,17 +12,19 @@ def index():
     """Sirve el archivo index.html"""
     return render_template('index.html')
 
-@camera_basic_bp.route('/take_photo')
-def take_photo():
-    """Captura una foto y la envía al navegador para descarga"""
-    image_binary = camera_controller.take_snapshot()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+@camera_basic_bp.route('/take_photo_custom')
+def take_photo_custom():
+    # Recibimos el ancho y alto por parámetros de URL (?w=1920&h=1080)
+    w = request.args.get('w', default=1280, type=int)
+    h = request.args.get('h', default=720, type=int)
+    
+    image_binary = camera_controller.take_custom_photo(w, h)
     
     return send_file(
         io.BytesIO(image_binary),
         mimetype='image/jpeg',
         as_attachment=True,
-        download_name=f"capture_{timestamp}.jpg"
+        download_name=f"custom_snap_{w}x{h}.jpg"
     )
 
 def generate_frames():
@@ -60,9 +62,12 @@ def update_settings():
     if 'timelapse' in data:
         if data['timelapse'] == 'start':
             interval = int(data.get('interval', 5))
-            camera_controller.start_timelapse(interval)
+            # Opcional: pasar resolución deseada para el timelapse
+            tw = data.get('t_width') 
+            th = data.get('t_height')
+            camera_controller.start_timelapse(interval, tw, th)
         else:
-            camera_controller.stop_timelapse()  
+            camera_controller.stop_timelapse() 
     
     # Actualizar controles (Brightness, Contrast, Saturation, Sharpness, AfMode)
     for param in ['Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition']:

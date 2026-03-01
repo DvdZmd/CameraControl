@@ -59,37 +59,40 @@ window.addEventListener('load', async () => {
     await checkCameraCapabilities(); 
 });
 
-async function capturePhoto() {
+async function captureCustomPhoto() {
+    const w = document.getElementById('photo-w').value;
+    const h = document.getElementById('photo-h').value;
+    const video = document.getElementById('video-feed');
+    
+    // Indicador visual de que el stream se pausa para capturar
+    video.style.opacity = "0.3";
+    
     try {
-        const response = await fetch('/take_photo');
-        if (!response.ok) throw new Error('Error en la captura');
-        
-        // Convertimos la respuesta en un Blob (datos binarios)
+        // Construimos la URL con los parámetros custom
+        const response = await fetch(`/take_photo_custom?w=${w}&h=${h}`);
+        if (!response.ok) throw new Error("Error en la captura");
+
         const blob = await response.blob();
-        
-        // Creamos un enlace temporal en memoria
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.style.display = 'none';
         a.href = url;
-        
-        // Extraemos el nombre del archivo del header o ponemos uno por defecto
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        a.download = `snapshot_${timestamp}.jpg`;
-        
+        a.download = `Photo_${w}x${h}_${Date.now()}.jpg`;
         document.body.appendChild(a);
-        a.click(); // Simulamos el click para descargar
-        
-        // Limpiamos
+        a.click();
         window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        console.log("Foto capturada con éxito sin interrumpir el stream.");
     } catch (err) {
-        console.error("Error al capturar foto:", err);
-        alert("Error al capturar la foto.");
+        console.error(err);
+        alert("Error al capturar la foto custom");
+    } finally {
+        // Restauramos la opacidad y forzamos al navegador a reconectar el stream MJPEG
+        video.style.opacity = "1";
+        setTimeout(() => {
+            const currentSrc = video.src.split('?')[0];
+            video.src = currentSrc + '?t=' + new Date().getTime();
+        }, 1000); // Damos un segundo para que la cámara termine de re-inicializarse
     }
 }
+
 
 // Función para manejar la visibilidad de los controles según el hardware
 async function checkCameraCapabilities() {
@@ -160,7 +163,9 @@ let timelapseRunning = false;
 
 async function toggleTimelapse() {
     const btn = document.getElementById('btn-timelapse');
-    const interval = document.getElementById('interval').value;
+    const interval = document.getElementById('tl-interval').value;
+    const tw = document.getElementById('tl-w').value;
+    const th = document.getElementById('tl-h').value;
     const statusDiv = document.getElementById('timelapse-status');
 
     timelapseRunning = !timelapseRunning;
@@ -169,7 +174,13 @@ async function toggleTimelapse() {
         btn.textContent = "Detener Timelapse";
         btn.style.background = "#ff4444";
         statusDiv.classList.remove('hidden');
-        await updateCameraSettings({ 'timelapse': 'start', 'interval': interval });
+        
+        await updateCameraSettings({ 
+            'timelapse': 'start', 
+            'interval': parseInt(interval),
+            't_width': parseInt(tw),
+            't_height': parseInt(th)
+        });
     } else {
         btn.textContent = "Iniciar Timelapse";
         btn.style.background = "#00ff88";
