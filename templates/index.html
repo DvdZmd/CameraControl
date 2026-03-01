@@ -47,6 +47,15 @@
                 </div>
             </section>
 
+            <div class="slider-item">
+                <label>Modo de Enfoque</label>
+                <select id="AfMode" class="camera-slider-select" onchange="updateCameraSettings({'AfMode': this.value})">
+                    <option value="2" selected>Continuo (AF-C)</option>
+                    <option value="1">Automático (AF-S)</option>
+                    <option value="0">Manual</option>
+                </select>
+            </div>
+            
             <section class="control-group">
                 <h3>Timelapse</h3>
                 <div class="timelapse-controls">

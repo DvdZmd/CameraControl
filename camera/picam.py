@@ -1,7 +1,9 @@
-import io, time, threading
+import io, time, threading, os
+from datetime import datetime
 from picamera2 import Picamera2
 from config import FRAME_RATE, CAMERA_WIDTH, CAMERA_HEIGHT
 from libcamera import Transform
+from camera.camera_utils import validate_control_value # Importamos el validador
 
 class CameraController:
     def __init__(self):
@@ -15,9 +17,12 @@ class CameraController:
         }
 
         self.lock = threading.Lock()
-        self.last_frame = None
-
         self.current_rotation = 0
+
+        # Atributos para Timelapse
+        self.timelapse_thread = None
+        self.timelapse_active = False
+
         self._initialize_camera()
 
     def _initialize_camera(self):
@@ -45,10 +50,13 @@ class CameraController:
         return mapping.get(angle, Transform())
 
     def update_control(self, name, value):
-        """Cambia brillo, contraste, etc., en tiempo real sin lag"""
-        if name in self.controls:
-            self.controls[name] = float(value)
-            self.picam2.set_controls({name: self.controls[name]})
+        """Valida y aplica cambios de hardware (incluyendo AF)"""
+        is_valid, adjusted_value = validate_control_value(name, value)
+        if is_valid:
+            with self.lock:
+                self.controls[name] = adjusted_value
+                self.picam2.set_controls({name: adjusted_value})
+                # Si es AfMode manual, podrías querer resetear el LensPosition aquí
 
     def set_rotation(self, angle):
         """Cambia la rotación reiniciando el stream (requerido por libcamera)"""
@@ -64,103 +72,34 @@ class CameraController:
         self.picam2.capture_file(buf, format="jpeg")
         return buf.getvalue()
 
-camera_controller = CameraController()
-
-
-# import io, time, threading
-# from picamera2 import Picamera2
-# from libcamera import Transform
-# from config import FRAME_RATE, CAMERA_WIDTH, CAMERA_HEIGHT
-
-# class CameraController:
-#     def __init__(self):
-#         self.picam2 = Picamera2()
-#         self.controls = {"Brightness": 0.0, "Contrast": 1.0, "Saturation": 1.0, "Sharpness": 1.0}
-#         self.current_rotation = 0
-        
-#         self.lock = threading.Lock()
-#         self.last_frame = None
-#         self.running = True
-        
-#         self._initialize_camera()
-        
-#         # Hilo dedicado a capturar para que Flask no sature la cámara
-#         self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
-#         self.capture_thread.start()
-
-#     def _initialize_camera(self):
-#         width = CAMERA_WIDTH if CAMERA_WIDTH > 0 else 1280
-#         height = CAMERA_HEIGHT if CAMERA_HEIGHT > 0 else 720
-        
-#         # Usamos configuración de Video para máxima fluidez
-#         config = self.picam2.create_video_configuration(
-#             main={"size": (width, height), "format": "XRGB8888"},
-#             transform=self._get_transform(self.current_rotation),
-#             controls=self.controls
-#         )
-#         self.picam2.configure(config)
-#         self.picam2.start()
-
-#     def _get_transform(self, angle):
-#         mapping = {0: Transform(), 90: Transform(rotation=90), 180: Transform(rotation=180), 270: Transform(rotation=270)}
-#         return mapping.get(angle, Transform())
-
-#     def _capture_loop(self):
-#         """Este bucle corre a 30fps constantes sin importar Flask"""
-#         while self.running:
-#             try:
-#                 # El método request es mucho más rápido que capture_file
-#                 frame = self.picam2.capture_array()
-                
-#                 # Convertimos a JPEG solo una vez
-#                 import cv2
-#                 _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-                
-#                 with self.lock:
-#                     self.last_frame = buffer.tobytes()
-                
-#                 time.sleep(1/FRAME_RATE)
-#             except Exception as e:
-#                 print(f"Error en captura: {e}")
-#                 time.sleep(1)
-
-#     def update_control(self, name, value):
-#         """Actualización inmediata sin colisiones"""
-#         with self.lock:
-#             if name in self.controls:
-#                 self.controls[name] = float(value)
-#                 self.picam2.set_controls({name: self.controls[name]})
-
-#     def set_rotation(self, angle):
-#         """Reinicia la cámara de forma segura"""
-#         with self.lock:
-#             self.current_rotation = angle
-#             self.picam2.stop()
-#             self._initialize_camera()
-
-#     def get_latest_frame(self):
-#         with self.lock:
-#             return self.last_frame
-
-# camera_controller = CameraController()
-
-# --- FUNCIONALIDAD TIMELAPSE ---
-"""     def start_timelapse(self, interval_sec, folder="timelapse"):
-        if not os.path.exists(folder): os.makedirs(folder)
-        self.timelapse_active = True
-        self.timelapse_thread = threading.Thread(
-            target=self._timelapse_worker, 
-            args=(interval_sec, folder)
-        )
-        self.timelapse_thread.start()
+    # --- Lógica de Timelapse ---
+    def start_timelapse(self, interval_seconds):
+        if not self.timelapse_active:
+            self.timelapse_active = True
+            self.timelapse_thread = threading.Thread(
+                target=self._timelapse_worker, 
+                args=(interval_seconds,),
+                daemon=True
+            )
+            self.timelapse_thread.start()
 
     def stop_timelapse(self):
         self.timelapse_active = False
 
-    def _timelapse_worker(self, interval, folder):
+    def _timelapse_worker(self, interval):
+        """Hilo secundario para no bloquear el servidor Flask"""
+        save_path = "captures/timelapse"
+        os.makedirs(save_path, exist_ok=True)
+        
         while self.timelapse_active:
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            path = os.path.join(folder, f"img_{ts}.jpg")
-            self.capture_image(path)
-            time.sleep(interval) """
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{save_path}/shot_{timestamp}.jpg"
+            
+            # Capturamos usando el método existente
+            frame = self.get_jpeg_frame()
+            with open(filename, "wb") as f:
+                f.write(frame)
+            
+            time.sleep(interval)
 
+camera_controller = CameraController()

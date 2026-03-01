@@ -27,11 +27,20 @@ def update_settings():
     """Endpoint para actualizar calidad y rotación"""
     data = request.json
     
+    # Manejo de Rotación
     if 'rotation' in data:
         camera_controller.set_rotation(int(data['rotation']))
+
+    #Manejo de Timelapse
+    if 'timelapse' in data:
+        if data['timelapse'] == 'start':
+            interval = int(data.get('interval', 5))
+            camera_controller.start_timelapse(interval)
+        else:
+            camera_controller.stop_timelapse()  
     
-    # Actualizar controles de imagen
-    for param in ['Brightness', 'Contrast', 'Saturation', 'Sharpness']:
+    # Actualizar controles (Brightness, Contrast, Saturation, Sharpness, AfMode)
+    for param in ['Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode']:
         if param in data:
             camera_controller.update_control(param, data[param])
             
