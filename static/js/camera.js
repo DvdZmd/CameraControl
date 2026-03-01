@@ -48,7 +48,6 @@ function applyCustomResolution() {
     
     if (w > 0 && h > 0) {
         updateCameraSettings({ width: w, height: h });
-        alert(`Cambiando a resolución personalizada: ${w}x${h}`);
     }
 }
 
@@ -82,7 +81,6 @@ async function captureCustomPhoto() {
         window.URL.revokeObjectURL(url);
     } catch (err) {
         console.error(err);
-        alert("Error al capturar la foto custom");
     } finally {
         // Restauramos la opacidad y forzamos al navegador a reconectar el stream MJPEG
         video.style.opacity = "1";
