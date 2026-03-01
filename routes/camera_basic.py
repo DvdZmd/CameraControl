@@ -40,10 +40,7 @@ def video_feed():
 
 @camera_basic_bp.route('/camera_status')
 def camera_status():
-    return jsonify({
-        "af_supported": camera_controller.af_supported,
-        "current_controls": camera_controller.controls
-    })
+    return jsonify(camera_controller.get_capabilities())
 
 
 @camera_basic_bp.route('/update_settings', methods=['POST'])

@@ -39,13 +39,26 @@
             <section class="control-group">
                 <h3>Configuración de Stream</h3>
                 <div class="slider-item">
-                    <label>Resolución</label>
-                    <select id="resolution" onchange="changeResolution(this.value)">
-                        <option value="640x480">480p (VGA)</option>
-                        <option value="1280x720" selected>720p (HD)</option>
-                        <option value="1920x1080">1080p (Full HD)</option>
-                        <option value="1640x1232">1640x1232</option>
-                    </select>
+                    <section class="control-group">
+                        <h3>Resolución</h3>
+                        <div class="slider-item">
+                            <select id="res-preset" onchange="handleResolutionChange(this.value)">
+                                <option value="640x480">480p (VGA)</option>
+                                <option value="1280x720" selected>720p (HD)</option>
+                                <option value="1920x1080">1080p (Full HD)</option>
+                                <option value="1640x1232">1640x1232</option>
+                                <option value="custom">-- Personalizada --</option>
+                            </select>
+                        </div>
+                        
+                        <div id="custom-res-inputs" style="display: none; margin-top: 10px; gap: 5px; align-items: center;">
+                            <input type="number" id="custom-w" placeholder="Ancho" style="width: 70px;">
+                            <span>x</span>
+                            <input type="number" id="custom-h" placeholder="Alto" style="width: 70px;">
+                            <button onclick="applyCustomResolution()" class="btn-small">Aplicar</button>
+                        </div>
+                        <small id="max-res-hint" style="color: #888;"></small>
+                    </section>
                 </div>
                 <button class="btn-primary" onclick="capturePhoto()" style="margin-top: 10px; width: 100%;">
                     📸 Capturar Foto Ahora

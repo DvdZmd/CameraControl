@@ -8,6 +8,21 @@ from camera.camera_utils import validate_control_value # Importamos el validador
 class CameraController:
     def __init__(self):
         self.picam2 = Picamera2()
+
+        # Guardamos la resolución máxima disponible una sola vez
+        self.max_sensor_res = (1640, 1232) # Valor por defecto
+        try:
+            modes = self.picam2.sensor_modes
+            if modes:
+                # Buscamos el modo con mayor resolución
+                w_max = max(m['size'][0] for m in modes)
+                h_max = max(m['size'][1] for m in modes)
+                self.max_sensor_res = (w_max, h_max)
+        except Exception as e:
+            print(f"No se pudieron leer los modos del sensor: {e}")
+        # ---------------------------------------------------
+
+
         # Valores iniciales (puedes vincularlos a tu config.py)
         self.controls = {
             "Brightness": 0.0,    # -1.0 a 1.0
@@ -61,6 +76,17 @@ class CameraController:
 
         self.picam2.start()
         self.is_running = True
+
+    def get_capabilities(self):
+        """Retorna las capacidades usando los datos cacheados"""
+        # Ya no llamamos a self.picam2.sensor_modes aquí para evitar el error
+        return {
+            "max_width": self.max_sensor_res[0],
+            "max_height": self.max_sensor_res[1],
+            "af_supported": self.af_supported,
+            "current_width": self.current_width,
+            "current_height": self.current_height
+        }
 
     def _get_transform(self, angle):
         """Retorna el objeto Transform de libcamera adecuado"""

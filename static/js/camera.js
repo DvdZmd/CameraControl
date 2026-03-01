@@ -9,15 +9,55 @@ window.onload = async () => {
     }
 };
 
-function changeResolution(res) {
-    const [width, height] = res.split('x');
-    updateCameraSettings({
-        'width': parseInt(width),
-        'height': parseInt(height)
-    });
-    // Actualizar el label de la interfaz
-    document.getElementById('resolution-label').innerText = `${res} @ 30fps`;
+let cameraMaxW = 1280;
+let cameraMaxH = 720;
+
+async function initCameraSpecs() {
+    const res = await fetch('/camera_status');
+    const data = await res.json();
+    
+    cameraMaxW = data.max_width;
+    cameraMaxH = data.max_height;
+    
+    // Mostramos al usuario el límite real de su cámara
+    document.getElementById('max-res-hint').innerText = 
+        `Límite del sensor: ${cameraMaxW} x ${cameraMaxH}`;
+        
+    // Si la cámara es una V3, el límite será aprox 4608x2592
+    // Si es una V2, será 3280x2464
 }
+
+function handleResolutionChange(val) {
+    const customDiv = document.getElementById('custom-res-inputs');
+    if (val === 'custom') {
+        customDiv.style.display = 'flex';
+    } else {
+        customDiv.style.display = 'none';
+        const [w, h] = val.split('x');
+        updateCameraSettings({ width: parseInt(w), height: parseInt(h) });
+    }
+}
+
+function applyCustomResolution() {
+    let w = parseInt(document.getElementById('custom-w').value);
+    let h = parseInt(document.getElementById('custom-h').value);
+    
+    // Validación de límites
+    if (w > cameraMaxW) w = cameraMaxW;
+    if (h > cameraMaxH) h = cameraMaxH;
+    
+    if (w > 0 && h > 0) {
+        updateCameraSettings({ width: w, height: h });
+        alert(`Cambiando a resolución personalizada: ${w}x${h}`);
+    }
+}
+
+window.addEventListener('load', async () => {
+    // 1. Obtener capacidades y límites
+    await initCameraSpecs(); 
+    // 2. Verificar AF para mostrar/ocultar sliders
+    await checkCameraCapabilities(); 
+});
 
 async function capturePhoto() {
     try {
