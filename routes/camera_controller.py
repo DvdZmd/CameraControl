@@ -5,14 +5,14 @@ import io
 from datetime import datetime
 
 
-camera_basic_bp = Blueprint('camera_basic', __name__)
+camera_controller_bp = Blueprint('camera_controller', __name__)
 
-@camera_basic_bp.route('/')
+@camera_controller_bp.route('/')
 def index():
     """Sirve el archivo index.html"""
     return render_template('index.html')
 
-@camera_basic_bp.route('/take_photo_custom')
+@camera_controller_bp.route('/take_photo_custom')
 def take_photo_custom():
     # Recibimos el ancho y alto por parámetros de URL (?w=1920&h=1080)
     w = request.args.get('w', default=1280, type=int)
@@ -35,17 +35,17 @@ def generate_frames():
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
         time.sleep(0.03) # 30 FPS aprox
 
-@camera_basic_bp.route('/video_feed')
+@camera_controller_bp.route('/video_feed')
 def video_feed():
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
-@camera_basic_bp.route('/camera_status')
+@camera_controller_bp.route('/camera_status')
 def camera_status():
     return jsonify(camera_controller.get_capabilities())
 
 
-@camera_basic_bp.route('/update_settings', methods=['POST'])
+@camera_controller_bp.route('/update_settings', methods=['POST'])
 def update_settings():
     """Endpoint para actualizar calidad y rotación"""
     data = request.json

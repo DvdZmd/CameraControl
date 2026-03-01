@@ -1,6 +1,6 @@
 from flask import Flask
 from database.models import db
-from routes.camera_basic import camera_basic_bp
+from routes.camera_controller import camera_controller_bp
 
 import os
 
@@ -14,7 +14,7 @@ def create_app():
     db.init_app(app)
 
     # Register routes
-    app.register_blueprint(camera_basic_bp)
+    app.register_blueprint(camera_controller_bp)
 
     # Secret key for session management
     app.secret_key = 'REPLACE_WITH_RANDOM_SECRET_KEY'  # use os.urandom(24) in production
