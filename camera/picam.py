@@ -94,10 +94,6 @@ class CameraController:
         if name == "AfMode" and not self.af_supported:
             return
         
-        if name in self.controls or name == "AfMode":
-            with self.lock:
-                self.controls[name] = float(value)
-                self.picam2.set_controls({name: self.controls[name]})
 
         is_valid, adjusted_value = validate_control_value(name, value)
         if is_valid:

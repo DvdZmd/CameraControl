@@ -178,10 +178,10 @@ def validate_control_value(control_name: str, value: Any) -> Tuple[bool, Any]:
             return True, int(value)
         return False, 0
         
-    # elif control_name == "AfMode":
-    #     if int(value) in limits.AF_MODES:
-    #         return True, int(value)
-    #     return False, 2
+    elif control_name == "AfMode":
+        if int(value) in limits.AF_MODES:
+            return True, int(value)
+        return False, 2
     
     # For other controls, return as-is
     return True, value

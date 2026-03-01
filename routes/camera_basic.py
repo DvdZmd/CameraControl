@@ -68,7 +68,7 @@ def update_settings():
             camera_controller.stop_timelapse()  
     
     # Actualizar controles (Brightness, Contrast, Saturation, Sharpness, AfMode)
-    for param in ['Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode']:
+    for param in ['Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition']:
         if param in data:
             camera_controller.update_control(param, data[param])
             
