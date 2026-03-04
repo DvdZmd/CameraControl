@@ -152,6 +152,10 @@ async function updateCameraSettings(data) {
     if (data.ExposureTime) data.ExposureTime = parseInt(data.ExposureTime);
     if (data.AnalogueGain) data.AnalogueGain = parseFloat(data.AnalogueGain);
 
+    if (data.AeEnable !== undefined) {
+        data.AeEnable = !!data.AeEnable;
+    }
+
     try {
         const response = await fetch('/update_settings', {
             method: 'POST',

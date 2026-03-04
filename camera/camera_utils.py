@@ -106,6 +106,11 @@ class CameraControlLimits:
         6: "Cloudy",
         7: "Custom"
     }
+
+    AE_MODES = {
+        True: "On",
+        False: "Off"
+    }
     
     # Exposure Value compensation
     EXPOSURE_VALUE = (-8.0, 8.0)  # EV compensation range
@@ -182,6 +187,9 @@ def validate_control_value(control_name: str, value: Any) -> Tuple[bool, Any]:
         if int(value) in limits.AF_MODES:
             return True, int(value)
         return False, 2
+    
+    elif control_name == "AeEnable":
+        return True, bool(value)
     
     # For other controls, return as-is
     return True, value

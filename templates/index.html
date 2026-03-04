@@ -37,6 +37,22 @@
                 </div>
             </section>
             <section class="control-group">
+                <h3>Modo Astronomía (V3)</h3>
+                <div class="slider-item">
+                    <label>Exposición Automática (AE)</label>
+                    <select id="AeEnable" onchange="updateCameraSettings({AeEnable: this.value === 'true'})">
+                        <option value="true" selected>Habilitado (Auto)</option>
+                        <option value="false">Deshabilitado (Manual)</option>
+                    </select>
+                </div>
+                
+                <div class="slider-item">
+                    <label>Tiempo de Exposición (μs)</label>
+                    <input type="range" id="ExposureTime" min="75" max="50000" step="100" value="10000" class="camera-slider">
+                    <span id="val-ExposureTime">10000</span>
+                </div>
+            </section>
+            <section class="control-group">
                 <h3>Controles de Exposición (Astronomía)</h3>
                 
                 <div class="slider-item">

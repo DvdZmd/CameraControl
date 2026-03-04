@@ -125,8 +125,19 @@ class CameraController:
         if is_valid:
             with self.lock:
                 self.controls[name] = adjusted_value
-                self.picam2.set_controls({name: adjusted_value})
+                
                 # Si es AfMode manual, podrías querer resetear el LensPosition aquí
+                # Lógica especial para V3 y Astronomía:
+                # Si el usuario toca ExposureTime o AnalogueGain, 
+                # desactivamos el AE automáticamente para que el valor sea real.
+                if name in ["ExposureTime", "AnalogueGain"]:
+                    self.controls["AeEnable"] = False
+                    self.picam2.set_controls({
+                        "AeEnable": False,
+                        name: adjusted_value
+                    })
+                else:
+                    self.picam2.set_controls({name: adjusted_value})
 
     def set_rotation(self, angle):
         """Cambia la rotación reiniciando el stream (requerido por libcamera)"""
