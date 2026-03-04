@@ -5,6 +5,13 @@ import io
 from datetime import datetime
 
 
+# En tu proyecto complejo (Flask, FastApi, etc.)
+#from camera import CameraController
+
+# Instancias una sola vez
+#camera = CameraController(default_res=(1280, 720), save_path="/home/pi/my_app/photos")
+
+
 camera_controller_bp = Blueprint('camera_controller', __name__)
 
 @camera_controller_bp.route('/')
@@ -70,7 +77,7 @@ def update_settings():
             camera_controller.stop_timelapse() 
     
     # Actualizar controles (Brightness, Contrast, Saturation, Sharpness, AfMode)
-    for param in ['Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition']:
+    for param in ['Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition', 'ExposureTime', 'AnalogueGain']:
         if param in data:
             camera_controller.update_control(param, data[param])
             

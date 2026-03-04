@@ -137,7 +137,21 @@ document.querySelectorAll('.camera-slider').forEach(slider => {
     });
 });;
 
+// Actualizar visualización de valores al mover sliders
+document.querySelectorAll('.camera-slider').forEach(slider => {
+    slider.addEventListener('input', (e) => {
+        const display = document.getElementById(`val-${e.target.id}`);
+        if (display) {
+            display.innerText = e.target.value;
+        }
+    });
+});
+
 async function updateCameraSettings(data) {
+    // Aseguramos que los tipos sean correctos antes de enviar
+    if (data.ExposureTime) data.ExposureTime = parseInt(data.ExposureTime);
+    if (data.AnalogueGain) data.AnalogueGain = parseFloat(data.AnalogueGain);
+
     try {
         const response = await fetch('/update_settings', {
             method: 'POST',

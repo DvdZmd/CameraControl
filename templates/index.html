@@ -37,6 +37,31 @@
                 </div>
             </section>
             <section class="control-group">
+                <h3>Controles de Exposición (Astronomía)</h3>
+                
+                <div class="slider-item">
+                    <label>Tiempo de Exposición (μs)</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="range" id="ExposureTime" 
+                            min="75" max="100000" step="100" value="10000" 
+                            class="camera-slider">
+                        <span id="val-ExposureTime">10000</span>
+                    </div>
+                    <small>Luna llena: 5,000 - 20,000 μs</small>
+                </div>
+
+                <div class="slider-item">
+                    <label>Ganancia Analógica (ISO)</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="range" id="AnalogueGain" 
+                            min="1.0" max="10.6" step="0.1" value="1.0" 
+                            class="camera-slider">
+                        <span id="val-AnalogueGain">1.0</span>
+                    </div>
+                    <small>Mantener en 1.0 para objetos brillantes como la Luna</small>
+                </div>
+            </section>
+            <section class="control-group">
                 <h3>Configuración de Stream</h3>
                 <div class="slider-item">
                     <section class="control-group">
