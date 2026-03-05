@@ -1,8 +1,7 @@
-# app_factory.py
 from flask import Flask
-from camera.timelapse import load_saved_config
 from database.models import db
-from routes.camera_routes import camera_bp, register_camera_blueprints
+from routes.camera_controller import camera_controller_bp
+
 import os
 
 def create_app():
@@ -15,8 +14,7 @@ def create_app():
     db.init_app(app)
 
     # Register routes
-    app.register_blueprint(camera_bp)
-    register_camera_blueprints(app)
+    app.register_blueprint(camera_controller_bp)
 
     # Secret key for session management
     app.secret_key = 'REPLACE_WITH_RANDOM_SECRET_KEY'  # use os.urandom(24) in production
@@ -24,6 +22,7 @@ def create_app():
     # Initialize database
     with app.app_context():
         db.create_all()
-        load_saved_config()
+        #TODO: Cargar configuración de timelapse guardada
+        #load_timelapse_config()
 
     return app

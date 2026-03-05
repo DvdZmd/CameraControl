@@ -1,1243 +1,179 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raspberry Pi Camera Control</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f5f5f5;
-            overflow: hidden;
-            height: 100vh;
-        }
-        .main-container {
-            display: flex;
-            height: 100vh;
-            gap: 0;
-        }
-        .left-panel {
-            flex: 0 0 55%;
-            background: white;
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-            overflow: hidden;
-            border-right: 3px solid #ddd;
-        }
-        .right-panel {
-            flex: 1;
-            background: white;
-            overflow-y: auto;
-            overflow-x: hidden;
-            padding: 20px;
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin: 0 0 20px 0;
-            font-size: 24px;
-        }
-        .video-container {
-            text-align: center;
-            position: relative;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            border: 2px solid #ddd;
-            border-radius: 5px;
-            cursor: crosshair;
-            flex: 1;
-            overflow: hidden;
-            background: #000;
-        }
-
-        .server-zoom-indicator {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            font-size: 24px;
-            font-weight: bold;
-            z-index: 1000;
-            pointer-events: none;
-            transition: opacity 0.3s ease;
-            opacity: 0;
-        }
-
-        #video-stream {
-            max-width: 100%;
-            max-height: 100%;
-            width: auto;
-            height: auto;
-            border: none;
-            border-radius: 5px;
-            display: block;
-            object-fit: contain;
-        }
-        .video-info {
-            text-align: center;
-            margin-top: 10px;
-            color: #666;
-            font-size: 12px;
-        }
-        .controls {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-        .control-group {
-            background: #f9f9f9;
-            padding: 15px;
-            border-radius: 5px;
-            border: 1px solid #ddd;
-            width: 100%;
-        }
-        .control-group h3 {
-            margin-top: 0;
-            color: #555;
-        }
-        button {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin: 5px;
-        }
-        button:hover {
-            background: #0056b3;
-        }
-        button.danger {
-            background: #dc3545;
-        }
-        button.danger:hover {
-            background: #c82333;
-        }
-        select, input[type="number"] {
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-            margin: 5px;
-            width: 100px;
-        }
-        
-        /* Server zoom indicator */
-        .server-zoom-indicator {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: bold;
-            z-index: 1000;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        
-        #custom-resolution {
-            background: #f0f0f0;
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
-            border-left: 4px solid #007bff;
-        }
-        
-        #custom-resolution input[type="number"] {
-            width: 80px;
-            margin: 2px;
-        }
-        
-        #resolution-status {
-            padding: 5px;
-            border-radius: 3px;
-            font-family: monospace;
-        }
-        
-        #resolution-status.valid {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        #resolution-status.invalid {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        #resolution-status.testing {
-            background: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeaa7;
-        }
-        
-        input[type="range"] {
-            width: 100%;
-            margin: 10px 0;
-        }
-        
-        label {
-            display: block;
-            font-weight: bold;
-            margin-top: 10px;
-            margin-bottom: 5px;
-            color: #555;
-        }
-        
-        .control-group span {
-            font-family: monospace;
-            background: #e9ecef;
-            padding: 2px 6px;
-            border-radius: 3px;
-            margin-left: 10px;
-        }
-        
-        #focus-distance {
-            background: #d4edda;
-            color: #155724;
-        }
-        .status {
-            background: #e9ecef;
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0 0 0;
-            font-family: monospace;
-            font-size: 12px;
-        }
-        .error {
-            background: #f8d7da;
-            border-color: #f5c6cb;
-            color: #721c24;
-        }
-        .success {
-            background: #d4edda;
-            border-color: #c3e6cb;
-            color: #155724;
-        }
-        
-        /* Responsive adjustments */
-        @media (max-width: 1024px) {
-            .main-container {
-                flex-direction: column;
-            }
-            .left-panel {
-                flex: 0 0 50vh;
-                border-right: none;
-                border-bottom: 3px solid #ddd;
-            }
-            .right-panel {
-                flex: 1;
-            }
-        }
-    </style>
+    <title>PiCam Ultra - Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="main-container">
-        <!-- Left Panel: Video Stream (Fixed) -->
-        <div class="left-panel">
-            <h1>🎥 Raspberry Pi Camera</h1>
-            
-            <div class="video-container" id="video-container">
-                <img id="video-stream" src="/video_feed" alt="Camera Stream">
+    <div class="dashboard">
+        <div class="stream-panel">
+            <div class="status-bar">
+                <span id="connection-status" class="status-online">● LIVE</span>
+                <span id="resolution-label">1280x720 @ 30fps</span>
             </div>
-            
-            <div class="video-info">
-                🖱️ <strong>Zoom:</strong> Rueda del ratón | <strong>Pan:</strong> Arrastrar con botón izquierdo | <strong>Reset:</strong> Doble clic
-            </div>
-            
-            <div id="status" class="status">
-                Ready - Camera Control Interface Loaded
+            <div class="video-wrapper">
+                <img id="video-feed" src="{{ url_for('camera_controller.video_feed') }}" alt="Camera Stream">
             </div>
         </div>
-        
-        <!-- Right Panel: Controls (Scrolleable) -->
-        <div class="right-panel">
-            <div class="controls">
-            <div class="control-group">
-                <h3>📹 Camera Controls</h3>
-                <button onclick="toggleCamera()">Toggle Camera</button>
-                <button onclick="captureImage()">📸 Capture Image</button>
-                <button onclick="getCameraStatus()">📊 Check Status</button>
-                <button onclick="resetCameraControls()">🔄 Reset Controls</button>
-            </div>
 
-            <div class="control-group">
-                <h3>🔄 Rotation</h3>
-                <select id="rotation" onchange="setRotation()">
-                    <option value="0">0°</option>
-                    <option value="90">90°</option>
-                    <option value="180">180°</option>
-                    <option value="270">270°</option>
-                </select>
-            </div>
-
-            <div class="control-group">
-                <h3>📐 Resolution & Mode</h3>
-                <label>Resolution Presets:</label>
-                <select id="resolution" onchange="setResolution()">
-                    <option value="640x480">640x480 (VGA)</option>
-                    <option value="800x600">800x600 (SVGA)</option>
-                    <option value="1280x720">1280x720 (HD)</option>
-                    <option value="1920x1080">1920x1080 (Full HD)</option>
-                    <option value="2592x1944">2592x1944 (Max)</option>
-                    <option value="custom">📝 Custom Resolution</option>
-                </select>
-                
-                <div id="custom-resolution" style="display: none;">
-                    <label>Custom Resolution:</label>
-                    <input type="number" id="custom-width" placeholder="Width" min="64" max="4608" value="1280">
-                    <span>×</span>
-                    <input type="number" id="custom-height" placeholder="Height" min="64" max="2592" value="720">
-                    <button onclick="applyCustomResolution()">📐 Apply</button>
-                    <div id="resolution-status" style="margin-top: 5px; font-size: 12px;"></div>
+        <div class="controls-panel">
+            <h1>Cámara IoT Pro</h1>
+            
+            <section class="control-group">
+                <h3>Imagen (Hardware ISP)</h3>
+                <div class="slider-item">
+                    <label>Brillo</label>
+                    <input type="range" id="Brightness" min="-1.0" max="1.0" step="0.1" value="0.0" class="camera-slider">
                 </div>
-                
-                <label>Camera Mode:</label>
-                <select id="camera-mode" onchange="setCameraMode()">
-                    <option value="video" selected>Video/Stream</option>
-                    <option value="still">Still Capture</option>
-                </select>
-                
-                <button onclick="getCameraInfo()">📊 Camera Info</button>
-            </div>
-
-            <div class="control-group">
-                <h3>🎨 Image Quality</h3>
-                <label>Brightness (-1.0 to 1.0)</label>
-                <input type="range" id="brightness" min="-1" max="1" step="0.1" value="0" onchange="updateImageControl('Brightness', this.value)">
-                <span id="brightness-value">0.0</span>
-                
-                <label>Contrast (0.0 to 32.0)</label>
-                <input type="range" id="contrast" min="0" max="32" step="0.1" value="1" onchange="updateImageControl('Contrast', this.value)">
-                <span id="contrast-value">1.0</span>
-                
-                <label>Saturation (0.0 to 32.0)</label>
-                <input type="range" id="saturation" min="0" max="32" step="0.1" value="1" onchange="updateImageControl('Saturation', this.value)">
-                <span id="saturation-value">1.0</span>
-                
-                <label>Sharpness (0.0 to 16.0)</label>
-                <input type="range" id="sharpness" min="0" max="16" step="0.1" value="1" onchange="updateImageControl('Sharpness', this.value)">
-                <span id="sharpness-value">1.0</span>
-            </div>
-
-            <div class="control-group">
-                <h3>🔍 Focus Control</h3>
-                <label>Mode:</label>
-                <select id="af-mode" onchange="setFocusMode()">
-                    <option value="0">Manual</option>
-                    <option value="1">Auto (Single)</option>
-                    <option value="2" selected>Continuous</option>
-                </select>
-                
-                <label>Manual Position (0=∞, 32=Macro)</label>
-                <input type="range" id="lens-position" min="0" max="32" step="0.5" value="16" onchange="setManualFocus(this.value)">
-                <span id="lens-position-value">16.0</span>
-                <span id="focus-distance"></span>   
-            </div>
-
-            <div class="control-group">
-                <h3>💡 Exposure Control</h3>
-                <label>Mode:</label>
-                <select id="exposure-mode" onchange="setExposureMode()">
-                    <option value="auto" selected>Automatic</option>
-                    <option value="manual">Manual</option>
-                    <option value="scene">Scene Based</option>
-                </select>
-                
-                <div id="manual-exposure" style="display:none;">
-                    <label>Exposure Time (µs)</label>
-                    <input type="range" id="exposure-time" min="100" max="200000" step="100" value="10000" onchange="setManualExposure(this.value)">
-                    <span id="exposure-time-value">10000µs</span>
+                <div class="slider-item">
+                    <label>Contraste</label>
+                    <input type="range" id="Contrast" min="0.0" max="10.0" step="0.1" value="1.0" class="camera-slider">
                 </div>
-                
-                <div id="scene-exposure" style="display:none;">
-                    <select id="scene-type" onchange="setSceneExposure()">
-                        <option value="daylight">Daylight</option>
-                        <option value="indoor">Indoor</option>
-                        <option value="low_light">Low Light</option>
-                        <option value="night">Night</option>
+                <div class="slider-item">
+                    <label>Saturación</label>
+                    <input type="range" id="Saturation" min="0.0" max="10.0" step="0.1" value="1.0" class="camera-slider">
+                </div>
+            </section>
+            <section class="control-group">
+                <h3>Modo Astronomía (V3)</h3>
+                <div class="slider-item">
+                    <label>Exposición Automática (AE)</label>
+                    <select id="AeEnable" onchange="updateCameraSettings({AeEnable: this.value === 'true'})">
+                        <option value="true" selected>Habilitado (Auto)</option>
+                        <option value="false">Deshabilitado (Manual)</option>
                     </select>
                 </div>
                 
-                <label>Analogue Gain (1.0 to 16.0)</label>
-                <input type="range" id="analogue-gain" min="1" max="16" step="0.1" value="1" onchange="updateImageControl('AnalogueGain', this.value)">
-                <span id="analogue-gain-value">1.0</span>
-            </div>
-
-            <div class="control-group">
-                <h3>⚖️ Balance de Blancos</h3>
-                <label>Modo AWB:</label>
-                <select id="awb-mode" onchange="setWhiteBalanceMode()">
-                    <option value="0">Auto</option>
-                    <option value="1">Incandescent (Luz cálida)</option>
-                    <option value="2">Tungsten</option>
-                    <option value="3">Fluorescent</option>
-                    <option value="4">Indoor (LED)</option>
-                    <option value="5">Daylight (Exterior)</option>
-                    <option value="6">Cloudy (Nublado)</option>
-                </select>
+                <div class="slider-item">
+                    <label>Tiempo de Exposición (μs)</label>
+                    <input type="range" id="ExposureTime" min="75" max="50000" step="100" value="10000" class="camera-slider">
+                    <span id="val-ExposureTime">10000</span>
+                </div>
+            </section>
+            <section class="control-group">
+                <h3>Controles de Exposición (Astronomía)</h3>
                 
-                <button onclick="autoDetectWhiteBalance()">🔍 Auto-Detectar</button>
-                <button onclick="applyBalancedPreset()">⚖️ Preset Balanceado</button>
-            </div>
+                <div class="slider-item">
+                    <label>Tiempo de Exposición (μs)</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="range" id="ExposureTime" 
+                            min="75" max="100000" step="100" value="10000" 
+                            class="camera-slider">
+                        <span id="val-ExposureTime">10000</span>
+                    </div>
+                    <small>Luna llena: 5,000 - 20,000 μs</small>
+                </div>
 
-            <div class="control-group">
-                <h3>🎨 Presets</h3>
-                <button onclick="applyPreset('rpicam_hello')" style="background-color: #4a90e2; color: white;">🎯 rpicam-hello Default</button>
-                <button onclick="applyPreset('daylight')">☀️ Daylight</button>
-                <button onclick="applyPreset('indoor')">🏠 Indoor</button>
-                <button onclick="applyPreset('low_light')">🌙 Low Light</button>
-                <button onclick="applyPreset('high_contrast')">📈 High Contrast</button>
-                <button onclick="applyPreset('timelapse')">⏱️ Timelapse</button>
-            </div>
+                <div class="slider-item">
+                    <label>Ganancia Analógica (ISO)</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="range" id="AnalogueGain" 
+                            min="1.0" max="10.6" step="0.1" value="1.0" 
+                            class="camera-slider">
+                        <span id="val-AnalogueGain">1.0</span>
+                    </div>
+                    <small>Mantener en 1.0 para objetos brillantes como la Luna</small>
+                </div>
+            </section>
+            <section class="control-group">
+                <h3>Configuración de Stream</h3>
+                <div class="slider-item">
+                    <section class="control-group">
+                        <h3>Resolución</h3>
+                        <div class="slider-item">
+                            <select id="res-preset" onchange="handleResolutionChange(this.value)">
+                                <option value="640x480">480p (VGA)</option>
+                                <option value="1280x720" selected>720p (HD)</option>
+                                <option value="1920x1080">1080p (Full HD)</option>
+                                <option value="1640x1232">1640x1232</option>
+                                <option value="custom">-- Personalizada --</option>
+                            </select>
+                        </div>
+                        
+                        <div id="custom-res-inputs" style="display: none; margin-top: 10px; gap: 5px; align-items: center;">
+                            <input type="number" id="custom-w" placeholder="Ancho" style="width: 70px;">
+                            <span>x</span>
+                            <input type="number" id="custom-h" placeholder="Alto" style="width: 70px;">
+                            <button onclick="applyCustomResolution()" class="btn-small">Aplicar</button>
+                        </div>
+                        <small id="max-res-hint" style="color: #888;"></small>
+                    </section>
+                </div>
+            </section>
+            <section class="control-group">
+                <h3>Configuración de Captura (Foto)</h3>
+                <div class="slider-item">
+                    <label>Resolución de Foto</label>
+                    <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                        <input type="number" id="photo-w" placeholder="Ancho" value="1920" style="width: 80px;">
+                        <span>x</span>
+                        <input type="number" id="photo-h" placeholder="Alto" value="1080" style="width: 80px;">
+                    </div>
+                    <button class="btn-primary" onclick="captureCustomPhoto()" style="width: 100%;">
+                        📸 Tomar Foto Custom
+                    </button>
+                </div>
+                <small id="sensor-max-label"></small> 
+            </section>
+            <section class="control-group">
+                <h3>Orientación</h3>
+                <div class="btn-grid">
+                    <button onclick="setRotation(0)">0°</button>
+                    <button onclick="setRotation(90)">90°</button>
+                    <button onclick="setRotation(180)">180°</button>
+                    <button onclick="setRotation(270)">270°</button>
+                </div>
+            </section>
 
-            <div class="control-group">
-                <h3>⏱️ Timelapse</h3>
-                <input type="number" id="interval" placeholder="Minutes" value="5" min="1">
-                <button onclick="startTimelapse()">▶️ Start</button>
-                <button onclick="stopTimelapse()" class="danger">⏹️ Stop</button>
-                <button onclick="getTimelapseStatus()">📊 Status</button>
+            <div id="AfModeDiv" class="slider-item">
+                <label>Modo de Enfoque</label>
+                <select id="AfMode" class="camera-slider-select" onchange="updateCameraSettings({'AfMode': this.value})">
+                    <option value="2" selected>Continuo (AF-C)</option>
+                    <option value="1">Automático (AF-S)</option>
+                    <option value="0">Manual</option>
+                </select>
             </div>
+            <div id="manual-focus-container" style="display: none;" class="slider-item">
+                <label>Distancia de Enfoque (Manual)</label>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span>Infinito</span>
+                    <input type="range" id="LensPosition" 
+                        min="0.0" max="12.0" step="0.1" value="0.0" 
+                        class="camera-slider" 
+                        oninput="updateCameraSettings({LensPosition: parseFloat(this.value)})">
+                    <span>Cerca</span>
+                </div>
             </div>
+            
+            <section class="control-group">
+                <h3>Configuración Timelapse</h3>
+                <div class="slider-item">
+                    <label>Intervalo (segundos)</label>
+                    <input type="number" id="tl-interval" value="10" min="2" style="width: 100%;">
+                </div>
+                <div class="slider-item">
+                    <label>Resolución de Captura</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="tl-w" placeholder="Ancho" value="3840" style="width: 80px;">
+                        <span>x</span>
+                        <input type="number" id="tl-h" placeholder="Alto" value="2160" style="width: 80px;">
+                    </div>
+                    <p style="font-size: 0.7em; color: #888; margin-top: 5px;">
+                        Sugerencia 4K: 3840x2160 | Máx V3: 4608x2592
+                    </p>
+                </div>
+                <button id="btn-timelapse" class="btn-primary" onclick="toggleTimelapse()">
+                    Iniciar Timelapse
+                </button>
+                <div id="timelapse-status" class="hidden" style="color: #00ff88; font-weight: bold; margin-top: 10px;">
+                    ● Capturando en Alta Resolución...
+                </div>
+            </section>
         </div>
     </div>
 
-    <script>
-        function updateStatus(message, type = 'info') {
-            const statusDiv = document.getElementById('status');
-            statusDiv.textContent = new Date().toLocaleTimeString() + ': ' + message;
-            statusDiv.className = 'status';
-            if (type === 'error') statusDiv.className += ' error';
-            if (type === 'success') statusDiv.className += ' success';
-        }
-
-        async function apiRequest(url, options = {}) {
-            try {
-                const response = await fetch(url, options);
-                const data = await response.json();
-                return { success: response.ok, data, status: response.status };
-            } catch (error) {
-                return { success: false, error: error.message };
-            }
-        }
-
-        async function toggleCamera() {
-            updateStatus('Toggling camera...');
-            const result = await apiRequest('/toggle_camera', { method: 'POST' });
-            if (result.success) {
-                updateStatus(`Camera ${result.data.enabled ? 'enabled' : 'disabled'}`, 'success');
-            } else {
-                updateStatus('Failed to toggle camera', 'error');
-            }
-        }
-
-        async function setRotation() {
-            const rotation = document.getElementById('rotation').value;
-            updateStatus(`Setting rotation to ${rotation}°...`);
-            
-            const result = await apiRequest('/set_rotation', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ rotation: parseInt(rotation) })
-            });
-            
-            if (result.success) {
-                updateStatus(`Rotation set to ${rotation}°`, 'success');
-            } else {
-                updateStatus('Failed to set rotation', 'error');
-            }
-        }
-
-        async function setResolution() {
-            const resolutionStr = document.getElementById('resolution').value;
-            
-            // Show/hide custom resolution controls
-            const customDiv = document.getElementById('custom-resolution');
-            if (resolutionStr === 'custom') {
-                customDiv.style.display = 'block';
-                updateStatus('Enter custom resolution values and validate');
-                return;
-            } else {
-                customDiv.style.display = 'none';
-            }
-            
-            const [width, height] = resolutionStr.split('x').map(Number);
-            updateStatus(`Setting resolution to ${resolutionStr}...`);
-            
-            const result = await apiRequest('/camera_resolution', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    width: width, 
-                    height: height,
-                    update_stream: true,
-                    force_custom: false
-                })
-            });
-            
-            if (result.success) {
-                const customNote = result.data.is_custom ? ' (custom)' : '';
-                updateStatus(`Resolution set to ${resolutionStr}${customNote} (${result.data.current_mode} mode)`, 'success');
-            } else {
-                updateStatus(`Failed to set resolution: ${result.data?.message || 'Unknown error'}`, 'error');
-            }
-        }
-
-        async function applyCustomResolution() {
-            const width = parseInt(document.getElementById('custom-width').value);
-            const height = parseInt(document.getElementById('custom-height').value);
-            
-            if (!width || !height) {
-                updateStatus('Please enter valid width and height values', 'error');
-                return;
-            }
-            
-            updateStatus(`Applying custom resolution ${width}x${height}...`);
-            
-            const result = await apiRequest('/camera_resolution', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    width: width, 
-                    height: height,
-                    update_stream: true,
-                    force_custom: true  // Force custom resolution
-                })
-            });
-            
-            if (result.success) {
-                updateStatus(`Custom resolution ${width}x${height} applied successfully! (${result.data.current_mode} mode)`, 'success');
-                
-                // Update the preset selector to show current custom resolution
-                const resolutionSelect = document.getElementById('resolution');
-                const customOption = resolutionSelect.querySelector('option[value="custom"]');
-                customOption.textContent = `📝 Custom (${width}x${height})`;
-                
-            } else {
-                updateStatus(`Failed to apply custom resolution: ${result.data?.message || 'Unknown error'}`, 'error');
-            }
-        }
-
-        async function setCameraMode() {
-            const mode = document.getElementById('camera-mode').value;
-            updateStatus(`Switching to ${mode} mode...`);
-            
-            const result = await apiRequest(`/camera_mode/${mode}`, {
-                method: 'POST'
-            });
-            
-            if (result.success) {
-                const resolution = result.data.resolution;
-                updateStatus(`Switched to ${mode} mode (${resolution[0]}x${resolution[1]})`, 'success');
-            } else {
-                updateStatus(`Failed to switch to ${mode} mode`, 'error');
-            }
-        }
-
-        async function getCameraInfo() {
-            updateStatus('Getting camera information...');
-            const result = await apiRequest('/camera_info');
-            
-            if (result.success) {
-                const info = result.data;
-                const resolution = info.resolution;
-                const mode = info.is_still_mode ? 'still' : 'video';
-                
-                updateStatus(`Camera Info - Resolution: ${resolution[0]}x${resolution[1]}, Mode: ${mode}, Controls: ${Object.keys(info.current_controls).length}`, 'success');
-                
-                // Update UI to match current camera state
-                document.getElementById('camera-mode').value = mode;
-                
-                // Check if current resolution matches any preset
-                const currentRes = `${resolution[0]}x${resolution[1]}`;
-                const resolutionSelect = document.getElementById('resolution');
-                const standardOptions = ['640x480', '800x600', '1280x720', '1920x1080', '2592x1944'];
-                
-                if (standardOptions.includes(currentRes)) {
-                    resolutionSelect.value = currentRes;
-                    document.getElementById('custom-resolution').style.display = 'none';
-                } else {
-                    // Custom resolution
-                    resolutionSelect.value = 'custom';
-                    document.getElementById('custom-resolution').style.display = 'block';
-                    document.getElementById('custom-width').value = resolution[0];
-                    document.getElementById('custom-height').value = resolution[1];
-                    
-                    // Update custom option text
-                    const customOption = resolutionSelect.querySelector('option[value="custom"]');
-                    customOption.textContent = `📝 Custom (${resolution[0]}x${resolution[1]})`;
-                    
-                    // Show current custom resolution as valid
-                    const statusDiv = document.getElementById('resolution-status');
-                    const aspectRatio = (resolution[0] / resolution[1]).toFixed(2);
-                    statusDiv.textContent = `✓ Current: ${resolution[0]}x${resolution[1]} (${aspectRatio}:1)`;
-                    statusDiv.className = 'valid';
-                }
-            } else {
-                updateStatus('Failed to get camera info', 'error');
-            }
-        }
-
-        async function captureImage() {
-            updateStatus('Capturing image...');
-            try {
-                const response = await fetch('/capture_image');
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `camera_capture_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.jpg`;
-                    a.click();
-                    updateStatus('Image captured and downloaded', 'success');
-                } else {
-                    const error = await response.json();
-                    updateStatus(`Capture failed: ${error.error}`, 'error');
-                }
-            } catch (error) {
-                updateStatus(`Capture failed: ${error.message}`, 'error');
-            }
-        }
-
-        async function startTimelapse() {
-            const interval = document.getElementById('interval').value;
-            updateStatus(`Starting timelapse every ${interval} minutes...`);
-            
-            const result = await apiRequest('/timelapse', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'start',
-                    interval_minutes: parseInt(interval),
-                    width: 1280,
-                    height: 720
-                })
-            });
-            
-            if (result.success) {
-                updateStatus(result.data.message, 'success');
-            } else {
-                updateStatus('Failed to start timelapse', 'error');
-            }
-        }
-
-        async function stopTimelapse() {
-            updateStatus('Stopping timelapse...');
-            const result = await apiRequest('/timelapse', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'stop' })
-            });
-            
-            if (result.success) {
-                updateStatus(result.data.message, 'success');
-            } else {
-                updateStatus('Failed to stop timelapse', 'error');
-            }
-        }
-
-        async function getCameraStatus() {
-            updateStatus('Checking camera status...');
-            const result = await apiRequest('/camera_status');
-            if (result.success) {
-                const status = result.data;
-                updateStatus(`Camera Available: ${status.available}, Stream: ${status.stream_enabled ? 'ON' : 'OFF'}, Rotation: ${status.rotation_angle}°`, 'success');
-            } else {
-                updateStatus('Failed to get camera status', 'error');
-            }
-        }
-
-        async function getTimelapseStatus() {
-            updateStatus('Checking timelapse status...');
-            const result = await apiRequest('/timelapse_status');
-            if (result.success) {
-                const status = result.data;
-                const msg = status.running ? 
-                    `Timelapse RUNNING: ${status.interval_minutes}min @ ${status.width}x${status.height}` :
-                    'Timelapse STOPPED';
-                updateStatus(msg, status.running ? 'success' : 'info');
-            } else {
-                updateStatus('Failed to get timelapse status', 'error');
-            }
-        }
-
-        // Advanced Camera Control Functions
-        async function updateImageControl(controlName, value) {
-            updateStatus(`Setting ${controlName} to ${value}...`);
-            
-            const result = await apiRequest(`/camera_control/${controlName}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ value: parseFloat(value) })
-            });
-            
-            if (result.success) {
-                updateStatus(`${controlName} set to ${result.data.value}`, 'success');
-                // Update display value
-                const valueSpan = document.getElementById(`${controlName.toLowerCase()}-value`);
-                if (valueSpan) {
-                    valueSpan.textContent = result.data.value;
-                }
-            } else {
-                updateStatus(`Failed to set ${controlName}`, 'error');
-            }
-        }
-
-        async function setFocusMode() {
-            const mode = parseInt(document.getElementById('af-mode').value);
-            const modeNames = {0: 'Manual', 1: 'Auto', 2: 'Continuous'};
-            
-            updateStatus(`Setting focus mode to ${modeNames[mode]}...`);
-            
-            const result = await apiRequest('/camera_focus/auto', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode })
-            });
-            
-            if (result.success) {
-                updateStatus(result.data.message, 'success');
-                
-                // Enable/disable manual controls
-                const manualControls = document.getElementById('lens-position');
-                manualControls.disabled = mode !== 0;
-            } else {
-                updateStatus('Failed to set focus mode', 'error');
-            }
-        }
-
-        async function setManualFocus(lensPosition) {
-            const pos = parseFloat(lensPosition);
-            updateStatus(`Setting manual focus to ${pos}...`);
-            
-            // First set to manual mode
-            document.getElementById('af-mode').value = '0';
-            
-            const result = await apiRequest('/camera_focus/manual', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lens_position: pos })
-            });
-            
-            if (result.success) {
-                updateStatus(`Focus set: ${result.data.distance_estimate}`, 'success');
-                document.getElementById('lens-position-value').textContent = pos.toFixed(1);
-                document.getElementById('focus-distance').textContent = result.data.distance_estimate;
-            } else {
-                updateStatus('Failed to set manual focus', 'error');
-            }
-        }
-
-        async function setExposureMode() {
-            const mode = document.getElementById('exposure-mode').value;
-            
-            // Show/hide controls based on mode
-            document.getElementById('manual-exposure').style.display = mode === 'manual' ? 'block' : 'none';
-            document.getElementById('scene-exposure').style.display = mode === 'scene' ? 'block' : 'none';
-            
-            if (mode === 'auto') {
-                const result = await apiRequest('/camera_exposure/auto', { method: 'POST' });
-                if (result.success) {
-                    updateStatus('Automatic exposure enabled', 'success');
-                } else {
-                    updateStatus('Failed to set automatic exposure', 'error');
-                }
-            }
-        }
-
-        async function setManualExposure(exposureTime) {
-            const time = parseInt(exposureTime);
-            updateStatus(`Setting manual exposure to ${time}µs...`);
-            
-            const result = await apiRequest('/camera_exposure/manual', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ exposure_time: time })
-            });
-            
-            if (result.success) {
-                updateStatus(`Exposure set to ${result.data.exposure_ms}ms`, 'success');
-                document.getElementById('exposure-time-value').textContent = `${time}µs`;
-            } else {
-                updateStatus('Failed to set manual exposure', 'error');
-            }
-        }
-
-        async function setSceneExposure() {
-            const sceneType = document.getElementById('scene-type').value;
-            updateStatus(`Setting exposure for ${sceneType} scene...`);
-            
-            const result = await apiRequest('/camera_exposure/scene', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ scene_type: sceneType })
-            });
-            
-            if (result.success) {
-                updateStatus(result.data.message, 'success');
-            } else {
-                updateStatus('Failed to set scene exposure', 'error');
-            }
-        }
-
-        async function applyPreset(presetName) {
-            updateStatus(`Applying ${presetName} preset...`);
-            
-            const result = await apiRequest(`/camera_preset/${presetName}`, { method: 'POST' });
-            
-            if (result.success) {
-                updateStatus(`${presetName} preset applied`, 'success');
-                // Update UI controls with new values
-                updateControlsFromServer();
-            } else {
-                updateStatus(`Failed to apply ${presetName} preset`, 'error');
-            }
-        }
-
-        async function resetCameraControls() {
-            updateStatus('Resetting camera controls to defaults...');
-            
-            const result = await apiRequest('/camera_reset', { method: 'POST' });
-            
-            if (result.success) {
-                updateStatus('Camera controls reset', 'success');
-                // Reset UI controls to default values
-                resetUIControls();
-                updateControlsFromServer();
-            } else {
-                updateStatus('Failed to reset camera controls', 'error');
-            }
-        }
-
-        async function updateControlsFromServer() {
-            // Get current camera controls and update UI
-            const result = await apiRequest('/camera_controls');
-            
-            if (result.success) {
-                const controls = result.data.current_controls;
-                
-                // Update sliders with current values
-                if (controls.Brightness !== undefined) {
-                    document.getElementById('brightness').value = controls.Brightness;
-                    document.getElementById('brightness-value').textContent = controls.Brightness.toFixed(1);
-                }
-                if (controls.Contrast !== undefined) {
-                    document.getElementById('contrast').value = controls.Contrast;
-                    document.getElementById('contrast-value').textContent = controls.Contrast.toFixed(1);
-                }
-                if (controls.Saturation !== undefined) {
-                    document.getElementById('saturation').value = controls.Saturation;
-                    document.getElementById('saturation-value').textContent = controls.Saturation.toFixed(1);
-                }
-                if (controls.Sharpness !== undefined) {
-                    document.getElementById('sharpness').value = controls.Sharpness;
-                    document.getElementById('sharpness-value').textContent = controls.Sharpness.toFixed(1);
-                }
-                if (controls.AnalogueGain !== undefined) {
-                    document.getElementById('analogue-gain').value = controls.AnalogueGain;
-                    document.getElementById('analogue-gain-value').textContent = controls.AnalogueGain.toFixed(1);
-                }
-                if (controls.AfMode !== undefined) {
-                    document.getElementById('af-mode').value = controls.AfMode;
-                }
-                if (controls.AwbMode !== undefined) {
-                    document.getElementById('awb-mode').value = controls.AwbMode;
-                }
-                if (controls.LensPosition !== undefined && controls.LensPosition !== null) {
-                    document.getElementById('lens-position').value = controls.LensPosition;
-                    document.getElementById('lens-position-value').textContent = controls.LensPosition.toFixed(1);
-                }
-            }
-        }
-
-        async function setWhiteBalanceMode() {
-            const awbMode = parseInt(document.getElementById('awb-mode').value);
-            const modeNames = {
-                0: 'Auto', 1: 'Incandescent', 2: 'Tungsten', 3: 'Fluorescent',
-                4: 'Indoor', 5: 'Daylight', 6: 'Cloudy'
-            };
-            
-            updateStatus(`Setting white balance to ${modeNames[awbMode]}...`);
-            
-            const result = await apiRequest(`/camera_awb/${awbMode}`, {
-                method: 'POST'
-            });
-            
-            if (result.success) {
-                updateStatus(`White balance set to ${result.data.mode_name}`, 'success');
-            } else {
-                updateStatus('Failed to set white balance mode', 'error');
-            }
-        }
-
-        async function autoDetectWhiteBalance() {
-            updateStatus('Auto-detecting optimal white balance...');
-            
-            const result = await apiRequest('/camera_awb/auto_detect', {
-                method: 'POST'
-            });
-            
-            if (result.success) {
-                const message = result.data.blue_tint_detected ? 
-                    `Blue tint corrected! ${result.data.message}` : 
-                    result.data.message;
-                updateStatus(message, 'success');
-                
-                // Update UI to reflect new setting
-                document.getElementById('awb-mode').value = result.data.awb_mode;
-            } else {
-                updateStatus('Failed to auto-detect white balance', 'error');
-            }
-        }
-
-        async function applyBalancedPreset() {
-            updateStatus('Applying balanced preset...');
-            
-            const result = await apiRequest('/camera_preset/balanced', {
-                method: 'POST'
-            });
-            
-            if (result.success) {
-                updateStatus('Balanced preset applied - colors should look more natural!', 'success');
-                // Update all controls from server
-                updateControlsFromServer();
-            } else {
-                updateStatus('Failed to apply balanced preset', 'error');
-            }
-        }
-
-        function resetUIControls() {
-            // Reset all UI controls to default values
-            document.getElementById('brightness').value = 0;
-            document.getElementById('brightness-value').textContent = '0.0';
-            document.getElementById('contrast').value = 1;
-            document.getElementById('contrast-value').textContent = '1.0';
-            document.getElementById('saturation').value = 1;
-            document.getElementById('saturation-value').textContent = '1.0';
-            document.getElementById('sharpness').value = 1;
-            document.getElementById('sharpness-value').textContent = '1.0';
-            document.getElementById('analogue-gain').value = 1;
-            document.getElementById('analogue-gain-value').textContent = '1.0';
-            document.getElementById('af-mode').value = 2;
-            document.getElementById('awb-mode').value = 0;
-            document.getElementById('exposure-mode').value = 'auto';
-            document.getElementById('manual-exposure').style.display = 'none';
-            document.getElementById('scene-exposure').style.display = 'none';
-        }
-
-        // Initialize sliders with mouse wheel support
-        function initializeSliders() {
-            const sliders = document.querySelectorAll('input[type="range"]');
-            
-            sliders.forEach(slider => {
-                // Add mouse wheel support
-                slider.addEventListener('wheel', function(e) {
-                    e.preventDefault();
-                    
-                    const step = parseFloat(this.step) || 0.1;
-                    const delta = e.deltaY > 0 ? -step : step;
-                    const newValue = Math.min(Math.max(parseFloat(this.value) + delta, parseFloat(this.min)), parseFloat(this.max));
-                    
-                    this.value = newValue;
-                    this.dispatchEvent(new Event('change'));
-                });
-                
-                // Update value display on input
-                slider.addEventListener('input', function() {
-                    const valueSpan = document.getElementById(this.id + '-value');
-                    if (valueSpan) {
-                        valueSpan.textContent = parseFloat(this.value).toFixed(1);
-                    }
-                });
-            });
-        }
-
-        // Auto-refresh camera status on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            getCameraStatus();
-            updateControlsFromServer();
-            getCameraInfo(); // Load current resolution and mode
-            initializeSliders();
-            initializeServerZoomPan(); // Initialize server-side zoom/pan on image
-        });
-
-        // ======= SERVER-SIDE ZOOM AND PAN ON IMAGE =======
-        
-        function initializeServerZoomPan() {
-            console.log('🔧 Initializing server zoom/pan...');
-            
-            const container = document.getElementById('video-container');
-            const image = document.getElementById('video-stream');
-            
-            console.log('📦 Container:', container);
-            console.log('🖼️ Image:', image);
-            
-            if (!container || !image) {
-                console.error('❌ Container or image not found!');
-                return;
-            }
-
-            let isDragging = false;
-            let lastMouseX = 0;
-            let lastMouseY = 0;
-
-            console.log('✅ Setting up event listeners...');
-
-            // Mouse wheel for server zoom - attach to image directly
-            image.addEventListener('wheel', function(e) {
-                console.log('🎡 Wheel event detected:', e.deltaY);
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const rect = image.getBoundingClientRect();
-                const mouseX = (e.clientX - rect.left) / rect.width;
-                const mouseY = (e.clientY - rect.top) / rect.height;
-                
-                console.log('📍 Mouse position:', mouseX, mouseY);
-                
-                // Clamp coordinates to 0-1 range
-                const centerX = Math.max(0, Math.min(1, mouseX));
-                const centerY = Math.max(0, Math.min(1, mouseY));
-                
-                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-                console.log('🔍 Zoom factor:', zoomFactor);
-                
-                applyServerZoom(zoomFactor, centerX, centerY);
-            }, { passive: false });
-
-            // Mouse down - start dragging for pan
-            image.addEventListener('mousedown', function(e) {
-                if (e.button === 0) {
-                    console.log('🖱️ Mouse down for pan');
-                    isDragging = true;
-                    lastMouseX = e.clientX;
-                    lastMouseY = e.clientY;
-                    image.style.cursor = 'grabbing';
-                    e.preventDefault();
-                }
-            });
-
-            // Mouse move - pan server view
-            document.addEventListener('mousemove', function(e) {
-                if (isDragging) {
-                    console.log('🔄 Panning...');
-                    const deltaX = e.clientX - lastMouseX;
-                    const deltaY = e.clientY - lastMouseY;
-                    
-                    lastMouseX = e.clientX;
-                    lastMouseY = e.clientY;
-                    
-                    // Convert pixel delta to relative delta (smaller movements)
-                    const rect = image.getBoundingClientRect();
-                    const relativeDeltaX = deltaX / rect.width * 0.3; // Natural movement direction
-                    const relativeDeltaY = deltaY / rect.height * 0.3;
-                    
-                    applyServerPan(relativeDeltaX, relativeDeltaY);
-                }
-            });
-
-            // Mouse up - stop dragging
-            document.addEventListener('mouseup', function(e) {
-                if (e.button === 0) {
-                    console.log('🖱️ Mouse up - stop pan');
-                    isDragging = false;
-                    image.style.cursor = 'crosshair';
-                }
-            });
-
-            // Double click to reset
-            image.addEventListener('dblclick', function(e) {
-                console.log('🔄 Double click - resetting zoom');
-                resetServerZoom();
-            });
-
-            // Touch events for mobile
-            let lastTouchDistance = 0;
-            let lastTouchX = 0;
-            let lastTouchY = 0;
-            
-            container.addEventListener('touchstart', function(e) {
-                e.preventDefault();
-                
-                if (e.touches.length === 2) {
-                    // Pinch zoom
-                    lastTouchDistance = getTouchDistance(e.touches);
-                } else if (e.touches.length === 1) {
-                    // Pan
-                    isDragging = true;
-                    lastTouchX = e.touches[0].clientX;
-                    lastTouchY = e.touches[0].clientY;
-                }
-            });
-
-            container.addEventListener('touchmove', function(e) {
-                e.preventDefault();
-                
-                if (e.touches.length === 2 && lastTouchDistance > 0) {
-                    // Pinch zoom
-                    const touchDistance = getTouchDistance(e.touches);
-                    const zoomFactor = touchDistance / lastTouchDistance;
-                    
-                    // Calculate center point between touches
-                    const rect = image.getBoundingClientRect();
-                    const centerX = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left) / rect.width;
-                    const centerY = ((e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top) / rect.height;
-                    
-                    applyServerZoom(zoomFactor, centerX, centerY);
-                    lastTouchDistance = touchDistance;
-                    
-                } else if (e.touches.length === 1 && isDragging) {
-                    // Pan
-                    const deltaX = e.touches[0].clientX - lastTouchX;
-                    const deltaY = e.touches[0].clientY - lastTouchY;
-                    
-                    lastTouchX = e.touches[0].clientX;
-                    lastTouchY = e.touches[0].clientY;
-                    
-                    const rect = image.getBoundingClientRect();
-                    const relativeDeltaX = deltaX / rect.width * 0.3;
-                    const relativeDeltaY = deltaY / rect.height * 0.3;
-                    
-                    applyServerPan(relativeDeltaX, relativeDeltaY);
-                }
-            });
-
-            container.addEventListener('touchend', function(e) {
-                isDragging = false;
-                lastTouchDistance = 0;
-            });
-
-            // Keyboard shortcuts
-            document.addEventListener('keydown', function(e) {
-                if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') {
-                    return; // Don't interfere with form inputs
-                }
-                
-                switch(e.key) {
-                    case '+':
-                    case '=':
-                        applyServerZoom(1.2, 0.5, 0.5);
-                        e.preventDefault();
-                        break;
-                    case '-':
-                        applyServerZoom(0.8, 0.5, 0.5);
-                        e.preventDefault();
-                        break;
-                    case '0':
-                        resetServerZoom();
-                        e.preventDefault();
-                        break;
-                    case 'r':
-                    case 'R':
-                        resetServerZoom();
-                        e.preventDefault();
-                        break;
-                }
-            });
-        }
-
-        function getTouchDistance(touches) {
-            const dx = touches[0].clientX - touches[1].clientX;
-            const dy = touches[0].clientY - touches[1].clientY;
-            return Math.sqrt(dx * dx + dy * dy);
-        }
-
-        async function applyServerZoom(zoomFactor, centerX = 0.5, centerY = 0.5) {
-            console.log('📡 Sending zoom request:', { zoomFactor, centerX, centerY });
-            
-            const result = await apiRequest('/camera_zoom', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    zoom_factor: zoomFactor,
-                    center_x: centerX,
-                    center_y: centerY
-                })
-            });
-            
-            console.log('📡 Zoom response:', result);
-            
-            if (result.success) {
-                showServerZoomIndicator(`🔍 ${result.data.zoom_level.toFixed(1)}x`);
-            } else {
-                console.error('❌ Zoom failed:', result);
-                showServerZoomIndicator('❌ Zoom Failed');
-            }
-        }
-
-        async function applyServerPan(deltaX, deltaY) {
-            console.log('📡 Sending pan request:', { deltaX, deltaY });
-            
-            const result = await apiRequest('/camera_pan', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    delta_x: deltaX,
-                    delta_y: deltaY
-                })
-            });
-            
-            console.log('📡 Pan response:', result);
-            
-            if (result.success) {
-                // Optional: show pan feedback
-                // showServerZoomIndicator('📍 Panned');
-            } else {
-                console.error('❌ Pan failed:', result);
-            }
-        }
-
-        async function resetServerZoom() {
-            const result = await apiRequest('/camera_roi/reset', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (result.success) {
-                showServerZoomIndicator('🔍 Reset');
-            } else {
-                console.error('❌ Reset failed:', result);
-                showServerZoomIndicator('❌ Reset Failed');
-            }
-        }
-
-        function showServerZoomIndicator(text) {
-            let indicator = document.getElementById('server-zoom-indicator');
-            if (!indicator) {
-                indicator = document.createElement('div');
-                indicator.id = 'server-zoom-indicator';
-                indicator.className = 'server-zoom-indicator';
-                document.body.appendChild(indicator);
-            }
-            
-            indicator.textContent = text;
-            indicator.style.opacity = '1';
-            
-            clearTimeout(indicator.fadeTimeout);
-            indicator.fadeTimeout = setTimeout(() => {
-                indicator.style.opacity = '0';
-            }, 1500);
-        }
-
-    </script>
+    <script src="{{ url_for('static', filename='js/camera.js') }}"></script>
 </body>
 </html>
