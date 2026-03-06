@@ -7,7 +7,6 @@ from datetime import datetime
 
 # En tu proyecto complejo (Flask, FastApi, etc.)
 #from camera import CameraController
-
 # Instancias una sola vez
 #camera = CameraController(default_res=(1280, 720), save_path="/home/pi/my_app/photos")
 

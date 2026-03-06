@@ -1,51 +1,49 @@
 import io, time, threading, os
 from datetime import datetime
 from picamera2 import Picamera2
-from config import FRAME_RATE, CAMERA_WIDTH, CAMERA_HEIGHT
 from libcamera import Transform
 from camera.camera_utils import validate_control_value # Importamos el validador
 
 class CameraController:
-    def __init__(self):
+    def __init__(self, width=1640, height=1232, rotation=0, save_path="captures"):
         self.picam2 = Picamera2()
 
         # Guardamos la resolución máxima disponible una sola vez
-        self.max_sensor_res = (1640, 1232) # Valor por defecto
-        try:
-            modes = self.picam2.sensor_modes
-            if modes:
-                # Buscamos el modo con mayor resolución
-                w_max = max(m['size'][0] for m in modes)
-                h_max = max(m['size'][1] for m in modes)
-                self.max_sensor_res = (w_max, h_max)
-        except Exception as e:
-            print(f"No se pudieron leer los modos del sensor: {e}")
-        # ---------------------------------------------------
+        self.max_sensor_res = (width, height) # Valor por defecto
+        self._detect_sensor_limits()
 
-
-        # Valores iniciales (puedes vincularlos a tu config.py)
+        # Valores iniciales (se pueden vincularlos a config.py)
         self.controls = {
             "Brightness": 0.0,    # -1.0 a 1.0
             "Contrast": 1.0,      # 0.0 a 15.99
             "Saturation": 1.0,    # 0.0 a 32.0
             "Sharpness": 1.0,     # 0.0 a 16.0
-            #"LensPosition": 0.0   # Añadimos valor inicial para el foco
         }
 
         self.is_running = False
-        self.current_width = 1640
-        self.current_height = 1232
-        self.current_rotation = 0
+        self.current_width = width
+        self.current_height = height
+        self.current_rotation = rotation
+        self.save_path = save_path
         self.af_supported = False # Bandera de detección
 
         self.lock = threading.Lock()
-        self.current_rotation = 0
 
         # Atributos para Timelapse
         self.timelapse_thread = None
         self.timelapse_active = False
 
         self._initialize_camera()
+
+    def _detect_sensor_limits(self):
+        try:
+            modes = self.picam2.sensor_modes
+            if modes:
+                w = max(m['size'][0] for m in modes)
+                h = max(m['size'][1] for m in modes)
+                self.max_sensor_res = (w, h)
+        except:
+            pass
 
     def _initialize_camera(self):
         """Configura e inicia la cámara con la resolución y rotación actual"""
@@ -210,7 +208,7 @@ class CameraController:
         self.timelapse_active = False
         
     def _timelapse_worker(self, interval, width, height):
-        save_path = "captures/timelapse"
+        save_path = self.save_path
         os.makedirs(save_path, exist_ok=True)
         
         while self.timelapse_active:
