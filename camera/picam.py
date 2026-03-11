@@ -2,34 +2,39 @@ import io, time, threading, os
 from datetime import datetime
 from picamera2 import Picamera2
 from libcamera import Transform
-from camera.camera_utils import validate_control_value # Importamos el validador
+from camera.camera_utils import CameraPresets, validate_control_value # Importamos el validador
 
 class CameraController:
     def __init__(self, width=1640, height=1232, rotation=0, save_path="captures"):
         self.picam2 = Picamera2()
+        # Guardamos valores iniciales de fábrica para el Reset
+        self.default_config = {
+            "width": width,
+            "height": height,
+            "rotation": rotation,
+            "controls": {
+                "Brightness": 0.0,
+                "Contrast": 1.0,
+                "Saturation": 1.0,
+                "Sharpness": 1.0,
+                "AeEnable": True
+            }
+        }
 
         # Guardamos la resolución máxima disponible una sola vez
         self.max_sensor_res = (width, height) # Valor por defecto
         self._detect_sensor_limits()
 
         # Valores iniciales (se pueden vincularlos a config.py)
-        self.controls = {
-            "Brightness": 0.0,    # -1.0 a 1.0
-            "Contrast": 1.0,      # 0.0 a 15.99
-            "Saturation": 1.0,    # 0.0 a 32.0
-            "Sharpness": 1.0,     # 0.0 a 16.0
-        }
-
-        self.is_running = False
+        self.controls = dict(self.default_config["controls"])
         self.current_width = width
         self.current_height = height
         self.current_rotation = rotation
         self.save_path = save_path
-        self.af_supported = False # Bandera de detección
 
+        self.is_running = False
+        self.af_supported = False
         self.lock = threading.Lock()
-
-        # Atributos para Timelapse
         self.timelapse_thread = None
         self.timelapse_active = False
 
@@ -75,6 +80,34 @@ class CameraController:
         self.picam2.start()
         self.is_running = True
 
+    def reset_to_defaults(self):
+        """Restaura la configuración de fábrica y reinicia el stream"""
+        with self.lock:
+            print("Restaurando configuración por defecto...")
+            self.current_width = self.default_config["width"]
+            self.current_height = self.default_config["height"]
+            self.current_rotation = self.default_config["rotation"]
+            self.controls = dict(self.default_config["controls"])
+            
+            # Si hay AF, lo devolvemos a Continuo
+            if self.af_supported:
+                self.controls["AfMode"] = 2
+                
+            self._initialize_camera()
+
+    def apply_preset(self, preset_name):
+        """Aplica un conjunto de valores desde CameraPresets"""
+        preset = getattr(CameraPresets, preset_name, None)
+        if not preset:
+            print(f"Error: Preset {preset_name} no encontrado.")
+            return False
+        
+        print(f"Aplicando preset: {preset_name}")
+        with self.lock:
+            self.controls.update(preset)
+            self.picam2.set_controls(self.controls)
+        return True
+
     def get_capabilities(self):
         """Retorna las capacidades usando los datos cacheados"""
         # Ya no llamamos a self.picam2.sensor_modes aquí para evitar el error
@@ -118,8 +151,8 @@ class CameraController:
         if name == "AfMode" and not self.af_supported:
             return
         
-
         is_valid, adjusted_value = validate_control_value(name, value)
+
         if is_valid:
             with self.lock:
                 self.controls[name] = adjusted_value
@@ -128,6 +161,7 @@ class CameraController:
                 # Lógica especial para V3 y Astronomía:
                 # Si el usuario toca ExposureTime o AnalogueGain, 
                 # desactivamos el AE automáticamente para que el valor sea real.
+                # TODO actualizar frontend
                 if name in ["ExposureTime", "AnalogueGain"]:
                     self.controls["AeEnable"] = False
                     self.picam2.set_controls({
@@ -161,7 +195,8 @@ class CameraController:
 
                 still_config = self.picam2.create_still_configuration(
                     main={"size": (target_w, target_h), "format": "XRGB8888"},
-                    transform=self._get_transform(self.current_rotation)
+                    transform=self._get_transform(self.current_rotation),
+                    controls=self.controls
                 )
                 self.picam2.configure(still_config)
                 self.picam2.start()

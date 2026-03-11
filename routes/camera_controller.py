@@ -18,6 +18,18 @@ def index():
     """Sirve el archivo index.html"""
     return render_template('index.html')
 
+@camera_controller_bp.route('/reset', methods=['POST'])
+def reset_camera():
+    camera_controller.reset_to_defaults()
+    return jsonify({"status": "success", "message": "Camera reset to defaults"})
+
+@camera_controller_bp.route('/apply_preset', methods=['POST'])
+def apply_preset():
+    preset_name = request.json.get('preset') # Ej: 'LUNAR_PHOTOGRAPHY'
+    if camera_controller.apply_preset(preset_name):
+        return jsonify({"status": "success"})
+    return jsonify({"status": "error", "message": "Preset not found"}), 404
+
 @camera_controller_bp.route('/take_photo_custom')
 def take_photo_custom():
     # Recibimos el ancho y alto por parámetros de URL (?w=1920&h=1080)

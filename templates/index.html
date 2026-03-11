@@ -17,10 +17,74 @@
                 <img id="video-feed" src="{{ url_for('camera_controller.video_feed') }}" alt="Camera Stream">
             </div>
         </div>
-
         <div class="controls-panel">
             <h1>Cámara IoT Pro</h1>
-            
+            <section class="control-group">
+                <h3>Configuración de Stream</h3>
+                <div class="slider-item">
+                    <section class="control-group">
+                        <h3>Resolución</h3>
+                        <div class="slider-item">
+                            <select id="res-preset" onchange="handleResolutionChange(this.value)">
+                                <option value="640x480">480p (VGA)</option>
+                                <option value="1280x720" selected>720p (HD)</option>
+                                <option value="1920x1080">1080p (Full HD)</option>
+                                <option value="1640x1232">1640x1232</option>
+                                <option value="custom">-- Personalizada --</option>
+                            </select>
+                        </div>
+                        <div id="custom-res-inputs" style="display: none; margin-top: 10px; gap: 5px; align-items: center;">
+                            <input type="number" id="custom-w" placeholder="Ancho" style="width: 70px;">
+                            <span>x</span>
+                            <input type="number" id="custom-h" placeholder="Alto" style="width: 70px;">
+                            <button onclick="applyCustomResolution()" class="btn-small">Aplicar</button>
+                        </div>
+                        <small id="max-res-hint" style="color: #888;"></small>
+                    </section>
+                </div>
+            </section>  
+            <section class="control-group">
+                <h3>Configuración de Captura (Foto)</h3>
+                <div class="slider-item">
+                    <label>Resolución de Foto</label>
+                    <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                        <input type="number" id="photo-w" placeholder="Ancho" value="1920" style="width: 80px;">
+                        <span>x</span>
+                        <input type="number" id="photo-h" placeholder="Alto" value="1080" style="width: 80px;">
+                    </div>
+                    <button class="btn-primary" onclick="captureCustomPhoto()" style="width: 100%;">
+                        📸 Tomar Foto Custom
+                    </button>
+                </div>
+                <small id="sensor-max-label"></small> 
+            </section>  
+            <section class="control-group">
+                <h3>Gestión de Configuración</h3>
+                <div class="slider-item">
+                    <label>Presets Disponibles</label>
+                    <select id="camera-presets" onchange="applyPreset(this.value)">
+                        <option value="" disabled selected>Selecciona un preset...</option>
+                        <option value="RPICAM_HELLO_DEFAULT">Por Defecto (Hello)</option>
+                        <option value="LUNAR_PHOTOGRAPHY">🌕 Fotografía Lunar</option>
+                        <option value="DAYLIGHT">☀️ Luz de Día</option>
+                        <option value="INDOOR">🏠 Interior</option>
+                        <option value="LOW_LIGHT">🌑 Baja Luz</option>
+                        <option value="TIMELAPSE">⏱️ Timelapse</option>
+                    </select>
+                </div>
+                <button class="btn-danger" onclick="resetCamera()" style="width: 100%; margin-top: 10px;">
+                    ⚠️ Resetear a Valores de Fábrica
+                </button>
+            </section>
+            <section class="control-group">
+                <h3>Orientación</h3>
+                <div class="btn-grid">
+                    <button onclick="setRotation(0)">0°</button>
+                    <button onclick="setRotation(90)">90°</button>
+                    <button onclick="setRotation(180)">180°</button>
+                    <button onclick="setRotation(270)">270°</button>
+                </div>
+            </section>      
             <section class="control-group">
                 <h3>Imagen (Hardware ISP)</h3>
                 <div class="slider-item">
@@ -45,27 +109,6 @@
                         <option value="false">Deshabilitado (Manual)</option>
                     </select>
                 </div>
-                
-                <div class="slider-item">
-                    <label>Tiempo de Exposición (μs)</label>
-                    <input type="range" id="ExposureTime" min="75" max="50000" step="100" value="10000" class="camera-slider">
-                    <span id="val-ExposureTime">10000</span>
-                </div>
-            </section>
-            <section class="control-group">
-                <h3>Controles de Exposición (Astronomía)</h3>
-                
-                <div class="slider-item">
-                    <label>Tiempo de Exposición (μs)</label>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <input type="range" id="ExposureTime" 
-                            min="75" max="100000" step="100" value="10000" 
-                            class="camera-slider">
-                        <span id="val-ExposureTime">10000</span>
-                    </div>
-                    <small>Luna llena: 5,000 - 20,000 μs</small>
-                </div>
-
                 <div class="slider-item">
                     <label>Ganancia Analógica (ISO)</label>
                     <div style="display: flex; gap: 10px; align-items: center;">
@@ -76,57 +119,15 @@
                     </div>
                     <small>Mantener en 1.0 para objetos brillantes como la Luna</small>
                 </div>
-            </section>
-            <section class="control-group">
-                <h3>Configuración de Stream</h3>
                 <div class="slider-item">
-                    <section class="control-group">
-                        <h3>Resolución</h3>
-                        <div class="slider-item">
-                            <select id="res-preset" onchange="handleResolutionChange(this.value)">
-                                <option value="640x480">480p (VGA)</option>
-                                <option value="1280x720" selected>720p (HD)</option>
-                                <option value="1920x1080">1080p (Full HD)</option>
-                                <option value="1640x1232">1640x1232</option>
-                                <option value="custom">-- Personalizada --</option>
-                            </select>
-                        </div>
-                        
-                        <div id="custom-res-inputs" style="display: none; margin-top: 10px; gap: 5px; align-items: center;">
-                            <input type="number" id="custom-w" placeholder="Ancho" style="width: 70px;">
-                            <span>x</span>
-                            <input type="number" id="custom-h" placeholder="Alto" style="width: 70px;">
-                            <button onclick="applyCustomResolution()" class="btn-small">Aplicar</button>
-                        </div>
-                        <small id="max-res-hint" style="color: #888;"></small>
-                    </section>
+                    <label>Tiempo de Exposición (μs)</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="range" id="ExposureTime" min="75" max="50000" step="100" value="10000" class="camera-slider">
+                        <span id="val-ExposureTime">10000</span>
+                    </div>y
+                    <small>Luna llena: 5,000 - 20,000 μs</small>
                 </div>
             </section>
-            <section class="control-group">
-                <h3>Configuración de Captura (Foto)</h3>
-                <div class="slider-item">
-                    <label>Resolución de Foto</label>
-                    <div style="display: flex; gap: 5px; margin-bottom: 10px;">
-                        <input type="number" id="photo-w" placeholder="Ancho" value="1920" style="width: 80px;">
-                        <span>x</span>
-                        <input type="number" id="photo-h" placeholder="Alto" value="1080" style="width: 80px;">
-                    </div>
-                    <button class="btn-primary" onclick="captureCustomPhoto()" style="width: 100%;">
-                        📸 Tomar Foto Custom
-                    </button>
-                </div>
-                <small id="sensor-max-label"></small> 
-            </section>
-            <section class="control-group">
-                <h3>Orientación</h3>
-                <div class="btn-grid">
-                    <button onclick="setRotation(0)">0°</button>
-                    <button onclick="setRotation(90)">90°</button>
-                    <button onclick="setRotation(180)">180°</button>
-                    <button onclick="setRotation(270)">270°</button>
-                </div>
-            </section>
-
             <div id="AfModeDiv" class="slider-item">
                 <label>Modo de Enfoque</label>
                 <select id="AfMode" class="camera-slider-select" onchange="updateCameraSettings({'AfMode': this.value})">
@@ -145,8 +146,7 @@
                         oninput="updateCameraSettings({LensPosition: parseFloat(this.value)})">
                     <span>Cerca</span>
                 </div>
-            </div>
-            
+            </div>      
             <section class="control-group">
                 <h3>Configuración Timelapse</h3>
                 <div class="slider-item">
@@ -173,7 +173,6 @@
             </section>
         </div>
     </div>
-
     <script src="{{ url_for('static', filename='js/camera.js') }}"></script>
 </body>
 </html>

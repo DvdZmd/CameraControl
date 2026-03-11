@@ -79,6 +79,15 @@ class CameraPresets:
         "AnalogueGain": 1.5
     }
 
+    LUNAR_PHOTOGRAPHY = {
+        "AeEnable": False,      # Crucial para evitar el "manchón" blanco
+        "AnalogueGain": 1.0,    # ISO mínimo para nitidez
+        "ExposureTime": 10000,  # 10ms iniciales, ajustar según telescopio
+        "Brightness": 0.0,
+        "Contrast": 1.5,        # Resalta el relieve de los cráteres
+        "AfMode": 0             # Foco manual para estabilidad en telescopio
+    }
+
 
 class CameraControlLimits:
     """Límites y rangos para controles de cámara"""

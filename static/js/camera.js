@@ -147,6 +147,38 @@ document.querySelectorAll('.camera-slider').forEach(slider => {
     });
 });
 
+// Aplicar un preset desde el selector
+async function applyPreset(presetName) {
+    if (!presetName) return;
+    
+    try {
+        const response = await fetch('/apply_preset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ preset: presetName })
+        });
+        
+        if (response.ok) {
+            // Recargar la página para actualizar los valores de los sliders
+            location.reload(); 
+        }
+    } catch (err) {
+        console.error("Error al aplicar preset:", err);
+    }
+}
+
+// Resetear la cámara
+async function resetCamera() {
+    try {
+        const response = await fetch('/reset', { method: 'POST' });
+        if (response.ok) {
+            location.reload();
+        }
+    } catch (err) {
+        console.error("Error al resetear cámara:", err);
+    }
+}
+
 async function updateCameraSettings(data) {
     // Aseguramos que los tipos sean correctos antes de enviar
     if (data.ExposureTime) data.ExposureTime = parseInt(data.ExposureTime);
