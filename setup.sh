@@ -77,9 +77,11 @@ echo "Starting the Camera Control service configuration..."
 read -p "Do you want to set up cameracontrol.service in systemd to start on boot? (y/n): " setup_choice
 if [[ "$setup_choice" =~ ^[Yy]$ ]]; then
     export CAMERACONTROL_PATH="$(pwd)"
+    export CAMERACONTROL_USER="$(whoami)"
     echo "Detected repository path: $CAMERACONTROL_PATH"
+    echo "Detected current user: $CAMERACONTROL_USER"
 
-    echo "Rendering systemd service file with correct path..."
+    echo "Rendering systemd service file with correct path and user..."
     envsubst < cameracontrol.service.in > /tmp/cameracontrol.service
 
     echo "Installing systemd service file..."
