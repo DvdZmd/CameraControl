@@ -3,7 +3,7 @@ picamera2                # Raspberry Pi camera library for capturing images and 
 
 # Flask for web server or REST API
 flask                    # Web framework for building the server and REST API
-
+bleak
 # Database support
 flask_sqlalchemy
 sqlalchemy
