@@ -1,6 +1,8 @@
-# ble_camera_controller.py
 import asyncio
+import threading
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Optional
+
 from bleak import BleakClient, BleakScanner
 
 
@@ -13,8 +15,22 @@ class Esp32BleCameraController:
         self.device_name = device_name or self.DEVICE_NAME
         self.address = address
         self.client: Optional[BleakClient] = None
-        self.lock = asyncio.Lock()
         self.last_state: Optional[str] = None
+
+        self._loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(target=self._run_loop, daemon=True)
+        self._thread.start()
+
+    def _run_loop(self):
+        asyncio.set_event_loop(self._loop)
+        self._loop.run_forever()
+
+    def _run_coro(self, coro, timeout: float = 10):
+        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        try:
+            return future.result(timeout=timeout)
+        except FutureTimeoutError:
+            raise RuntimeError("Timeout ejecutando operación BLE")
 
     async def _notification_handler(self, _, data: bytearray):
         try:
@@ -22,7 +38,7 @@ class Esp32BleCameraController:
         except Exception:
             self.last_state = None
 
-    async def discover_address(self) -> str:
+    async def _discover_address(self) -> str:
         devices = await BleakScanner.discover(timeout=5.0)
         for d in devices:
             if self.address and d.address == self.address:
@@ -31,86 +47,78 @@ class Esp32BleCameraController:
                 return d.address
         raise RuntimeError(f"No se encontró el ESP32 BLE con nombre '{self.device_name}'")
 
-    async def connect(self) -> dict:
-        async with self.lock:
-            if self.client and self.client.is_connected:
-                return {
-                    "connected": True,
-                    "address": self.client.address,
-                    "device_name": self.device_name,
-                }
-
-            address = self.address or await self.discover_address()
-            client = BleakClient(address)
-
-            await client.connect()
-
-            if not client.is_connected:
-                raise RuntimeError("No se pudo establecer conexión BLE con el ESP32")
-
-            # Intentar suscribirse a notificaciones de estado
-            try:
-                await client.start_notify(self.CHAR_TX_UUID, self._notification_handler)
-            except Exception:
-                # No rompemos la conexión si la notify falla
-                pass
-
-            self.client = client
-            self.address = address
-
+    async def _connect(self) -> dict:
+        if self.client and self.client.is_connected:
             return {
                 "connected": True,
-                "address": address,
+                "address": self.client.address,
                 "device_name": self.device_name,
             }
 
-    async def disconnect(self) -> dict:
-        async with self.lock:
-            if self.client:
-                try:
-                    if self.client.is_connected:
-                        try:
-                            await self.client.stop_notify(self.CHAR_TX_UUID)
-                        except Exception:
-                            pass
-                        await self.client.disconnect()
-                finally:
-                    self.client = None
+        address = self.address or await self._discover_address()
+        client = BleakClient(address)
+        await client.connect()
 
-            return {"connected": False}
+        if not client.is_connected:
+            raise RuntimeError("No se pudo establecer conexión BLE con el ESP32")
 
-    async def ensure_connected(self):
+        try:
+            await client.start_notify(self.CHAR_TX_UUID, self._notification_handler)
+        except Exception:
+            pass
+
+        self.client = client
+        self.address = address
+
+        return {
+            "connected": True,
+            "address": address,
+            "device_name": self.device_name,
+        }
+
+    async def _disconnect(self) -> dict:
+        if self.client:
+            try:
+                if self.client.is_connected:
+                    try:
+                        await self.client.stop_notify(self.CHAR_TX_UUID)
+                    except Exception:
+                        pass
+                    await self.client.disconnect()
+            finally:
+                self.client = None
+
+        return {"connected": False}
+
+    async def _ensure_connected(self):
         if self.client and self.client.is_connected:
             return
-        await self.connect()
+        await self._connect()
 
-    async def send_command(self, command: str) -> dict:
-        async with self.lock:
-            await self.ensure_connected()
+    async def _send_command(self, command: str) -> dict:
+        await self._ensure_connected()
 
-            if not self.client or not self.client.is_connected:
-                raise RuntimeError("ESP32 no conectado")
+        if not self.client or not self.client.is_connected:
+            raise RuntimeError("ESP32 no conectado")
 
-            payload = command.encode("utf-8")
-            # Bleak expone write_gatt_char(...) async
-            await self.client.write_gatt_char(self.CHAR_RX_UUID, payload)
+        await self.client.write_gatt_char(self.CHAR_RX_UUID, command.encode("utf-8"))
 
-            return {
-                "ok": True,
-                "command": command,
-                "connected": True,
-                "address": self.address,
-            }
+        return {
+            "ok": True,
+            "command": command,
+            "connected": True,
+            "address": self.address,
+        }
 
-    async def set_speed(self, mode: int) -> dict:
+    async def _center(self) -> dict:
+        return await self._send_command("CENTER")
+
+    async def _set_speed(self, mode: int) -> dict:
         if mode < 0 or mode > 4:
             raise ValueError("speed mode debe estar entre 0 y 4")
-        return await self.send_command(f"SET_SPEED:{mode}")
+        return await self._send_command(f"SET_SPEED:{mode}")
 
-    async def center(self) -> dict:
-        return await self.send_command("CENTER")
-
-    async def get_status(self) -> dict:
+    async def _get_status(self) -> dict:
         connected = bool(self.client and self.client.is_connected)
         return {
             "connected": connected,
@@ -118,5 +126,22 @@ class Esp32BleCameraController:
             "device_name": self.device_name,
             "last_state": self.last_state,
         }
-    
-#ble_camera_controller = Esp32BleCameraController()
+
+    # Métodos sync para Flask
+    def connect_sync(self):
+        return self._run_coro(self._connect())
+
+    def disconnect_sync(self):
+        return self._run_coro(self._disconnect())
+
+    def send_command_sync(self, command: str):
+        return self._run_coro(self._send_command(command))
+
+    def center_sync(self):
+        return self._run_coro(self._center())
+
+    def set_speed_sync(self, mode: int):
+        return self._run_coro(self._set_speed(mode))
+
+    def get_status_sync(self):
+        return self._run_coro(self._get_status())

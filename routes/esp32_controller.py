@@ -14,34 +14,34 @@ def get_ble_controller():
 
 
 @esp32_bp.route("/status", methods=["GET"])
-async def esp32_status():
+def esp32_status():
     controller = get_ble_controller()
-    status = await controller.get_status()
+    status = controller.get_status_sync()
     return jsonify(status), 200
 
 
 @esp32_bp.route("/connect", methods=["POST"])
-async def esp32_connect():
+def esp32_connect():
     controller = get_ble_controller()
     try:
-        result = await controller.connect()
+        result = controller.connect_sync()
         return jsonify(result), 200
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 500
 
 
 @esp32_bp.route("/disconnect", methods=["POST"])
-async def esp32_disconnect():
+def esp32_disconnect():
     controller = get_ble_controller()
     try:
-        result = await controller.disconnect()
+        result = controller.disconnect_sync()
         return jsonify(result), 200
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 500
 
 
 @esp32_bp.route("/command", methods=["POST"])
-async def esp32_command():
+def esp32_command():
     controller = get_ble_controller()
     data = request.get_json(silent=True) or {}
 
@@ -62,24 +62,24 @@ async def esp32_command():
         return jsonify({"ok": False, "error": f"Comando no permitido: {command}"}), 400
 
     try:
-        result = await controller.send_command(command)
+        result = controller.send_command_sync(command)
         return jsonify(result), 200
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 500
 
 
 @esp32_bp.route("/center", methods=["POST"])
-async def esp32_center():
+def esp32_center():
     controller = get_ble_controller()
     try:
-        result = await controller.center()
+        result = controller.center_sync()
         return jsonify(result), 200
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 500
 
 
 @esp32_bp.route("/speed", methods=["POST"])
-async def esp32_speed():
+def esp32_speed():
     controller = get_ble_controller()
     data = request.get_json(silent=True) or {}
 
@@ -89,7 +89,7 @@ async def esp32_speed():
 
     try:
         mode = int(mode)
-        result = await controller.set_speed(mode)
+        result = controller.set_speed_sync(mode)
         return jsonify(result), 200
     except ValueError as ex:
         return jsonify({"ok": False, "error": str(ex)}), 400
@@ -98,7 +98,7 @@ async def esp32_speed():
 
 
 @esp32_bp.route("/move", methods=["POST"])
-async def esp32_move():
+def esp32_move():
     controller = get_ble_controller()
     data = request.get_json(silent=True) or {}
 
@@ -110,7 +110,7 @@ async def esp32_move():
 
     if action == "stop":
         try:
-            result = await controller.send_command("STOP")
+            result = controller.send_command_sync("STOP")
             return jsonify(result), 200
         except Exception as ex:
             return jsonify({"ok": False, "error": str(ex)}), 500
@@ -127,7 +127,7 @@ async def esp32_move():
         return jsonify({"ok": False, "error": "direction inválida"}), 400
 
     try:
-        result = await controller.send_command(command)
+        result = controller.send_command_sync(command)
         return jsonify(result), 200
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 500
