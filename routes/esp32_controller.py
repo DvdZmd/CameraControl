@@ -101,19 +101,7 @@ def esp32_speed():
 def esp32_move():
     controller = get_ble_controller()
     data = request.get_json(silent=True) or {}
-
     direction = (data.get("direction") or "").strip().lower()
-    action = (data.get("action") or "start").strip().lower()
-
-    if action not in {"start", "stop"}:
-        return jsonify({"ok": False, "error": "action debe ser 'start' o 'stop'"}), 400
-
-    if action == "stop":
-        try:
-            result = controller.send_command_sync("STOP")
-            return jsonify(result), 200
-        except Exception as ex:
-            return jsonify({"ok": False, "error": str(ex)}), 500
 
     direction_map = {
         "left": "PAN_LEFT",
@@ -127,6 +115,7 @@ def esp32_move():
         return jsonify({"ok": False, "error": "direction inválida"}), 400
 
     try:
+        # Enviamos el comando y el ESP32 lo ejecutará una sola vez
         result = controller.send_command_sync(command)
         return jsonify(result), 200
     except Exception as ex:
