@@ -6,10 +6,14 @@ from typing import Optional
 from bleak import BleakClient, BleakScanner
 
 
-class Esp32BleCameraController:
+class Esp32Controller:
+    #TODO make this a singleton or manage multiple devices if needed in the future
+    #TODO makes this values configurable desde un archivo o base de datos
     DEVICE_NAME = "ESP32-CameraHead"
     CHAR_RX_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
     CHAR_TX_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+    CONNECT_RETRIES = 3
+    COMMAND_RETRIES = 2
 
     def __init__(self, device_name: str | None = None, address: str | None = None):
         self.device_name = device_name or self.DEVICE_NAME
@@ -47,6 +51,26 @@ class Esp32BleCameraController:
                 return d.address
         raise RuntimeError(f"No se encontró el ESP32 BLE con nombre '{self.device_name}'")
 
+    def _handle_disconnect(self, _client: BleakClient):
+        self.client = None
+
+    async def _reset_client(self):
+        if not self.client:
+            return
+
+        client = self.client
+        self.client = None
+
+        try:
+            if client.is_connected:
+                try:
+                    await client.stop_notify(self.CHAR_TX_UUID)
+                except Exception:
+                    pass
+                await client.disconnect()
+        except Exception:
+            pass
+
     async def _connect(self) -> dict:
         if self.client and self.client.is_connected:
             return {
@@ -55,38 +79,40 @@ class Esp32BleCameraController:
                 "device_name": self.device_name,
             }
 
-        address = self.address or await self._discover_address()
-        client = BleakClient(address)
-        await client.connect()
+        last_error = None
+        for attempt in range(self.CONNECT_RETRIES):
+            try:
+                await self._reset_client()
+                address = self.address or await self._discover_address()
+                client = BleakClient(address, disconnected_callback=self._handle_disconnect)
+                await client.connect()
 
-        if not client.is_connected:
-            raise RuntimeError("No se pudo establecer conexión BLE con el ESP32")
+                if not client.is_connected:
+                    raise RuntimeError("No se pudo establecer conexión BLE con el ESP32")
 
-        try:
-            await client.start_notify(self.CHAR_TX_UUID, self._notification_handler)
-        except Exception:
-            pass
+                try:
+                    await client.start_notify(self.CHAR_TX_UUID, self._notification_handler)
+                except Exception:
+                    pass
 
-        self.client = client
-        self.address = address
+                self.client = client
+                self.address = address
 
-        return {
-            "connected": True,
-            "address": address,
-            "device_name": self.device_name,
-        }
+                return {
+                    "connected": True,
+                    "address": address,
+                    "device_name": self.device_name,
+                }
+            except Exception as exc:
+                last_error = exc
+                await self._reset_client()
+                if attempt + 1 < self.CONNECT_RETRIES:
+                    await asyncio.sleep(0.5)
+
+        raise RuntimeError(f"No se pudo conectar al ESP32: {last_error}") from last_error
 
     async def _disconnect(self) -> dict:
-        if self.client:
-            try:
-                if self.client.is_connected:
-                    try:
-                        await self.client.stop_notify(self.CHAR_TX_UUID)
-                    except Exception:
-                        pass
-                    await self.client.disconnect()
-            finally:
-                self.client = None
+        await self._reset_client()
 
         return {"connected": False}
 
@@ -96,19 +122,29 @@ class Esp32BleCameraController:
         await self._connect()
 
     async def _send_command(self, command: str) -> dict:
-        await self._ensure_connected()
+        last_error = None
+        for attempt in range(self.COMMAND_RETRIES):
+            try:
+                await self._ensure_connected()
 
-        if not self.client or not self.client.is_connected:
-            raise RuntimeError("ESP32 no conectado")
+                if not self.client or not self.client.is_connected:
+                    raise RuntimeError("ESP32 no conectado")
 
-        await self.client.write_gatt_char(self.CHAR_RX_UUID, command.encode("utf-8"))
+                await self.client.write_gatt_char(self.CHAR_RX_UUID, command.encode("utf-8"))
 
-        return {
-            "ok": True,
-            "command": command,
-            "connected": True,
-            "address": self.address,
-        }
+                return {
+                    "ok": True,
+                    "command": command,
+                    "connected": True,
+                    "address": self.address,
+                }
+            except Exception as exc:
+                last_error = exc
+                await self._reset_client()
+                if attempt + 1 < self.COMMAND_RETRIES:
+                    await asyncio.sleep(0.2)
+
+        raise RuntimeError(f"Error enviando comando '{command}': {last_error}") from last_error
 
     async def _center(self) -> dict:
         return await self._send_command("CENTER")

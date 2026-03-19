@@ -2,11 +2,11 @@ from flask import Flask
 from database.models import db
 from routes.camera_controller import camera_controller_bp
 from routes.esp32_controller import esp32_bp
-from camera.ble_camera_controller import Esp32BleCameraController
+from camera.esp32 import Esp32Controller
 
 import os
 
-ble_controller = Esp32BleCameraController()
+ble_controller = Esp32Controller()
 
 def create_app():
     app = Flask(__name__)
