@@ -2,7 +2,7 @@ from flask import Flask
 from database.models import db
 from routes.camera_controller import camera_controller_bp
 from routes.esp32_controller import esp32_bp
-from camera.esp32 import Esp32Controller
+from esp32.esp32 import Esp32Controller
 
 import os
 
@@ -29,7 +29,7 @@ def create_app():
     # Initialize database
     with app.app_context():
         db.create_all()
-        #TODO: Cargar configuración de timelapse guardada
+        #TODO: Load saved timelapse configuration
         #load_timelapse_config()
 
     return app

@@ -8,7 +8,7 @@ from bleak import BleakClient, BleakScanner
 
 class Esp32Controller:
     #TODO make this a singleton or manage multiple devices if needed in the future
-    #TODO makes this values configurable desde un archivo o base de datos
+    #TODO make these values configurable from a file or database
     DEVICE_NAME = "ESP32-CameraHead"
     CHAR_RX_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
     CHAR_TX_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -163,7 +163,7 @@ class Esp32Controller:
             "last_state": self.last_state,
         }
 
-    # Métodos sync para Flask
+    # Sync methods for Flask
     def connect_sync(self):
         return self._run_coro(self._connect())
 

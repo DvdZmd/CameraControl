@@ -1,5 +1,5 @@
 from flask import Blueprint, Response, request, jsonify, render_template, send_file
-from camera.picam import camera_controller
+from camera.rpicam_z import rpicamz
 import time
 import io
 
@@ -10,28 +10,28 @@ camera_controller_bp = Blueprint(
 
 @camera_controller_bp.route('/')
 def index():
-    """Sirve el archivo index.html"""
+    """Serve the index.html file."""
     return render_template('index.html')
 
 @camera_controller_bp.route('/reset', methods=['POST'])
 def reset_camera():
-    camera_controller.reset_to_defaults()
+    rpicamz.reset_to_defaults()
     return jsonify({"status": "success", "message": "Camera reset to defaults"})
 
 @camera_controller_bp.route('/apply_preset', methods=['POST'])
 def apply_preset():
-    preset_name = request.json.get('preset') # Ej: 'LUNAR_PHOTOGRAPHY'
-    if camera_controller.apply_preset(preset_name):
+    preset_name = request.json.get('preset') # Example: 'LUNAR_PHOTOGRAPHY'
+    if rpicamz.apply_preset(preset_name):
         return jsonify({"status": "success"})
     return jsonify({"status": "error", "message": "Preset not found"}), 404
 
 @camera_controller_bp.route('/take_photo_custom')
 def take_photo_custom():
-    # Recibimos el ancho y alto por parámetros de URL (?w=1920&h=1080)
+    # Receive width and height through URL parameters (?w=1920&h=1080)
     w = request.args.get('w', default=1280, type=int)
     h = request.args.get('h', default=720, type=int)
     
-    image_binary = camera_controller.take_custom_photo(w, h)
+    image_binary = rpicamz.take_custom_photo(w, h)
     
     return send_file(
         io.BytesIO(image_binary),
@@ -42,11 +42,11 @@ def take_photo_custom():
 
 def generate_frames():
     while True:
-        frame = camera_controller.get_jpeg_frame()
+        frame = rpicamz.get_jpeg_frame()
         if frame:
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-        time.sleep(0.03) # 30 FPS aprox
+        time.sleep(0.03) # ~30 FPS
 
 @camera_controller_bp.route('/video_feed')
 def video_feed():
@@ -55,36 +55,36 @@ def video_feed():
 
 @camera_controller_bp.route('/camera_status')
 def camera_status():
-    return jsonify(camera_controller.get_capabilities())
+    return jsonify(rpicamz.get_capabilities())
 
 
 @camera_controller_bp.route('/update_settings', methods=['POST'])
 def update_settings():
-    """Endpoint para actualizar calidad y rotación"""
+    """Endpoint to update quality and rotation."""
     data = request.json
     
-    # Cambio de resolución
+    # Resolution change
     if 'width' in data and 'height' in data:
-        camera_controller.set_resolution(int(data['width']), int(data['height']))
+        rpicamz.set_resolution(int(data['width']), int(data['height']))
 
-    # Manejo de Rotación
+    # Rotation handling
     if 'rotation' in data:
-        camera_controller.set_rotation(int(data['rotation']))
+        rpicamz.set_rotation(int(data['rotation']))
 
-    #Manejo de Timelapse
+    # Timelapse handling
     if 'timelapse' in data:
         if data['timelapse'] == 'start':
             interval = int(data.get('interval', 5))
-            # Opcional: pasar resolución deseada para el timelapse
+            # Optional: pass the desired resolution for timelapse
             tw = data.get('t_width') 
             th = data.get('t_height')
-            camera_controller.start_timelapse(interval, tw, th)
+            rpicamz.start_timelapse(interval, tw, th)
         else:
-            camera_controller.stop_timelapse() 
+            rpicamz.stop_timelapse() 
     
-    # Actualizar controles (Brightness, Contrast, Saturation, Sharpness, AfMode)
+    # Update controls (Brightness, Contrast, Saturation, Sharpness, AfMode)
     for param in ['Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition', 'ExposureTime', 'AnalogueGain']:
         if param in data:
-            camera_controller.update_control(param, data[param])
+            rpicamz.update_control(param, data[param])
             
     return jsonify({"status": "success"})

@@ -4,9 +4,9 @@ from logs.logging_config import logger
 
 
 class CameraPresets:
-    """Presets predefinidos para diferentes escenarios de cámara"""
+    """Predefined presets for different camera scenarios."""
     
-    # Preset que replica exactamente rpicam-hello defaults
+    # Preset that exactly replicates rpicam-hello defaults
     RPICAM_HELLO_DEFAULT = {
         "Brightness": 0.0,
         "Contrast": 1.0,
@@ -80,17 +80,17 @@ class CameraPresets:
     }
 
     LUNAR_PHOTOGRAPHY = {
-        "AeEnable": False,      # Crucial para evitar el "manchón" blanco
-        "AnalogueGain": 1.0,    # ISO mínimo para nitidez
-        "ExposureTime": 10000,  # 10ms iniciales, ajustar según telescopio
+        "AeEnable": False,      # Crucial to avoid the white "blown-out patch"
+        "AnalogueGain": 1.0,    # Minimum ISO for sharpness
+        "ExposureTime": 10000,  # Initial 10ms, adjust according to telescope
         "Brightness": 0.0,
-        "Contrast": 1.5,        # Resalta el relieve de los cráteres
-        "AfMode": 0             # Foco manual para estabilidad en telescopio
+        "Contrast": 1.5,        # Enhances crater relief
+        "AfMode": 0             # Manual focus for telescope stability
     }
 
 
 class CameraControlLimits:
-    """Límites y rangos para controles de cámara"""
+    """Limits and ranges for camera controls."""
     
     BRIGHTNESS = (-1.0, 1.0)
     CONTRAST = (0.0, 32.0)
@@ -134,11 +134,11 @@ class CameraControlLimits:
 
 def validate_control_value(control_name: str, value: Any) -> Tuple[bool, Any]:
     """
-    Valida y ajusta valores de control dentro de rangos permitidos
+    Validate and adjust control values within allowed ranges.
     
     Args:
-        control_name: Nombre del control
-        value: Valor a validar
+        control_name: Control name
+        value: Value to validate
         
     Returns:
         Tuple[bool, Any]: (is_valid, adjusted_value)
@@ -206,10 +206,10 @@ def validate_control_value(control_name: str, value: Any) -> Tuple[bool, Any]:
 
 def get_control_info() -> Dict[str, Dict[str, Any]]:
     """
-    Retorna información detallada sobre todos los controles disponibles
+    Return detailed information about all available controls.
     
     Returns:
-        Dict con información de cada control (rangos, descripción, etc.)
+        Dict with information for each control (ranges, description, etc.)
     """
     limits = CameraControlLimits()
     
@@ -217,61 +217,61 @@ def get_control_info() -> Dict[str, Dict[str, Any]]:
         "Brightness": {
             "range": limits.BRIGHTNESS,
             "type": "float",
-            "description": "Ajusta el brillo de la imagen (-1.0 = muy oscuro, 1.0 = muy brillante)",
+            "description": "Adjust image brightness (-1.0 = very dark, 1.0 = very bright)",
             "default": 0.0
         },
         "Contrast": {
             "range": limits.CONTRAST,
             "type": "float", 
-            "description": "Ajusta el contraste de la imagen (0.0 = sin contraste, 2.0+ = alto contraste)",
+            "description": "Adjust image contrast (0.0 = no contrast, 2.0+ = high contrast)",
             "default": 1.0
         },
         "Saturation": {
             "range": limits.SATURATION,
             "type": "float",
-            "description": "Ajusta la saturación de color (0.0 = escala de grises, 2.0+ = muy saturado)",
+            "description": "Adjust color saturation (0.0 = grayscale, 2.0+ = highly saturated)",
             "default": 1.0
         },
         "Sharpness": {
             "range": limits.SHARPNESS, 
             "type": "float",
-            "description": "Ajusta la nitidez de la imagen (0.0 = muy suave, 2.0+ = muy nítido)",
+            "description": "Adjust image sharpness (0.0 = very soft, 2.0+ = very sharp)",
             "default": 1.0
         },
         "AnalogueGain": {
             "range": limits.ANALOGUE_GAIN,
             "type": "float",
-            "description": "Ganancia analógica del sensor (1.0 = sin ganancia, valores altos = más sensibilidad/ruido)",
+            "description": "Sensor analog gain (1.0 = no gain, higher values = more sensitivity/noise)",
             "default": 1.0
         },
         "DigitalGain": {
             "range": limits.DIGITAL_GAIN,
             "type": "float", 
-            "description": "Ganancia digital (1.0 = sin ganancia, valores altos = más brillo pero más ruido)",
+            "description": "Digital gain (1.0 = no gain, higher values = more brightness but more noise)",
             "default": 1.0
         },
         "LensPosition": {
             "range": limits.LENS_POSITION,
             "type": "float",
-            "description": "Posición manual del enfoque (0.0 = infinito, 32.0 = muy cerca)",
+            "description": "Manual focus position (0.0 = infinity, 32.0 = very close)",
             "default": None
         },
         "ExposureTime": {
             "range": (limits.EXPOSURE_TIME_MIN, limits.EXPOSURE_TIME_MAX),
             "type": "int",
-            "description": "Tiempo de exposición en microsegundos (None = automático)",
+            "description": "Exposure time in microseconds (None = automatic)",
             "default": None
         },
         "AwbMode": {
             "options": limits.AWB_MODES,
             "type": "int",
-            "description": "Modo de balance de blancos automático",
+            "description": "Automatic white balance mode",
             "default": 0
         },
         "AfMode": {
             "options": limits.AF_MODES,
             "type": "int", 
-            "description": "Modo de enfoque automático",
+            "description": "Autofocus mode",
             "default": 2
         }
     }

@@ -115,7 +115,7 @@ def esp32_move():
         return jsonify({"ok": False, "error": "direction inválida"}), 400
 
     try:
-        # Enviamos el comando y el ESP32 lo ejecutará una sola vez
+        # We send the command and the ESP32 will execute it only once
         result = controller.send_command_sync(command)
         return jsonify(result), 200
     except Exception as ex:

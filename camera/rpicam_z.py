@@ -2,12 +2,12 @@ import io, time, threading, os
 from datetime import datetime
 from picamera2 import Picamera2
 from libcamera import Transform
-from camera.camera_utils import CameraPresets, validate_control_value # Importamos el validador
+from camera.camera_utils import CameraPresets, validate_control_value # Import the validator
 
-class CameraController:
+class rpicam_z:
     def __init__(self, width=1640, height=1232, rotation=0, save_path="captures"):
         self.picam2 = Picamera2()
-        # Guardamos valores iniciales de fábrica para el Reset
+        # Store initial factory values for Reset
         self.default_config = {
             "width": width,
             "height": height,
@@ -21,11 +21,11 @@ class CameraController:
             }
         }
 
-        # Guardamos la resolución máxima disponible una sola vez
-        self.max_sensor_res = (width, height) # Valor por defecto
+        # Store the maximum available resolution only once
+        self.max_sensor_res = (width, height) # Default value
         self._detect_sensor_limits()
 
-        # Valores iniciales (se pueden vincularlos a config.py)
+        # Initial values (these can be tied to config.py)
         self.controls = dict(self.default_config["controls"])
         self.current_width = width
         self.current_height = height
@@ -51,12 +51,12 @@ class CameraController:
             pass
 
     def _initialize_camera(self):
-        """Configura e inicia la cámara con la resolución y rotación actual"""
-        # Detener si ya estaba corriendo
+        """Configure and start the camera with the current resolution and rotation."""
+        # Stop it if it was already running
         if self.is_running:
             self.picam2.stop()        
             
-        # 1. Configuración básica        
+        # 1. Basic configuration
         config = self.picam2.create_video_configuration(
             main={"size": (self.current_width, self.current_height), "format": "XRGB8888"},
             transform=self._get_transform(self.current_rotation),
@@ -64,24 +64,24 @@ class CameraController:
         )
         self.picam2.configure(config)
 
-        # 2. DETECCIÓN DE HARDWARE: Verificamos si AfMode está disponible
+        # 2. HARDWARE DETECTION: Check whether AfMode is available
         available_controls = self.picam2.camera_controls
         if "AfMode" in available_controls:
             self.af_supported = True
-            self.controls["AfMode"] = 2  # Continuous AF por defecto
+            self.controls["AfMode"] = 2  # Continuous AF by default
             print("Cámara con Autofocus detectada.")
         else:
             self.af_supported = False
             print("Cámara de foco fijo detectada (V1/V2/HQ). AF desactivado.")
 
-        # 3. Aplicar controles iniciales y arrancar
+        # 3. Apply initial controls and start
         self.picam2.set_controls(self.controls)
 
         self.picam2.start()
         self.is_running = True
 
     def reset_to_defaults(self):
-        """Restaura la configuración de fábrica y reinicia el stream"""
+        """Restore factory settings and restart the stream."""
         with self.lock:
             print("Restaurando configuración por defecto...")
             self.current_width = self.default_config["width"]
@@ -89,14 +89,14 @@ class CameraController:
             self.current_rotation = self.default_config["rotation"]
             self.controls = dict(self.default_config["controls"])
             
-            # Si hay AF, lo devolvemos a Continuo
+            # If AF is available, return it to Continuous
             if self.af_supported:
                 self.controls["AfMode"] = 2
                 
             self._initialize_camera()
 
     def apply_preset(self, preset_name):
-        """Aplica un conjunto de valores desde CameraPresets"""
+        """Apply a group of values from CameraPresets."""
         preset = getattr(CameraPresets, preset_name, None)
         if not preset:
             print(f"Error: Preset {preset_name} no encontrado.")
@@ -109,8 +109,8 @@ class CameraController:
         return True
 
     def get_capabilities(self):
-        """Retorna las capacidades usando los datos cacheados"""
-        # Ya no llamamos a self.picam2.sensor_modes aquí para evitar el error
+        """Return capabilities using cached data."""
+        # We no longer call self.picam2.sensor_modes here to avoid the error
         return {
             "max_width": self.max_sensor_res[0],
             "max_height": self.max_sensor_res[1],
@@ -120,7 +120,7 @@ class CameraController:
         }
 
     def _get_transform(self, angle):
-        """Retorna el objeto Transform de libcamera adecuado"""
+        """Return the appropriate libcamera Transform object."""
         mapping = {
             0: Transform(), # Identity
             90: Transform(rotation=90),
@@ -136,18 +136,18 @@ class CameraController:
             self._initialize_camera()
 
     def take_snapshot(self):
-        """Captura una imagen JPEG de alta calidad"""
+        """Capture a high-quality JPEG image."""
         with self.lock:
-            # Captura directamente del stream actual
+            # Capture directly from the current stream
             buf = io.BytesIO()
             self.picam2.capture_file(buf, format="jpeg")
             return buf.getvalue()
 
 
     def update_control(self, name, value):
-        """Valida y aplica cambios de hardware"""
+        """Validate and apply hardware changes."""
 
-        # Evitar que el JS intente mover el AF si la cámara no puede
+        # Prevent JS from trying to move AF if the camera cannot do it
         if name == "AfMode" and not self.af_supported:
             return
         
@@ -157,11 +157,11 @@ class CameraController:
             with self.lock:
                 self.controls[name] = adjusted_value
                 
-                # Si es AfMode manual, podrías querer resetear el LensPosition aquí
-                # Lógica especial para V3 y Astronomía:
-                # Si el usuario toca ExposureTime o AnalogueGain, 
-                # desactivamos el AE automáticamente para que el valor sea real.
-                # TODO actualizar frontend
+                # If AfMode is manual, you may want to reset LensPosition here
+                # Special logic for V3 and astronomy:
+                # If the user changes ExposureTime or AnalogueGain,
+                # we automatically disable AE so the value is actually applied.
+                # TODO update frontend
                 if name in ["ExposureTime", "AnalogueGain"]:
                     self.controls["AeEnable"] = False
                     self.picam2.set_controls({
@@ -172,23 +172,23 @@ class CameraController:
                     self.picam2.set_controls({name: adjusted_value})
 
     def set_rotation(self, angle):
-        """Cambia la rotación reiniciando el stream (requerido por libcamera)"""
+        """Change rotation by restarting the stream (required by libcamera)."""
         if angle in [0, 90, 180, 270]:
             self.current_rotation = angle
             self.picam2.stop()
-            self._initialize_camera() # Aplica el nuevo transform
+            self._initialize_camera() # Apply the new transform
 
     def take_custom_photo(self, width, height):
-        """Captura una foto a resolución específica y restaura el stream original"""
+        """Capture a photo at a specific resolution and restore the original stream."""
         with self.lock:
-            # 1. Guardar configuración actual del stream
+            # 1. Save the current stream configuration
             old_w, old_h = self.current_width, self.current_height
             
             try:
-                # 2. Detener stream y configurar resolución de la FOTO
+                # 2. Stop the stream and configure PHOTO resolution
                 self.picam2.stop()
                 
-                # Validar que no exceda el máximo del sensor
+                # Validate that it does not exceed the sensor maximum
                 max_w, max_h = self.max_sensor_res
                 target_w = min(int(width), max_w)
                 target_h = min(int(height), max_h)
@@ -201,33 +201,33 @@ class CameraController:
                 self.picam2.configure(still_config)
                 self.picam2.start()
                 
-                # 3. Capturar frame
+                # 3. Capture frame
                 buf = io.BytesIO()
                 self.picam2.capture_file(buf, format="jpeg")
                 data = buf.getvalue()
                 return data
                 
             finally:
-                # 4. RESTAURAR siempre el stream original
+                # 4. ALWAYS restore the original stream
                 self.picam2.stop()
                 self.current_width, self.current_height = old_w, old_h
                 self._initialize_camera()
 
     def get_jpeg_frame(self):
-        """Captura directa del ISP a memoria (máxima calidad)"""
+        """Direct capture from the ISP to memory (maximum quality)."""
         buf = io.BytesIO()
-        # El hardware ya procesó rotación y calidad antes de entregarnos este buffer
+        # The hardware already processed rotation and quality before giving us this buffer
         self.picam2.capture_file(buf, format="jpeg")
         return buf.getvalue()
 
-    # --- Lógica de Timelapse ---
+    # --- Timelapse logic ---
     def start_timelapse(self, interval_seconds, width=None, height=None):
         """
-        Inicia el timelapse. 
-        Si no se pasan width/height, usará la resolución máxima del sensor.
+        Start the timelapse.
+        If width/height are not provided, it will use the sensor's maximum resolution.
         """
         if not self.timelapse_active:
-            # Si no se define resolución, usamos el máximo detectado
+            # If no resolution is defined, use the detected maximum
             t_width = width or self.max_sensor_res[0]
             t_height = height or self.max_sensor_res[1]
             
@@ -247,8 +247,8 @@ class CameraController:
         os.makedirs(save_path, exist_ok=True)
         
         while self.timelapse_active:
-            # Usamos take_custom_photo para que cambie la resolución, 
-            # capture a alta calidad y restaure el stream automáticamente.
+            # Use take_custom_photo so it changes resolution,
+            # captures at high quality, and restores the stream automatically.
             frame = self.take_custom_photo(width, height)
             
             if frame:
@@ -257,8 +257,8 @@ class CameraController:
                 with open(filename, "wb") as f:
                     f.write(frame)
             
-            # El tiempo de espera debe considerar que take_custom_photo 
-            # tarda ~1-2 segundos en resetear la cámara
+            # The wait time must consider that take_custom_photo
+            # takes ~1-2 seconds to reset the camera
             time.sleep(max(1, interval))
 
-camera_controller = CameraController()
+rpicamz = rpicam_z()
