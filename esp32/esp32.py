@@ -16,6 +16,23 @@ class Esp32Controller:
     COMMAND_RETRIES = 2
 
     def __init__(self, device_name: str | None = None, address: str | None = None):
+        """
+        Initialize the BLE controller and start its dedicated event loop thread.
+
+        The controller owns a private asyncio loop running in a background
+        thread so synchronous Flask handlers can submit BLE tasks safely. BLE
+        operations are expected to run on that loop; bypassing it may trigger
+        event-loop affinity errors such as using a client attached to a
+        different loop.
+
+        Args:
+            device_name: BLE advertised name to scan for when no address is
+                pinned.
+            address: Optional BLE MAC address or platform-specific identifier.
+
+        Returns:
+            None
+        """
         self.device_name = device_name or self.DEVICE_NAME
         self.address = address
         self.client: Optional[BleakClient] = None
@@ -26,10 +43,36 @@ class Esp32Controller:
         self._thread.start()
 
     def _run_loop(self):
+        """
+        Run the private asyncio event loop forever.
+
+        This method is intended to execute on the controller's background
+        thread. All async BLE operations should be scheduled onto this loop.
+
+        Returns:
+            None
+        """
         asyncio.set_event_loop(self._loop)
         self._loop.run_forever()
 
     def _run_coro(self, coro, timeout: float = 10):
+        """
+        Execute a coroutine on the controller's event loop and wait for it.
+
+        The coroutine is submitted to the dedicated BLE loop running on a
+        background thread. This helper blocks the caller until completion or
+        timeout, making it suitable for synchronous Flask endpoints.
+
+        Args:
+            coro: Coroutine object scheduled on the private event loop.
+            timeout: Maximum wait time in seconds.
+
+        Returns:
+            The coroutine result.
+
+        Raises:
+            RuntimeError: If the coroutine does not finish before ``timeout``.
+        """
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         try:
             return future.result(timeout=timeout)
@@ -37,12 +80,39 @@ class Esp32Controller:
             raise RuntimeError("Timeout ejecutando operación BLE")
 
     async def _notification_handler(self, _, data: bytearray):
+        """
+        Decode BLE notification payloads from the ESP32.
+
+        This callback runs on the controller's private event loop when the BLE
+        characteristic emits a notification. It updates in-memory state and does
+        not perform additional synchronization.
+
+        Args:
+            _: Unused Bleak sender metadata.
+            data: Raw BLE notification bytes.
+
+        Returns:
+            None
+        """
         try:
             self.last_state = data.decode("utf-8", errors="ignore")
         except Exception:
             self.last_state = None
 
     async def _discover_address(self) -> str:
+        """
+        Scan for the target ESP32 BLE device and resolve its address.
+
+        The scan interacts with the local BLE adapter and must run on the same
+        event loop used by the rest of the controller's async BLE operations.
+
+        Returns:
+            The resolved BLE device address.
+
+        Raises:
+            RuntimeError: If no matching BLE device is discovered before the
+                scan times out.
+        """
         devices = await BleakScanner.discover(timeout=5.0)
         for d in devices:
             if self.address and d.address == self.address:
@@ -52,9 +122,28 @@ class Esp32Controller:
         raise RuntimeError(f"No se encontró el ESP32 BLE con nombre '{self.device_name}'")
 
     def _handle_disconnect(self, _client: BleakClient):
+        """
+        Clear the active client reference after a BLE disconnect callback.
+
+        Args:
+            _client: Disconnected Bleak client instance.
+
+        Returns:
+            None
+        """
         self.client = None
 
     async def _reset_client(self):
+        """
+        Stop notifications and disconnect the active BLE client.
+
+        This method performs BLE teardown against the ESP32 when a client is
+        connected. It is best-effort and intentionally suppresses disconnect
+        errors during cleanup.
+
+        Returns:
+            None
+        """
         if not self.client:
             return
 
@@ -72,6 +161,21 @@ class Esp32Controller:
             pass
 
     async def _connect(self) -> dict:
+        """
+        Connect to the ESP32 over BLE and subscribe to notifications.
+
+        The operation may scan for the device, open a BLE connection, and enable
+        characteristic notifications. It retries on transient failures and must
+        run on the controller's private event loop.
+
+        Returns:
+            A dictionary describing the BLE connection state and resolved
+            address.
+
+        Raises:
+            RuntimeError: If the ESP32 cannot be discovered or connected after
+                all retry attempts.
+        """
         if self.client and self.client.is_connected:
             return {
                 "connected": True,
@@ -112,16 +216,49 @@ class Esp32Controller:
         raise RuntimeError(f"No se pudo conectar al ESP32: {last_error}") from last_error
 
     async def _disconnect(self) -> dict:
+        """
+        Disconnect from the ESP32 and release BLE resources.
+
+        Returns:
+            A dictionary reporting that the controller is disconnected.
+        """
         await self._reset_client()
 
         return {"connected": False}
 
     async def _ensure_connected(self):
+        """
+        Ensure that a BLE connection to the ESP32 is available.
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If establishing the BLE connection fails.
+        """
         if self.client and self.client.is_connected:
             return
         await self._connect()
 
     async def _send_command(self, command: str) -> dict:
+        """
+        Send a command to the ESP32 over BLE.
+
+        The command is written to the configured RX GATT characteristic. The
+        method retries once a connection is available and may reconnect if the
+        transport fails. It must run on the controller's private event loop.
+
+        Args:
+            command: Command payload to send to the ESP32.
+
+        Returns:
+            A dictionary containing the command, connection state, and BLE
+            address.
+
+        Raises:
+            RuntimeError: If the controller cannot connect or the command cannot
+                be written after all retries.
+        """
         last_error = None
         for attempt in range(self.COMMAND_RETRIES):
             try:
@@ -147,14 +284,43 @@ class Esp32Controller:
         raise RuntimeError(f"Error enviando comando '{command}': {last_error}") from last_error
 
     async def _center(self) -> dict:
+        """
+        Send the centering command to the ESP32.
+
+        Returns:
+            A dictionary describing the result of the BLE command.
+
+        Raises:
+            RuntimeError: If the centering command cannot be delivered.
+        """
         return await self._send_command("CENTER")
 
     async def _set_speed(self, mode: int) -> dict:
+        """
+        Set the ESP32 movement speed preset.
+
+        Args:
+            mode: Speed preset identifier in the inclusive range 0 to 4.
+
+        Returns:
+            A dictionary describing the result of the BLE command.
+
+        Raises:
+            ValueError: If ``mode`` falls outside the accepted range.
+            RuntimeError: If the BLE command cannot be delivered.
+        """
         if mode < 0 or mode > 4:
             raise ValueError("speed mode debe estar entre 0 y 4")
         return await self._send_command(f"SET_SPEED:{mode}")
 
     async def _get_status(self) -> dict:
+        """
+        Report the cached BLE connection status.
+
+        Returns:
+            A dictionary containing connection state, resolved address, target
+            device name, and the latest notification payload.
+        """
         connected = bool(self.client and self.client.is_connected)
         return {
             "connected": connected,
@@ -165,19 +331,83 @@ class Esp32Controller:
 
     # Sync methods for Flask
     def connect_sync(self):
+        """
+        Connect to the ESP32 from synchronous code.
+
+        This helper blocks the caller while the BLE connect coroutine runs on
+        the controller's private event loop.
+
+        Returns:
+            A dictionary describing the BLE connection state.
+
+        Raises:
+            RuntimeError: If the BLE connection attempt fails or times out.
+        """
         return self._run_coro(self._connect())
 
     def disconnect_sync(self):
+        """
+        Disconnect from the ESP32 from synchronous code.
+
+        Returns:
+            A dictionary reporting the disconnected state.
+
+        Raises:
+            RuntimeError: If the disconnect operation times out.
+        """
         return self._run_coro(self._disconnect())
 
     def send_command_sync(self, command: str):
+        """
+        Send a BLE command to the ESP32 from synchronous code.
+
+        Args:
+            command: Command payload to send over BLE.
+
+        Returns:
+            A dictionary describing the command result.
+
+        Raises:
+            RuntimeError: If BLE transport fails or the operation times out.
+        """
         return self._run_coro(self._send_command(command))
 
     def center_sync(self):
+        """
+        Center the ESP32-controlled mechanism from synchronous code.
+
+        Returns:
+            A dictionary describing the command result.
+
+        Raises:
+            RuntimeError: If BLE transport fails or the operation times out.
+        """
         return self._run_coro(self._center())
 
     def set_speed_sync(self, mode: int):
+        """
+        Set the ESP32 speed preset from synchronous code.
+
+        Args:
+            mode: Speed preset identifier in the inclusive range 0 to 4.
+
+        Returns:
+            A dictionary describing the command result.
+
+        Raises:
+            ValueError: If ``mode`` falls outside the accepted range.
+            RuntimeError: If BLE transport fails or the operation times out.
+        """
         return self._run_coro(self._set_speed(mode))
 
     def get_status_sync(self):
+        """
+        Fetch cached BLE status from synchronous code.
+
+        Returns:
+            A dictionary with connection state and the latest received status.
+
+        Raises:
+            RuntimeError: If the status query times out.
+        """
         return self._run_coro(self._get_status())

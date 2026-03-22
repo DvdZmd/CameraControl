@@ -134,14 +134,19 @@ class CameraControlLimits:
 
 def validate_control_value(control_name: str, value: Any) -> Tuple[bool, Any]:
     """
-    Validate and adjust control values within allowed ranges.
-    
+    Validate and normalize a camera control value.
+
+    The function clamps numeric controls to supported ranges and validates
+    enumerated controls against known camera modes. Exposure time values are
+    interpreted in microseconds.
+
     Args:
-        control_name: Control name
-        value: Value to validate
-        
+        control_name: Camera control identifier.
+        value: Proposed control value to validate.
+
     Returns:
-        Tuple[bool, Any]: (is_valid, adjusted_value)
+        A tuple containing a validity flag and the normalized value that should
+        be applied.
     """
     limits = CameraControlLimits()
     
@@ -206,10 +211,11 @@ def validate_control_value(control_name: str, value: Any) -> Tuple[bool, Any]:
 
 def get_control_info() -> Dict[str, Dict[str, Any]]:
     """
-    Return detailed information about all available controls.
-    
+    Describe the supported camera controls for API consumers.
+
     Returns:
-        Dict with information for each control (ranges, description, etc.)
+        A mapping of control names to metadata such as range, option set,
+        default value, and human-readable description.
     """
     limits = CameraControlLimits()
     

@@ -9,6 +9,16 @@ import os
 ble_controller = Esp32Controller()
 
 def create_app():
+    """
+    Create and configure the Flask application.
+
+    The factory initializes database bindings, registers API blueprints, and
+    attaches the shared BLE controller used to communicate with the ESP32. It
+    also creates database tables inside an application context as a side effect.
+
+    Returns:
+        A configured Flask application instance.
+    """
     app = Flask(__name__)
 
     # Database config
