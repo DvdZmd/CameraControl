@@ -1,7 +1,7 @@
 from flask import Flask
 from database.models import db
-from routes.camera_controller import camera_controller_bp
-from routes.esp32_controller import esp32_bp
+from routes.camera_routes import camera_bp
+from routes.esp32_routes import esp32_bp
 from esp32.esp32 import Esp32Controller
 
 import os
@@ -30,7 +30,7 @@ def create_app():
     app.config["BLE_CAMERA_CONTROLLER"] = ble_controller
 
     # Register routes
-    app.register_blueprint(camera_controller_bp)
+    app.register_blueprint(camera_bp)
     app.register_blueprint(esp32_bp)
 
     # Secret key for session management

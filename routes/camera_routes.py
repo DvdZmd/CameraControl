@@ -1,14 +1,14 @@
 from flask import Blueprint, Response, request, jsonify, render_template, send_file
-from camera.rpicam_z import rpicamz
+from rpicam_z.rpicam_z import rpicamz
 import time
 import io
 
-camera_controller_bp = Blueprint(
+camera_bp = Blueprint(
     'camera_controller', 
     __name__, 
     url_prefix="/api/camera")
 
-@camera_controller_bp.route('/')
+@camera_bp.route('/')
 def index():
     """
     Serve the main camera control page.
@@ -24,7 +24,7 @@ def index():
     """
     return render_template('index.html')
 
-@camera_controller_bp.route('/reset', methods=['POST'])
+@camera_bp.route('/reset', methods=['POST'])
 def reset_camera():
     """
     Reset camera settings to their default values.
@@ -42,7 +42,7 @@ def reset_camera():
     rpicamz.reset_to_defaults()
     return jsonify({"status": "success", "message": "Camera reset to defaults"})
 
-@camera_controller_bp.route('/apply_preset', methods=['POST'])
+@camera_bp.route('/apply_preset', methods=['POST'])
 def apply_preset():
     """
     Apply a named camera preset.
@@ -65,7 +65,7 @@ def apply_preset():
         return jsonify({"status": "success"})
     return jsonify({"status": "error", "message": "Preset not found"}), 404
 
-@camera_controller_bp.route('/take_photo_custom')
+@camera_bp.route('/take_photo_custom')
 def take_photo_custom():
     """
     Capture a still image at the requested resolution.
@@ -114,7 +114,7 @@ def generate_frames():
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
         time.sleep(0.03) # ~30 FPS
 
-@camera_controller_bp.route('/video_feed')
+@camera_bp.route('/video_feed')
 def video_feed():
     """
     Stream live camera frames as an MJPEG response.
@@ -132,7 +132,7 @@ def video_feed():
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
-@camera_controller_bp.route('/camera_status')
+@camera_bp.route('/camera_status')
 def camera_status():
     """
     Return cached camera capabilities and current stream state.
@@ -150,7 +150,7 @@ def camera_status():
     return jsonify(rpicamz.get_capabilities())
 
 
-@camera_controller_bp.route('/update_settings', methods=['POST'])
+@camera_bp.route('/update_settings', methods=['POST'])
 def update_settings():
     """
     Update camera stream settings and runtime controls.

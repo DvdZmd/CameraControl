@@ -2,7 +2,7 @@ import io, time, threading, os
 from datetime import datetime
 from picamera2 import Picamera2
 from libcamera import Transform
-from camera.camera_utils import CameraPresets, validate_control_value # Import the validator
+from rpicam_z.camera_utils import CameraPresets, validate_control_value # Import the validator
 
 class rpicam_z:
     def __init__(self, width=1640, height=1232, rotation=0, save_path="captures"):
