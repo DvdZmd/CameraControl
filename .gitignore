@@ -238,6 +238,7 @@ $RECYCLE.BIN/
 *.bmp
 *.gif
 *.tiff
+.codex
 *.tif
 *.webp
 *.mp4

@@ -1,5 +1,11 @@
+const CAMERA_API_BASE = '/api/camera';
+
+function cameraApiUrl(path) {
+    return `${CAMERA_API_BASE}${path}`;
+}
+
 window.onload = async () => {
-    const res = await fetch('/camera_status');
+    const res = await fetch(cameraApiUrl('/camera_status'));
     const status = await res.json();
     
     if (!status.af_supported) {
@@ -13,7 +19,7 @@ let cameraMaxW = 1280;
 let cameraMaxH = 720;
 
 async function initCameraSpecs() {
-    const res = await fetch('/camera_status');
+    const res = await fetch(cameraApiUrl('/camera_status'));
     const data = await res.json();
     
     cameraMaxW = data.max_width;
@@ -68,7 +74,7 @@ async function captureCustomPhoto() {
     
     try {
         // Construimos la URL con los parámetros custom
-        const response = await fetch(`/take_photo_custom?w=${w}&h=${h}`);
+        const response = await fetch(cameraApiUrl(`/take_photo_custom?w=${w}&h=${h}`));
         if (!response.ok) throw new Error("Error en la captura");
 
         const blob = await response.blob();
@@ -95,7 +101,7 @@ async function captureCustomPhoto() {
 // Función para manejar la visibilidad de los controles según el hardware
 async function checkCameraCapabilities() {
     try {
-        const res = await fetch('/camera_status');
+        const res = await fetch(cameraApiUrl('/camera_status'));
         const status = await res.json();
         
         const afContainer = document.getElementById('af-container');
@@ -152,7 +158,7 @@ async function applyPreset(presetName) {
     if (!presetName) return;
     
     try {
-        const response = await fetch('/apply_preset', {
+        const response = await fetch(cameraApiUrl('/apply_preset'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ preset: presetName })
@@ -170,7 +176,7 @@ async function applyPreset(presetName) {
 // Resetear la cámara
 async function resetCamera() {
     try {
-        const response = await fetch('/reset', { method: 'POST' });
+        const response = await fetch(cameraApiUrl('/reset'), { method: 'POST' });
         if (response.ok) {
             location.reload();
         }
@@ -189,7 +195,7 @@ async function updateCameraSettings(data) {
     }
 
     try {
-        const response = await fetch('/update_settings', {
+        const response = await fetch(cameraApiUrl('/update_settings'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
