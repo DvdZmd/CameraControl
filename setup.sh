@@ -46,6 +46,7 @@ pip install --upgrade pip
 echo "Uninstalling system-wide numpy to avoid conflicts with venv..."
 sudo apt remove -y python3-numpy
 
+# Install the external camera controller package from requirements.txt.
 pip install -r requirements.txt
 
 #-------------------------------------------

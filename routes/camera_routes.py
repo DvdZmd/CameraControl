@@ -1,5 +1,5 @@
 from flask import Blueprint, Response, request, jsonify, render_template, send_file
-from rpicam_z.rpicam_z import rpicamz
+from rpicam_z.rpicam_z import CAMERA_IMPORT_ERROR, UnavailableCamera, rpicam_z
 import time
 import io
 
@@ -7,6 +7,12 @@ camera_bp = Blueprint(
     'camera_controller', 
     __name__, 
     url_prefix="/api/camera")
+
+
+if CAMERA_IMPORT_ERROR is None:
+    rpicamz = rpicam_z()
+else:
+    rpicamz = UnavailableCamera(CAMERA_IMPORT_ERROR)
 
 
 def _camera_unavailable_response(error):

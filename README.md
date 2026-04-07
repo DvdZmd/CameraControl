@@ -258,6 +258,7 @@ Core dependencies managed in `requirements.txt`:
 - **Flask 3.0.0**: Web framework
 - **Flask-SQLAlchemy 3.1.1**: Database ORM
 - **picamera2 0.3.17**: Raspberry Pi camera interface
+- **RpiCamZ**: External Raspberry Pi camera controller library installed from [DvdZmd/rpicam-z](https://github.com/DvdZmd/rpicam-z)
 - **opencv-python 4.9.0.80**: Image processing
 - **numpy 1.24.3**: Numerical computing
 
