@@ -8,6 +8,13 @@ camera_bp = Blueprint(
     __name__, 
     url_prefix="/api/camera")
 
+
+def _camera_unavailable_response(error):
+    return jsonify({
+        "status": "error",
+        "message": str(error),
+    }), 503
+
 @camera_bp.route('/')
 def index():
     """
@@ -39,7 +46,10 @@ def reset_camera():
     Example:
         curl -X POST http://localhost:5000/api/camera/reset
     """
-    rpicamz.reset_to_defaults()
+    try:
+        rpicamz.reset_to_defaults()
+    except RuntimeError as error:
+        return _camera_unavailable_response(error)
     return jsonify({"status": "success", "message": "Camera reset to defaults"})
 
 @camera_bp.route('/apply_preset', methods=['POST'])
@@ -61,7 +71,12 @@ def apply_preset():
              -d '{"preset": "LUNAR_PHOTOGRAPHY"}'
     """
     preset_name = request.json.get('preset') # Example: 'LUNAR_PHOTOGRAPHY'
-    if rpicamz.apply_preset(preset_name):
+    try:
+        applied = rpicamz.apply_preset(preset_name)
+    except RuntimeError as error:
+        return _camera_unavailable_response(error)
+
+    if applied:
         return jsonify({"status": "success"})
     return jsonify({"status": "error", "message": "Preset not found"}), 404
 
@@ -86,7 +101,10 @@ def take_photo_custom():
     w = request.args.get('w', default=1280, type=int)
     h = request.args.get('h', default=720, type=int)
     
-    image_binary = rpicamz.take_custom_photo(w, h)
+    try:
+        image_binary = rpicamz.take_custom_photo(w, h)
+    except RuntimeError as error:
+        return _camera_unavailable_response(error)
     
     return send_file(
         io.BytesIO(image_binary),
@@ -108,7 +126,11 @@ def generate_frames():
         An iterator of multipart JPEG byte chunks.
     """
     while True:
-        frame = rpicamz.get_jpeg_frame()
+        try:
+            frame = rpicamz.get_jpeg_frame()
+        except RuntimeError as error:
+            print(f"Error occurred while generating frames: {error}")
+            return
         if frame:
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
@@ -171,29 +193,31 @@ def update_settings():
              -d '{"width": 1280, "height": 720, "rotation": 90, "Brightness": 0.1}'
     """
     data = request.json
-    
-    # Resolution change
-    if 'width' in data and 'height' in data:
-        rpicamz.set_resolution(int(data['width']), int(data['height']))
+    try:
+        # Resolution change
+        if 'width' in data and 'height' in data:
+            rpicamz.set_resolution(int(data['width']), int(data['height']))
 
-    # Rotation handling
-    if 'rotation' in data:
-        rpicamz.set_rotation(int(data['rotation']))
+        # Rotation handling
+        if 'rotation' in data:
+            rpicamz.set_rotation(int(data['rotation']))
 
-    # Timelapse handling
-    if 'timelapse' in data:
-        if data['timelapse'] == 'start':
-            interval = int(data.get('interval', 5))
-            # Optional: pass the desired resolution for timelapse
-            tw = data.get('t_width') 
-            th = data.get('t_height')
-            rpicamz.start_timelapse(interval, tw, th)
-        else:
-            rpicamz.stop_timelapse() 
-    
-    # Update controls (Brightness, Contrast, Saturation, Sharpness, AfMode)
-    for param in ['Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition', 'ExposureTime', 'AnalogueGain']:
-        if param in data:
-            rpicamz.update_control(param, data[param])
+        # Timelapse handling
+        if 'timelapse' in data:
+            if data['timelapse'] == 'start':
+                interval = int(data.get('interval', 5))
+                # Optional: pass the desired resolution for timelapse
+                tw = data.get('t_width') 
+                th = data.get('t_height')
+                rpicamz.start_timelapse(interval, tw, th)
+            else:
+                rpicamz.stop_timelapse()
+
+        # Update controls (Brightness, Contrast, Saturation, Sharpness, AfMode)
+        for param in ['Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition', 'ExposureTime', 'AnalogueGain']:
+            if param in data:
+                rpicamz.update_control(param, data[param])
+    except RuntimeError as error:
+        return _camera_unavailable_response(error)
             
     return jsonify({"status": "success"})

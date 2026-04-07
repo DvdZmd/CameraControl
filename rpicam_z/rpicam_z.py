@@ -1,8 +1,16 @@
 import io, time, threading, os
 from datetime import datetime
-from picamera2 import Picamera2
-from libcamera import Transform
 from rpicam_z.camera_utils import CameraPresets, validate_control_value # Import the validator
+
+CAMERA_IMPORT_ERROR = None
+
+try:
+    from picamera2 import Picamera2
+    from libcamera import Transform
+except ModuleNotFoundError as exc:
+    Picamera2 = None
+    Transform = None
+    CAMERA_IMPORT_ERROR = exc
 
 class rpicam_z:
     def __init__(self, width=1640, height=1232, rotation=0, save_path="captures"):
@@ -28,6 +36,12 @@ class rpicam_z:
             Exception: Propagates camera initialization errors raised by
                 Picamera2 or libcamera.
         """
+        if CAMERA_IMPORT_ERROR is not None:
+            raise RuntimeError(
+                "Camera dependencies are unavailable. Original import error: "
+                f"{CAMERA_IMPORT_ERROR}"
+            ) from CAMERA_IMPORT_ERROR
+
         self.picam2 = Picamera2()
         # Store initial factory values for Reset
         self.default_config = {
@@ -473,4 +487,24 @@ class rpicam_z:
             # takes ~1-2 seconds to reset the camera
             time.sleep(max(1, interval))
 
-rpicamz = rpicam_z()
+class UnavailableCamera:
+    def __init__(self, error):
+        self.error = error
+
+    def get_capabilities(self):
+        return {
+            "available": False,
+            "error": str(self.error),
+        }
+
+    def __getattr__(self, name):
+        raise RuntimeError(
+            "Camera is unavailable because its dependencies could not be imported: "
+            f"{self.error}"
+        ) from self.error
+
+
+if CAMERA_IMPORT_ERROR is None:
+    rpicamz = rpicam_z()
+else:
+    rpicamz = UnavailableCamera(CAMERA_IMPORT_ERROR)
