@@ -68,6 +68,47 @@ h3 { margin-top: 0; color: var(--accent); font-size: 0.9rem; text-transform: upp
     accent-color: var(--accent);
 }
 
+.status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.toggle-panel-btn {
+    background: rgba(0, 255, 136, 0.12);
+    color: var(--accent);
+    border: 1px solid rgba(0, 255, 136, 0.5);
+    padding: 8px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 180ms ease, transform 180ms ease;
+}
+
+.toggle-panel-btn:hover {
+    background: rgba(0, 255, 136, 0.18);
+    transform: scale(1.02);
+}
+
+.controls-panel {
+    flex: 1;
+    background-color: var(--panel-dark);
+    padding: 20px;
+    overflow-y: auto;
+    border-left: 1px solid #333;
+    transition: flex 0.25s ease, width 0.25s ease, padding 0.25s ease, border 0.25s ease;
+}
+
+.controls-panel.hidden {
+    flex: 0;
+    width: 0;
+    min-width: 0;
+    padding: 0;
+    border-left: 0;
+    overflow: hidden;
+}
+
 .btn-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);

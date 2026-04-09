@@ -44,6 +44,29 @@ function handleResolutionChange(val) {
     }
 }
 
+function restoreControlPanelState() {
+    const panel = document.querySelector('.controls-panel');
+    const toggleBtn = document.getElementById('toggle-panel-btn');
+    const hidden = localStorage.getItem('controlsPanelHidden') === 'true';
+
+    if (hidden) {
+        panel.classList.add('hidden');
+        if (toggleBtn) toggleBtn.textContent = 'Mostrar panel';
+    } else {
+        panel.classList.remove('hidden');
+        if (toggleBtn) toggleBtn.textContent = 'Ocultar panel';
+    }
+}
+
+function toggleControlPanel() {
+    const panel = document.querySelector('.controls-panel');
+    const toggleBtn = document.getElementById('toggle-panel-btn');
+    const hidden = panel.classList.toggle('hidden');
+
+    if (toggleBtn) toggleBtn.textContent = hidden ? 'Mostrar panel' : 'Ocultar panel';
+    localStorage.setItem('controlsPanelHidden', hidden);
+}
+
 function applyCustomResolution() {
     let w = parseInt(document.getElementById('custom-w').value);
     let h = parseInt(document.getElementById('custom-h').value);
@@ -60,7 +83,9 @@ function applyCustomResolution() {
 window.addEventListener('load', async () => {
     // 1. Obtener capacidades y límites
     await initCameraSpecs(); 
-    // 2. Verificar AF para mostrar/ocultar sliders
+    // 2. Restaurar estado del panel de controles
+    restoreControlPanelState();
+    // 3. Verificar AF para mostrar/ocultar sliders
     await checkCameraCapabilities(); 
 });
 

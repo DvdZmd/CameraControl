@@ -12,6 +12,9 @@
             <div class="status-bar">
                 <span id="connection-status" class="status-online">● LIVE</span>
                 <span id="resolution-label">1280x720 @ 30fps</span>
+                <button id="toggle-panel-btn" class="toggle-panel-btn" onclick="toggleControlPanel()" type="button">
+                    Ocultar panel
+                </button>
             </div>
             <div class="video-wrapper">
                 <img id="video-feed" src="{{ url_for('camera_controller.video_feed') }}" alt="Camera Stream">
