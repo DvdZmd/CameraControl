@@ -142,6 +142,47 @@ def generate_frames():
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
         time.sleep(0.03) # ~30 FPS
 
+def generate_frames_sync():
+    """
+    Yield multipart JPEG frames with per-frame timestamp metadata.
+
+    The generator reads frame packets from ``rpicamz.get_frame_packet()`` and
+    emits a multipart MJPEG stream where each part includes frame identifier and
+    nanosecond timestamps in custom headers.
+
+    Returns:
+        An iterator of multipart JPEG byte chunks with metadata headers.
+    """
+    while True:
+        try:
+            packet = rpicamz.get_frame_packet()
+        except RuntimeError as error:
+            print(f"Error occurred while generating sync frames: {error}")
+            return
+
+        if packet:
+            if isinstance(packet, dict):
+                frame_id = packet.get("frame_id")
+                jpeg_bytes = packet.get("jpeg_bytes")
+                captured_wall_time_ns = packet.get("captured_wall_time_ns")
+                captured_monotonic_ns = packet.get("captured_monotonic_ns")
+            else:
+                frame_id = getattr(packet, "frame_id", None)
+                jpeg_bytes = getattr(packet, "jpeg_bytes", None)
+                captured_wall_time_ns = getattr(packet, "captured_wall_time_ns", None)
+                captured_monotonic_ns = getattr(packet, "captured_monotonic_ns", None)
+
+            if jpeg_bytes:
+                headers = (
+                    b'--frame\r\n'
+                    b'Content-Type: image/jpeg\r\n'
+                    + f'X-Frame-Id: {frame_id}\r\n'.encode('ascii')
+                    + f'X-Timestamp-Wall-Ns: {captured_wall_time_ns}\r\n'.encode('ascii')
+                    + f'X-Timestamp-Mono-Ns: {captured_monotonic_ns}\r\n\r\n'.encode('ascii')
+                )
+                yield headers + jpeg_bytes + b'\r\n'
+        time.sleep(0.03) # ~30 FPS
+
 @camera_bp.route('/video_feed')
 def video_feed():
     """
@@ -158,6 +199,24 @@ def video_feed():
         curl http://localhost:5000/api/camera/video_feed
     """
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@camera_bp.route('/video_feed_sync')
+def video_feed_sync():
+    """
+    Stream live camera frames with per-frame timing metadata.
+
+    This Flask route handles ``GET /api/camera/video_feed_sync`` and keeps the
+    HTTP connection open while frames and timestamp headers are generated from
+    the active camera stream.
+
+    Returns:
+        A multipart HTTP response with content type
+        ``multipart/x-mixed-replace``.
+
+    Example:
+        curl http://localhost:5000/api/camera/video_feed_sync
+    """
+    return Response(generate_frames_sync(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 @camera_bp.route('/camera_status')
