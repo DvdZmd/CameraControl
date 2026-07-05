@@ -210,6 +210,38 @@ async function resetCamera() {
     }
 }
 
+async function triggerSoftwareUpdate() {
+    const btn = document.getElementById('btn-update-software');
+    const status = document.getElementById('update-status');
+
+    if (!btn || !status) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Actualizando...';
+    status.classList.remove('hidden', 'status-error');
+    status.textContent = 'Dispositivo actualizándose. El servicio se reiniciará y la página se recargará en unos segundos.';
+
+    try {
+        const response = await fetch('/api/admin/update', { method: 'POST' });
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.message || 'No se pudo iniciar la actualización.');
+        }
+
+        status.textContent = result.message + ' Reiniciando servicio...';
+        setTimeout(() => {
+            location.reload();
+        }, 12000);
+    } catch (err) {
+        console.error('Error al actualizar software:', err);
+        btn.disabled = false;
+        btn.textContent = 'Actualizar Software';
+        status.classList.add('status-error');
+        status.textContent = err.message || 'No se pudo iniciar la actualización.';
+    }
+}
+
 async function updateCameraSettings(data) {
     // Aseguramos que los tipos sean correctos antes de enviar
     if (data.ExposureTime) data.ExposureTime = parseInt(data.ExposureTime);
