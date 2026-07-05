@@ -232,10 +232,39 @@ async function updateCameraSettings(data) {
     }
 }
 
+function applyVideoRotation(angle) {
+    const videoFeed = document.getElementById('video-feed');
+    if (!videoFeed) return;
+
+    videoFeed.classList.remove('rotate-90', 'rotate-180', 'rotate-270');
+
+    if (angle === 90) {
+        videoFeed.classList.add('rotate-90');
+    } else if (angle === 180) {
+        videoFeed.classList.add('rotate-180');
+    } else if (angle === 270) {
+        videoFeed.classList.add('rotate-270');
+    }
+}
+
 async function setRotation(angle) {
-    await updateCameraSettings({ 'rotation': angle });
-    // Nota: Como la rotación por hardware reinicia el stream, 
-    // el video-feed de la imagen se reconectará automáticamente.
+    const parsedAngle = parseInt(angle, 10);
+    applyVideoRotation(parsedAngle);
+
+    if (parsedAngle === 0) {
+        await updateCameraSettings({ rotation: parsedAngle });
+        return;
+    }
+
+    if (parsedAngle === 180) {
+        return;
+    }
+
+    if (parsedAngle === 90 || parsedAngle === 270) {
+        return;
+    }
+
+    await updateCameraSettings({ rotation: parsedAngle });
 }
 
 let timelapseRunning = false;
