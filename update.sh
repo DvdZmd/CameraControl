@@ -4,11 +4,15 @@ set -e
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 
-echo "Buscando actualizaciones en origin/main..."
-git fetch origin main
+git_safe() {
+    git -c safe.directory="$PROJECT_DIR" "$@"
+}
 
-LOCAL_HEAD="$(git rev-parse HEAD)"
-REMOTE_HEAD="$(git rev-parse FETCH_HEAD)"
+echo "Buscando actualizaciones en origin/main..."
+git_safe fetch origin main
+
+LOCAL_HEAD="$(git_safe rev-parse HEAD)"
+REMOTE_HEAD="$(git_safe rev-parse FETCH_HEAD)"
 
 if [ "$LOCAL_HEAD" = "$REMOTE_HEAD" ]; then
     echo "No hay cambios disponibles. El sistema ya esta actualizado."
@@ -16,7 +20,7 @@ if [ "$LOCAL_HEAD" = "$REMOTE_HEAD" ]; then
 fi
 
 echo "Hay cambios disponibles. Actualizando repositorio..."
-git pull origin main
+git_safe pull origin main
 
 if [ -d "./venv" ] && [ -x "./venv/bin/pip" ]; then
     echo "Actualizando dependencias desde ./venv..."
