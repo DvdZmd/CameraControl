@@ -69,5 +69,5 @@ def trigger_update():
 
     return jsonify({
         "status": "updating",
-        "message": "Script de actualización disparado correctamente...",
+        "message": "¡Script de actualización disparado correctamente!",
     })
