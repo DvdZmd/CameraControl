@@ -47,13 +47,6 @@ const int centerPulse = 1450;
 int panPulse = centerPulse;
 int tiltPulse = centerPulse;
 
-// --- INICIO: Mejoras para Jitter de Servos ---
-bool panServoAttached = false;
-bool tiltServoAttached = false;
-uint32_t lastServoMoveTime = 0;
-static constexpr uint32_t SERVO_INACTIVITY_TIMEOUT_MS = 1000; // 1 segundo
-// --- FIN: Mejoras para Jitter de Servos ---
-
 // =====================================================
 // SENSORES
 // =====================================================
@@ -142,57 +135,18 @@ void centerServos() {
   panPulse = centerPulse;
   tiltPulse = centerPulse;
 
-// --- INICIO: Funciones de control de servo mejoradas ---
-void attachServos() {
-  if (!panServoAttached) {
-    servoPan.attach(SERVO_PAN_PIN, minPulse, maxPulse);
-    panServoAttached = true;
-  }
-  if (!tiltServoAttached) {
-    servoTilt.attach(SERVO_TILT_PIN, minPulse, maxPulse);
-    tiltServoAttached = true;
-  }
-}
-
-void detachInactiveServos(bool force = false) {
-  if (force || (millis() - lastServoMoveTime > SERVO_INACTIVITY_TIMEOUT_MS)) {
-    if (panServoAttached) {
-      servoPan.detach();
-      panServoAttached = false;
-    }
-    if (tiltServoAttached) {
-      servoTilt.detach();
-      tiltServoAttached = false;
-    }
-  }
-}
-
-void updateServoPositions(int newPanPulse, int newTiltPulse) {
-  attachServos();
-
-  panPulse = constrain(newPanPulse, minPulse, maxPulse);
-  tiltPulse = constrain(newTiltPulse, minPulse, maxPulse);
-
   servoPan.writeMicroseconds(panPulse);
   servoTilt.writeMicroseconds(tiltPulse);
-
-  lastServoMoveTime = millis();
-}
-
-void centerServos() {
-  updateServoPositions(centerPulse, centerPulse);
 }
 
 void applyPanStep(int step) {
   panPulse = constrain(panPulse + step, minPulse, maxPulse);
   servoPan.writeMicroseconds(panPulse);
-  updateServoPositions(panPulse + step, tiltPulse);
 }
 
 void applyTiltStep(int step) {
   tiltPulse = constrain(tiltPulse + step, minPulse, maxPulse);
   servoTilt.writeMicroseconds(tiltPulse);
-  updateServoPositions(panPulse, tiltPulse + step);
 }
 
 void readSensors() {
@@ -348,12 +302,10 @@ void setup() {
 
   // Serial.begin(115200);
 
-  // Los servos se adjuntan solo cuando es necesario, no en setup.
   servoPan.setPeriodHertz(50);
   servoTilt.setPeriodHertz(50);
   servoPan.attach(SERVO_PAN_PIN, minPulse, maxPulse);
   servoTilt.attach(SERVO_TILT_PIN, minPulse, maxPulse);
-
   centerServos();
 
   pinMode(SOIL_SENSOR_PIN, INPUT);
@@ -404,7 +356,6 @@ void loop() {
   if (hasPendingAbs) {
     int newPan = pendingPanPulse;
     int newTilt = pendingTiltPulse;
-    updateServoPositions(newPan, newTilt);
 
     panPulse = newPan;
     tiltPulse = newTilt;
