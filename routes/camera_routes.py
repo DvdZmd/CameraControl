@@ -133,14 +133,21 @@ def generate_frames():
     """
     while True:
         try:
-            frame = rpicamz.get_jpeg_frame()
+            packet = rpicamz.get_frame_packet()
         except RuntimeError as error:
             print(f"Error occurred while generating frames: {error}")
             return
-        if frame:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-        time.sleep(0.03) # ~30 FPS
+
+        if packet:
+            if isinstance(packet, dict):
+                jpeg_bytes = packet.get("jpeg_bytes")
+            else:
+                jpeg_bytes = getattr(packet, "jpeg_bytes", None)
+
+            if jpeg_bytes:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n')
+        time.sleep(0.03)  # ~30 FPS
 
 def generate_frames_sync():
     """
@@ -278,8 +285,18 @@ def update_settings():
             else:
                 rpicamz.stop_timelapse()
 
-        # Update controls (Brightness, Contrast, Saturation, Sharpness, AfMode)
-        for param in ['Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition', 'ExposureTime', 'AnalogueGain']:
+        # Update image processing controls
+        image_params = ['Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition']
+        for param in image_params:
+            if param in data:
+                rpicamz.update_control(param, data[param])
+                # Add a small delay to allow image processing settings to apply before the next frame is requested.
+                # This helps prevent the UI from appearing to "freeze" for these specific controls.
+                time.sleep(0.05)
+
+        # Update sensor controls (these are usually applied immediately by the sensor)
+        sensor_params = ['ExposureTime', 'AnalogueGain']
+        for param in sensor_params:
             if param in data:
                 rpicamz.update_control(param, data[param])
     except RuntimeError as error:

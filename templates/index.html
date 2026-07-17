@@ -12,7 +12,7 @@
             <div class="status-bar">
                 <span id="connection-status" class="status-online">● LIVE</span>
                 <span id="resolution-label">1280x720 @ 30fps</span>
-                <button id="toggle-panel-btn" class="toggle-panel-btn" onclick="toggleControlPanel()" type="button">
+                <button id="toggle-panel-btn" class="toggle-panel-btn" data-action="toggle-controls" type="button">
                     Ocultar panel
                 </button>
             </div>
@@ -21,14 +21,22 @@
             </div>
         </div>
         <div class="controls-panel">
-            <h1>Cámara IoT Pro</h1>
-            <section class="control-group">
+            <div class="panel-header">
+                <h1>Cámara IoT Pro</h1>
+                <div class="tab-switcher" role="tablist" aria-label="Secciones de control">
+                    <button type="button" class="tab-btn active" data-tab="camera-tab" role="tab" aria-controls="camera-tab" aria-selected="true">Cámara</button>
+                    <button type="button" class="tab-btn" data-tab="esp32-tab" role="tab" aria-controls="esp32-tab" aria-selected="false">ESP32</button>
+                </div>
+            </div>
+
+            <div id="camera-tab" class="tab-panel active">
+                <section class="control-group">
                 <h3>Configuración de Stream</h3>
                 <div class="slider-item">
                     <section class="control-group">
                         <h3>Resolución</h3>
                         <div class="slider-item">
-                            <select id="res-preset" onchange="handleResolutionChange(this.value)">
+                            <select id="res-preset" data-action="set-resolution-preset">
                                 <option value="640x480">480p (VGA)</option>
                                 <option value="1280x720" selected>720p (HD)</option>
                                 <option value="1920x1080">1080p (Full HD)</option>
@@ -39,8 +47,8 @@
                         <div id="custom-res-inputs" style="display: none; margin-top: 10px; gap: 5px; align-items: center;">
                             <input type="number" id="custom-w" placeholder="Ancho" style="width: 70px;">
                             <span>x</span>
-                            <input type="number" id="custom-h" placeholder="Alto" style="width: 70px;">
-                            <button onclick="applyCustomResolution()" class="btn-small">Aplicar</button>
+                            <input type="number" id="custom-h" placeholder="Alto" style="width: 70px;" >
+                            <button data-action="apply-custom-resolution" class="btn-small">Aplicar</button>
                         </div>
                         <small id="max-res-hint" style="color: #888;"></small>
                     </section>
@@ -55,7 +63,7 @@
                         <span>x</span>
                         <input type="number" id="photo-h" placeholder="Alto" value="1080" style="width: 80px;">
                     </div>
-                    <button class="btn-primary" onclick="captureCustomPhoto()" style="width: 100%;">
+                    <button class="btn-primary" data-action="capture-custom-photo" style="width: 100%;">
                         📸 Tomar Foto Custom
                     </button>
                 </div>
@@ -65,7 +73,7 @@
                 <h3>Gestión de Configuración</h3>
                 <div class="slider-item">
                     <label>Presets Disponibles</label>
-                    <select id="camera-presets" onchange="applyPreset(this.value)">
+                    <select id="camera-presets" data-action="apply-preset">
                         <option value="" disabled selected>Selecciona un preset...</option>
                         <option value="RPICAM_HELLO_DEFAULT">Por Defecto (Hello)</option>
                         <option value="LUNAR_PHOTOGRAPHY">🌕 Fotografía Lunar</option>
@@ -75,26 +83,26 @@
                         <option value="TIMELAPSE">⏱️ Timelapse</option>
                     </select>
                 </div>
-                <button class="btn-danger" onclick="resetCamera()" style="width: 100%; margin-top: 10px;">
+                <button class="btn-danger" data-action="reset-camera" style="width: 100%; margin-top: 10px;">
                     ⚠️ Resetear a Valores de Fábrica
                 </button>
-                <button id="btn-update-software" class="btn-primary" onclick="triggerSoftwareUpdate()" style="width: 100%; margin-top: 10px;">
+                <button id="btn-update-software" class="btn-primary" data-action="update-software" style="width: 100%; margin-top: 10px;">
                     Actualizar Software
                 </button>
                 <div id="update-status" class="status-message hidden"></div>
             </section>
             <section class="control-group">
                 <h3>Orientación</h3>
-                <div class="btn-grid">
-                    <button onclick="setRotation(0)">0°</button>
-                    <button onclick="setRotation(90)">90°</button>
-                    <button onclick="setRotation(180)">180°</button>
-                    <button onclick="setRotation(270)">270°</button>
+                <div class="btn-grid" data-action-group="set-rotation">
+                    <button data-value="0">0°</button>
+                    <button data-value="90">90°</button>
+                    <button data-value="180">180°</button>
+                    <button data-value="270">270°</button>
                 </div>
             </section>      
             <section class="control-group">
                 <h3>Imagen (Hardware ISP)</h3>
-                <div class="slider-item">
+                <div class="slider-item" data-control="Brightness">
                     <label>Brillo</label>
                     <input type="range" id="Brightness" min="-1.0" max="1.0" step="0.1" value="0.0" class="camera-slider">
                 </div>
@@ -110,8 +118,8 @@
             <section class="control-group">
                 <h3>Modo Astronomía (V3)</h3>
                 <div class="slider-item">
-                    <label>Exposición Automática (AE)</label>
-                    <select id="AeEnable" onchange="updateCameraSettings({AeEnable: this.value === 'true'})">
+                    <label for="AeEnable">Exposición Automática (AE)</label>
+                    <select id="AeEnable" data-control="AeEnable" data-type="boolean">
                         <option value="true" selected>Habilitado (Auto)</option>
                         <option value="false">Deshabilitado (Manual)</option>
                     </select>
@@ -119,7 +127,7 @@
                 <div class="slider-item">
                     <label>Ganancia Analógica (ISO)</label>
                     <div style="display: flex; gap: 10px; align-items: center;">
-                        <input type="range" id="AnalogueGain" 
+                        <input type="range" id="AnalogueGain" data-control="AnalogueGain"
                             min="1.0" max="10.6" step="0.1" value="1.0" 
                             class="camera-slider">
                         <span id="val-AnalogueGain">1.0</span>
@@ -129,7 +137,7 @@
                 <div class="slider-item">
                     <label>Tiempo de Exposición (μs)</label>
                     <div style="display: flex; gap: 10px; align-items: center;">
-                        <input type="range" id="ExposureTime" min="75" max="50000" step="100" value="10000" class="camera-slider">
+                        <input type="range" id="ExposureTime" data-control="ExposureTime" min="75" max="50000" step="100" value="10000" class="camera-slider">
                         <span id="val-ExposureTime">10000</span>
                     </div>y
                     <small>Luna llena: 5,000 - 20,000 μs</small>
@@ -137,7 +145,7 @@
             </section>
             <div id="AfModeDiv" class="slider-item">
                 <label>Modo de Enfoque</label>
-                <select id="AfMode" class="camera-slider-select" onchange="updateCameraSettings({'AfMode': this.value})">
+                <select id="AfMode" data-control="AfMode">
                     <option value="2" selected>Continuo (AF-C)</option>
                     <option value="1">Automático (AF-S)</option>
                     <option value="0">Manual</option>
@@ -147,10 +155,9 @@
                 <label>Distancia de Enfoque (Manual)</label>
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span>Infinito</span>
-                    <input type="range" id="LensPosition" 
+                    <input type="range" id="LensPosition" data-control="LensPosition"
                         min="0.0" max="12.0" step="0.1" value="0.0" 
-                        class="camera-slider" 
-                        oninput="updateCameraSettings({LensPosition: parseFloat(this.value)})">
+                        class="camera-slider">
                     <span>Cerca</span>
                 </div>
             </div>      
@@ -171,13 +178,119 @@
                         Sugerencia 4K: 3840x2160 | Máx V3: 4608x2592
                     </p>
                 </div>
-                <button id="btn-timelapse" class="btn-primary" onclick="toggleTimelapse()">
+                <button id="btn-timelapse" class="btn-primary" data-action="toggle-timelapse">
                     Iniciar Timelapse
                 </button>
                 <div id="timelapse-status" class="hidden" style="color: #00ff88; font-weight: bold; margin-top: 10px;">
                     ● Capturando en Alta Resolución...
                 </div>
             </section>
+            </div>
+
+            <div id="esp32-tab" class="tab-panel">
+                <section class="control-group" aria-labelledby="esp32-status-heading">
+                    <h3>Estado BLE</h3>
+                    <div class="esp32-status-card">
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">Estado</span>
+                            <span id="esp32-status-badge" class="esp32-badge disconnected">Desconectado</span>
+                        </div>
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">Dispositivo</span>
+                            <span id="esp32-device-name">--</span>
+                        </div>
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">Dirección</span>
+                            <span id="esp32-address">--</span>
+                        </div>
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">Último estado</span>
+                            <span id="esp32-last-state">--</span>
+                        </div>
+                    </div>
+                    <div class="esp32-actions">
+                        <button class="btn-primary" data-action="esp32-connect" type="button">Conectar ESP32</button>
+                        <button class="btn-danger" data-action="esp32-disconnect" type="button">Desconectar</button>
+                    </div>
+                </section>
+
+                <section class="control-group" aria-labelledby="esp32-movement-heading">
+                    <h3>Control de movimiento</h3>
+                    <div class="btn-grid esp32-move-grid" data-action-group="esp32-move">
+                        <button type="button" data-value="up" aria-label="Mover arriba">⬆️ Arriba</button>
+                        <button type="button" data-value="left" aria-label="Mover izquierda">⬅️ Izquierda</button>
+                        <button type="button" data-value="right" aria-label="Mover derecha">➡️ Derecha</button>
+                        <button type="button" data-value="down" aria-label="Mover abajo">⬇️ Abajo</button>
+                    </div>
+                    <div class="esp32-actions">
+                        <button class="btn-primary" data-action="esp32-center" type="button">Centro</button>
+                        <button type="button" data-action="esp32-stop">Parar</button>
+                    </div>
+                </section>
+
+                <section class="control-group" aria-labelledby="esp32-speed-heading">
+                    <h3>Velocidad y comandos</h3>
+                    <div class="slider-item">
+                        <label for="esp32-speed-select">Perfil de velocidad</label>
+                        <select id="esp32-speed-select" data-action="esp32-set-speed">
+                            <option value="0">0 - Muy fino</option>
+                            <option value="1">1</option>
+                            <option value="2" selected>2 - Normal</option>
+                            <option value="3">3</option>
+                            <option value="4">4 - Rápido</option>
+                        </select>
+                    </div>
+                    <div class="slider-item">
+                        <label for="esp32-command-input">Comando manual</label>
+                        <input id="esp32-command-input" class="esp32-input" type="text" placeholder="PAN_LEFT, CENTER, SET_SPEED:2">
+                    </div>
+                    <div class="esp32-actions">
+                        <button class="btn-primary" data-action="esp32-send-custom-command" type="button">Enviar comando</button>
+                    </div>
+                    <div id="esp32-feedback" class="status-message hidden"></div>
+                </section>
+
+                <section class="control-group" aria-labelledby="esp32-sensors-heading">
+                    <h3 id="esp32-sensors-heading">Sensores Ambientales</h3>
+                    <div class="esp32-status-card">
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">🌡️ Temp. Ambiente (DHT)</span>
+                            <span id="sensor-dht-temp">--</span>
+                        </div>
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">💧 Humedad Ambiente (DHT)</span>
+                            <span id="sensor-dht-humidity">--</span>
+                        </div>
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">🌡️ Temp. Sonda (DS18B20)</span>
+                            <span id="sensor-ds-temp">--</span>
+                        </div>
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">🌱 Humedad Suelo (%)</span>
+                            <span id="sensor-soil-percent">--</span>
+                        </div>
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">RAW Humedad Suelo</span>
+                            <span id="sensor-soil-raw">--</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="control-group" aria-labelledby="esp32-servos-heading">
+                    <h3 id="esp32-servos-heading">Estado de Movimiento</h3>
+                    <div class="esp32-status-card">
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">Posición Pan</span>
+                            <span id="servo-pan-pulse">--</span>
+                        </div>
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">Posición Tilt</span>
+                            <span id="servo-tilt-pulse">--</span>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
         </div>
     </div>
     <script src="{{ url_for('static', filename='js/camera.js') }}"></script>

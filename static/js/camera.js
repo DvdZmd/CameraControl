@@ -4,16 +4,191 @@ function cameraApiUrl(path) {
     return `${CAMERA_API_BASE}${path}`;
 }
 
-window.onload = async () => {
-    const res = await fetch(cameraApiUrl('/camera_status'));
-    const status = await res.json();
-    
-    if (!status.af_supported) {
-        // Ocultamos el div de AF si no se soporta
-        const afControl = document.getElementById('AfModeDiv');
-        if (afControl) afControl.style.display = 'none';
+
+function setActiveTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabId);
+    });
+
+    document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === tabId);
+    });
+}
+
+function showEsp32Feedback(message, isError = false) {
+    const feedback = document.getElementById('esp32-feedback');
+    if (!feedback) return;
+
+    feedback.classList.remove('hidden', 'status-error');
+    feedback.textContent = message;
+    if (isError) {
+        feedback.classList.add('status-error');
     }
-};
+}
+
+async function refreshEsp32Status() {
+    try {
+        const response = await fetch('/api/esp32/status');
+        const data = await response.json();
+
+        const badge = document.getElementById('esp32-status-badge');
+        const deviceName = document.getElementById('esp32-device-name');
+        const address = document.getElementById('esp32-address');
+        const lastStateEl = document.getElementById('esp32-last-state');
+
+        if (badge) {
+            badge.textContent = data.connected ? 'Conectado' : 'Desconectado';
+            badge.className = `esp32-badge ${data.connected ? 'connected' : 'disconnected'}`;
+        }
+        
+        if (deviceName) deviceName.textContent = data.device_name || '--';
+        if (address) address.textContent = data.address || '--';
+        
+        // Actualizar estado y sensores
+        const lastState = data.last_state || {};
+        if (lastStateEl) {
+            // La clave para velocidad es 'S'
+            lastStateEl.textContent = lastState.S ? `Perfil Vel. ${lastState.S}` : 'N/A';
+        }
+
+        // Sensores Ambientales y de Suelo
+        document.getElementById('sensor-dht-temp').textContent = lastState.DT ? `${parseFloat(lastState.DT).toFixed(1)} °C` : '--';
+        document.getElementById('sensor-dht-humidity').textContent = lastState.DH ? `${parseFloat(lastState.DH).toFixed(1)} %` : '--';
+        document.getElementById('sensor-ds-temp').textContent = lastState.DS ? `${parseFloat(lastState.DS).toFixed(1)} °C` : '--';
+        document.getElementById('sensor-soil-percent').textContent = lastState.SP ? `${lastState.SP} %` : '--';
+        document.getElementById('sensor-soil-raw').textContent = lastState.SR || '--';
+
+        // Estado de Movimiento (Servos)
+        document.getElementById('servo-pan-pulse').textContent = lastState.P || '--';
+        document.getElementById('servo-tilt-pulse').textContent = lastState.T || '--';
+
+    } catch (error) {
+        console.error('Error obteniendo estado ESP32:', error);
+    }
+}
+
+async function connectEsp32() {
+    try {
+        const response = await fetch('/api/esp32/connect', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok || data.connected === false) {
+            throw new Error(data.error || 'No se pudo conectar al ESP32');
+        }
+        showEsp32Feedback('ESP32 conectado correctamente');
+        await refreshEsp32Status();
+    } catch (error) {
+        showEsp32Feedback(error.message || 'No se pudo conectar al ESP32', true);
+    }
+}
+
+async function disconnectEsp32() {
+    try {
+        const response = await fetch('/api/esp32/disconnect', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok || data.connected !== false) {
+            throw new Error(data.error || 'No se pudo desconectar del ESP32');
+        }
+        showEsp32Feedback('ESP32 desconectado');
+        await refreshEsp32Status();
+    } catch (error) {
+        showEsp32Feedback(error.message || 'No se pudo desconectar del ESP32', true);
+    }
+}
+
+async function sendEsp32Move(direction) {
+    try {
+        const response = await fetch('/api/esp32/move', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ direction })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'No se pudo enviar el movimiento');
+        }
+        showEsp32Feedback(`Movimiento enviado: ${direction}`);
+        await refreshEsp32Status();
+    } catch (error) {
+        showEsp32Feedback(error.message || 'No se pudo enviar el movimiento', true);
+    }
+}
+
+async function sendEsp32Center() {
+    try {
+        const response = await fetch('/api/esp32/center', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'No se pudo centrar el sistema');
+        }
+        showEsp32Feedback('Comando de centrado enviado');
+        await refreshEsp32Status();
+    } catch (error) {
+        showEsp32Feedback(error.message || 'No se pudo centrar el sistema', true);
+    }
+}
+
+async function sendEsp32Stop() {
+    try {
+        const response = await fetch('/api/esp32/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: 'STOP' })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'No se pudo enviar STOP');
+        }
+        showEsp32Feedback('Comando STOP enviado');
+        await refreshEsp32Status();
+    } catch (error) {
+        showEsp32Feedback(error.message || 'No se pudo enviar STOP', true);
+    }
+}
+
+async function setEsp32Speed(mode) {
+    try {
+        const response = await fetch('/api/esp32/speed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: Number(mode) })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'No se pudo actualizar la velocidad');
+        }
+        showEsp32Feedback(`Velocidad actualizada al perfil ${mode}`);
+        await refreshEsp32Status();
+    } catch (error) {
+        showEsp32Feedback(error.message || 'No se pudo actualizar la velocidad', true);
+    }
+}
+
+async function sendEsp32CustomCommand() {
+    const input = document.getElementById('esp32-command-input');
+    if (!input) return;
+
+    const command = input.value.trim();
+    if (!command) {
+        showEsp32Feedback('Escribe un comando antes de enviarlo', true);
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/esp32/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'No se pudo enviar el comando');
+        }
+        showEsp32Feedback(`Comando enviado: ${command}`);
+        await refreshEsp32Status();
+    } catch (error) {
+        showEsp32Feedback(error.message || 'No se pudo enviar el comando', true);
+    }
+}
 
 let cameraMaxW = 1280;
 let cameraMaxH = 720;
@@ -80,15 +255,6 @@ function applyCustomResolution() {
     }
 }
 
-window.addEventListener('load', async () => {
-    // 1. Obtener capacidades y límites
-    await initCameraSpecs(); 
-    // 2. Restaurar estado del panel de controles
-    restoreControlPanelState();
-    // 3. Verificar AF para mostrar/ocultar sliders
-    await checkCameraCapabilities(); 
-});
-
 async function captureCustomPhoto() {
     const w = document.getElementById('photo-w').value;
     const h = document.getElementById('photo-h').value;
@@ -148,10 +314,6 @@ async function checkCameraCapabilities() {
     }
 }
 
-// Llamar al cargar la página
-window.addEventListener('load', checkCameraCapabilities);
-
-// Listener para los Sliders de Calidad de Imagen
 let timeout;
 document.querySelectorAll('.camera-slider').forEach(slider => {
     slider.addEventListener('input', (e) => {
@@ -243,14 +405,6 @@ async function triggerSoftwareUpdate() {
 }
 
 async function updateCameraSettings(data) {
-    // Aseguramos que los tipos sean correctos antes de enviar
-    if (data.ExposureTime) data.ExposureTime = parseInt(data.ExposureTime);
-    if (data.AnalogueGain) data.AnalogueGain = parseFloat(data.AnalogueGain);
-
-    if (data.AeEnable !== undefined) {
-        data.AeEnable = !!data.AeEnable;
-    }
-
     try {
         const response = await fetch(cameraApiUrl('/update_settings'), {
             method: 'POST',
@@ -262,6 +416,13 @@ async function updateCameraSettings(data) {
     } catch (err) {
         console.error("Error actualizando cámara:", err);
     }
+}
+
+function parseValue(value, type) {
+    if (type === 'boolean') return value === 'true';
+    if (type === 'integer') return parseInt(value, 10);
+    if (type === 'float') return parseFloat(value);
+    return value;
 }
 
 function applyVideoRotation(angle) {
@@ -328,3 +489,97 @@ async function toggleTimelapse() {
         await updateCameraSettings({ 'timelapse': 'stop' });
     }
 }
+
+
+/**
+ * Centralized event handling and initialization.
+ */
+function setupEventListeners() {
+    document.body.addEventListener('click', (e) => {
+        const action = e.target.dataset.action;
+        if (!action) {
+            // Check for group actions (like rotation buttons)
+            const group = e.target.closest('[data-action-group]');
+            if (group) {
+                const groupAction = group.dataset.actionGroup;
+                const value = e.target.dataset.value;
+                if (groupAction === 'set-rotation') setRotation(value);
+                if (groupAction === 'esp32-move') sendEsp32Move(value);
+            }
+            return;
+        }
+
+        switch (action) {
+            case 'toggle-controls': toggleControlPanel(); break;
+            case 'apply-custom-resolution': applyCustomResolution(); break;
+            case 'capture-custom-photo': captureCustomPhoto(); break;
+            case 'reset-camera': resetCamera(); break;
+            case 'update-software': triggerSoftwareUpdate(); break;
+            case 'toggle-timelapse': toggleTimelapse(); break;
+            case 'esp32-connect': connectEsp32(); break;
+            case 'esp32-disconnect': disconnectEsp32(); break;
+            case 'esp32-center': sendEsp32Center(); break;
+            case 'esp32-stop': sendEsp32Stop(); break;
+            case 'esp32-send-custom-command': sendEsp32CustomCommand(); break;
+        }
+    });
+
+    document.body.addEventListener('change', (e) => {
+        const action = e.target.dataset.action;
+        const control = e.target.dataset.control;
+
+        if (action === 'set-resolution-preset') {
+            handleResolutionChange(e.target.value);
+        } else if (action === 'apply-preset') {
+            applyPreset(e.target.value);
+        } else if (action === 'esp32-set-speed') {
+            setEsp32Speed(e.target.value);
+        } else if (control) {
+            const valueType = e.target.dataset.type || (e.target.step ? 'float' : 'string');
+            const value = parseValue(e.target.value, valueType);
+            updateCameraSettings({ [control]: value });
+        }
+    });
+
+    // Debounced slider updates
+    let sliderTimeout;
+    document.querySelectorAll('.camera-slider').forEach(slider => {
+        slider.addEventListener('input', (e) => {
+            const display = document.getElementById(`val-${e.target.id}`);
+            if (display) display.innerText = e.target.value;
+
+            clearTimeout(sliderTimeout);
+            sliderTimeout = setTimeout(() => {
+                const control = e.target.dataset.control || e.target.id;
+                const valueType = e.target.dataset.type || 'float';
+                const value = parseValue(e.target.value, valueType);
+                updateCameraSettings({ [control]: value });
+            }, 50);
+        });
+    });
+
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
+    });
+}
+
+
+async function initializeDashboard() {
+    setupEventListeners();
+    restoreControlPanelState();
+    await initCameraSpecs();
+    await checkCameraCapabilities();
+    await refreshEsp32Status();
+    setInterval(refreshEsp32Status, 3000);
+
+    // Initial check for AF support to hide elements if needed
+    const res = await fetch(cameraApiUrl('/camera_status'));
+    const status = await res.json();
+    if (!status.af_supported) {
+        const afControl = document.getElementById('AfModeDiv');
+        if (afControl) afControl.style.display = 'none';
+    }
+}
+
+window.addEventListener('load', initializeDashboard);

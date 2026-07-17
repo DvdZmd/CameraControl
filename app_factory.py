@@ -4,6 +4,7 @@ from routes.admin_routes import admin_bp
 from routes.camera_routes import camera_bp
 from routes.esp32_routes import esp32_bp
 from esp32.esp32 import Esp32Controller
+import atexit
 
 import os
 
@@ -43,5 +44,21 @@ def create_app():
         db.create_all()
         #TODO: Load saved timelapse configuration
         #load_timelapse_config()
+
+    # --- INICIO: Solución al problema de reconexión ---
+    # Registramos una función para que se ejecute al salir de la aplicación.
+    # Esto asegura que la conexión BLE se cierre de forma limpia.
+    def on_exit():
+        """Función de limpieza para desconectar el ESP32 al cerrar la app."""
+        print("Cerrando la aplicación. Intentando desconectar el ESP32...")
+        if ble_controller and ble_controller.client and ble_controller.client.is_connected:
+            try:
+                ble_controller.disconnect_sync()
+                print("Conexión BLE con ESP32 cerrada correctamente.")
+            except Exception as e:
+                print(f"Error durante la desconexión automática del ESP32: {e}")
+
+    atexit.register(on_exit)
+    # --- FIN: Solución al problema de reconexión ---
 
     return app

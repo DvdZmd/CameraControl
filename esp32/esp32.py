@@ -36,7 +36,7 @@ class Esp32Controller:
         self.device_name = device_name or self.DEVICE_NAME
         self.address = address
         self.client: Optional[BleakClient] = None
-        self.last_state: Optional[str] = None
+        self.last_state: dict = {}
 
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -95,9 +95,16 @@ class Esp32Controller:
             None
         """
         try:
-            self.last_state = data.decode("utf-8", errors="ignore")
+            decoded_data = data.decode("utf-8", errors="ignore")
+            # Parsea el formato "KEY1:VALUE1,KEY2:VALUE2,..."
+            state_dict = {}
+            for part in decoded_data.split(','):
+                if ':' in part:
+                    key, value = part.split(':', 1)
+                    state_dict[key.strip()] = value.strip()
+            self.last_state = state_dict
         except Exception:
-            self.last_state = None
+            self.last_state = {"raw": data.hex()}
 
     async def _discover_address(self) -> str:
         """
