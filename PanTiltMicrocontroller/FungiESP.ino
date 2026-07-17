@@ -6,50 +6,211 @@
 #include <DHT.h>
 
 // =====================================================
-// CONFIG GENERAL
+// TIPOS Y PROTOTIPOS
+// Deben estar antes de cualquier función del archivo .ino
 // =====================================================
+
+enum class CommandType : uint8_t {
+  NONE,
+  PAN_LEFT,
+  PAN_RIGHT,
+  TILT_UP,
+  TILT_DOWN,
+  CENTER,
+  STOP
+};
+
+// Prototipos explícitos para evitar problemas con el
+// generador automático de prototipos de Arduino.
+void queueCommand(CommandType command);
+bool consumeCommand(CommandType& command);
+void clearPendingMovementCommands();
+
+void queueSpeedMode(int newSpeedMode);
+bool consumeSpeedMode(int& newMode);
+
+void queueAbsolutePosition(int newPan, int newTilt);
+bool consumeAbsolutePosition(int& newPan, int& newTilt);
+
+// =====================================================
+// CONFIGURACIÓN GENERAL
+// =====================================================
+
 static constexpr uint32_t LOOP_INTERVAL_MS = 10;
+static constexpr uint32_t SERVO_UPDATE_INTERVAL_MS = 20;
 static constexpr uint32_t SENSOR_READ_INTERVAL_MS = 2000;
 static constexpr uint32_t STATE_NOTIFY_INTERVAL_MS = 250;
+static constexpr uint32_t DS18B20_CONVERSION_MS = 200;
 
 // =====================================================
 // PINES
 // =====================================================
+
 static constexpr int SERVO_PAN_PIN = 22;
 static constexpr int SERVO_TILT_PIN = 23;
-static constexpr int DS18B20_PIN = 13;      // Evitar GPIO12: es strapping pin en ESP32.
-static constexpr int DHT22_PIN = 32;
-static constexpr int SOIL_SENSOR_PIN = 34;  // ADC input-only en ESP32.
 
-// Calibrar midiendo el sensor en aire/seco y en agua o suelo muy humedo.
+static constexpr int DS18B20_PIN = 13;
+static constexpr int DHT22_PIN = 32;
+static constexpr int SOIL_SENSOR_PIN = 34;
+
+// =====================================================
+// SENSOR DE SUELO
+// =====================================================
+
 static constexpr int SOIL_DRY_RAW = 3000;
 static constexpr int SOIL_WET_RAW = 1200;
+
+static constexpr int SOIL_SAMPLE_COUNT = 32;
+static constexpr int SOIL_SAMPLE_DELAY_US = 200;
+
+// Valores de diagnóstico.
+int soilRaw = 0;
+int soilMillivolts = 0;
+int soilPercent = -1;
+
+void setupSoilSensor() {
+  pinMode(SOIL_SENSOR_PIN, INPUT);
+
+  // ADC del ESP32 clásico: 12 bits, valores 0...4095.
+  analogReadResolution(12);
+
+  // Configuración específica del pin.
+  analogSetPinAttenuation(
+      SOIL_SENSOR_PIN,
+      ADC_11db
+  );
+
+  // Lecturas iniciales descartadas para estabilizar ADC/multiplexor.
+  for (int i = 0; i < 10; i++) {
+    analogRead(SOIL_SENSOR_PIN);
+    delay(2);
+  }
+}
+
+int readSoilRawAveraged() {
+  uint32_t accumulator = 0;
+  int validSamples = 0;
+
+  // Descarta dos lecturas antes del promedio.
+  analogRead(SOIL_SENSOR_PIN);
+  delayMicroseconds(300);
+
+  analogRead(SOIL_SENSOR_PIN);
+  delayMicroseconds(300);
+
+  for (int i = 0; i < SOIL_SAMPLE_COUNT; i++) {
+    int sample = analogRead(SOIL_SENSOR_PIN);
+
+    if (sample >= 0 && sample <= 4095) {
+      accumulator += static_cast<uint32_t>(sample);
+      validSamples++;
+    }
+
+    delayMicroseconds(SOIL_SAMPLE_DELAY_US);
+  }
+
+  if (validSamples == 0) {
+    return -1;
+  }
+
+  return static_cast<int>(accumulator / validSamples);
+}
+
+int convertSoilRawToPercent(int rawValue) {
+  if (rawValue < 0) {
+    return -1;
+  }
+
+  int percentage = map(
+      rawValue,
+      SOIL_DRY_RAW,
+      SOIL_WET_RAW,
+      0,
+      100
+  );
+
+  return constrain(percentage, 0, 100);
+}
+
+void readSoilSensor() {
+  soilRaw = readSoilRawAveraged();
+
+  // analogReadMilliVolts realiza otra conversión independiente.
+  // Sirve para diferenciar un problema lógico de una entrada realmente a 0 V.
+  soilMillivolts = analogReadMilliVolts(SOIL_SENSOR_PIN);
+
+  soilPercent = convertSoilRawToPercent(soilRaw);
+}
 
 // =====================================================
 // BLE UUIDs
 // =====================================================
+
 static const char* BLE_DEVICE_NAME = "ESP32-CameraHead";
 
-static const char* SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
-static const char* CHARACTERISTIC_RX = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"; // WRITE
-static const char* CHARACTERISTIC_TX = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"; // NOTIFY
+static const char* SERVICE_UUID =
+    "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
+
+static const char* CHARACTERISTIC_RX =
+    "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";
+
+static const char* CHARACTERISTIC_TX =
+    "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
 
 // =====================================================
 // SERVOS
 // =====================================================
+
 Servo servoPan;
 Servo servoTilt;
 
-const int minPulse = 500;
-const int maxPulse = 2400;
-const int centerPulse = 1450;
+static constexpr int SERVO_MIN_PULSE_US = 500;
+static constexpr int SERVO_MAX_PULSE_US = 2400;
+static constexpr int SERVO_CENTER_PULSE_US = 1450;
 
-int panPulse = centerPulse;
-int tiltPulse = centerPulse;
+// Solo evita escrituras de diferencias extremadamente pequeñas.
+// No cambia el tamaño del paso configurado.
+static constexpr int SERVO_WRITE_DEADBAND_US = 1;
+
+int panPulse = SERVO_CENTER_PULSE_US;
+int tiltPulse = SERVO_CENTER_PULSE_US;
+
+// =====================================================
+// VELOCIDAD
+// =====================================================
+
+struct SpeedProfile {
+  int servoStepUs;
+};
+
+static constexpr SpeedProfile speedProfiles[] = {
+    {2},   // Muy fino
+    {5},
+    {10},
+    {15},
+    {20}   // Rápido
+};
+
+static constexpr int SPEED_PROFILE_COUNT =
+    sizeof(speedProfiles) / sizeof(speedProfiles[0]);
+
+int speedMode = 2;
+int currentServoStep = 10;
+
+void applySpeedMode() {
+  speedMode = constrain(
+      speedMode,
+      0,
+      SPEED_PROFILE_COUNT - 1
+  );
+
+  currentServoStep = speedProfiles[speedMode].servoStepUs;
+}
 
 // =====================================================
 // SENSORES
 // =====================================================
+
 OneWire oneWire(DS18B20_PIN);
 DallasTemperature ds18b20(&oneWire);
 DHT dht(DHT22_PIN, DHT22);
@@ -57,31 +218,36 @@ DHT dht(DHT22_PIN, DHT22);
 float ds18b20TempC = NAN;
 float dhtTempC = NAN;
 float dhtHumidity = NAN;
-int soilRaw = 0;
-int soilPercent = -1;
+
+bool dsConversionPending = false;
+uint32_t dsConversionStartedAt = 0;
+uint32_t lastDsConversionRequest = 0;
 
 // =====================================================
-// VELOCIDAD
+// BLE
 // =====================================================
-struct SpeedProfile {
-  int servoStep;
-};
 
-SpeedProfile speedProfiles[] = {
-  {2},   // muy fino
-  {5},
-  {10},
-  {15},
-  {20}   // rapido
-};
+NimBLECharacteristic* pTxCharacteristic = nullptr;
 
-int speedMode = 2;
-int currentServoStep = 10;
+volatile bool deviceConnected = false;
 
-void applySpeedMode() {
-  speedMode = constrain(speedMode, 0, 4);
-  currentServoStep = speedProfiles[speedMode].servoStep;
-}
+// CommandType ya fue declarado al inicio del archivo.
+
+portMUX_TYPE commandMux = portMUX_INITIALIZER_UNLOCKED;
+
+volatile CommandType pendingCommand = CommandType::NONE;
+volatile bool commandAvailable = false;
+
+volatile bool pendingSpeedAvailable = false;
+volatile int pendingSpeedMode = -1;
+
+volatile bool pendingAbsAvailable = false;
+volatile int pendingAbsPan = SERVO_CENTER_PULSE_US;
+volatile int pendingAbsTilt = SERVO_CENTER_PULSE_US;
+
+// =====================================================
+// UTILIDADES
+// =====================================================
 
 bool parseIntegerStrict(const String& text, int& outValue) {
   if (text.length() == 0) {
@@ -89,10 +255,12 @@ bool parseIntegerStrict(const String& text, int& outValue) {
   }
 
   int startIndex = 0;
-  if (text.charAt(0) == '-') {
+
+  if (text.charAt(0) == '-' || text.charAt(0) == '+') {
     if (text.length() == 1) {
       return false;
     }
+
     startIndex = 1;
   }
 
@@ -107,291 +275,597 @@ bool parseIntegerStrict(const String& text, int& outValue) {
 }
 
 // =====================================================
-// CONTROL BLE
+// CONTROL DE SERVOS
 // =====================================================
-NimBLECharacteristic* pTxCharacteristic = nullptr;
-volatile bool deviceConnected = false;
 
-enum class CommandType {
-  NONE,
-  PAN_LEFT,
-  PAN_RIGHT,
-  TILT_UP,
-  TILT_DOWN,
-  CENTER,
-  STOP
-};
+void attachServos() {
+  servoPan.setPeriodHertz(50);
+  servoTilt.setPeriodHertz(50);
 
-volatile CommandType bleCommand = CommandType::NONE;
-volatile int bleSpeedMode = -1;
-volatile bool hasPendingAbs = false;
-volatile int pendingPanPulse = centerPulse;
-volatile int pendingTiltPulse = centerPulse;
+  servoPan.attach(
+      SERVO_PAN_PIN,
+      SERVO_MIN_PULSE_US,
+      SERVO_MAX_PULSE_US
+  );
 
-// =====================================================
-// UTILIDADES
-// =====================================================
-void centerServos() {
-  panPulse = centerPulse;
-  tiltPulse = centerPulse;
-
-  servoPan.writeMicroseconds(panPulse);
-  servoTilt.writeMicroseconds(tiltPulse);
+  servoTilt.attach(
+      SERVO_TILT_PIN,
+      SERVO_MIN_PULSE_US,
+      SERVO_MAX_PULSE_US
+  );
 }
 
-void applyPanStep(int step) {
-  panPulse = constrain(panPulse + step, minPulse, maxPulse);
-  servoPan.writeMicroseconds(panPulse);
-}
+void writePanPulse(int newPulse) {
+  newPulse = constrain(
+      newPulse,
+      SERVO_MIN_PULSE_US,
+      SERVO_MAX_PULSE_US
+  );
 
-void applyTiltStep(int step) {
-  tiltPulse = constrain(tiltPulse + step, minPulse, maxPulse);
-  servoTilt.writeMicroseconds(tiltPulse);
-}
-
-void readSensors() {
-  ds18b20.requestTemperatures();
-  float newDsTemp = ds18b20.getTempCByIndex(0);
-  if (newDsTemp != DEVICE_DISCONNECTED_C) {
-    ds18b20TempC = newDsTemp;
-  } else {
-    ds18b20TempC = NAN;
+  if (abs(newPulse - panPulse) < SERVO_WRITE_DEADBAND_US) {
+    return;
   }
 
-  float newDhtTemp = dht.readTemperature();
-  float newDhtHumidity = dht.readHumidity();
-
-  // El DHT22 puede devolver NaN si hay ruido o falla de sensor.
-  // Mantenemos NaN visible para que la Raspberry Pi detecte el fallo.
-  dhtTempC = newDhtTemp;
-  dhtHumidity = newDhtHumidity;
-
-  soilRaw = analogRead(SOIL_SENSOR_PIN);
-  soilPercent = map(soilRaw, SOIL_DRY_RAW, SOIL_WET_RAW, 0, 100);
-  soilPercent = constrain(soilPercent, 0, 100);
+  panPulse = newPulse;
+  servoPan.writeMicroseconds(panPulse);
 }
 
+void writeTiltPulse(int newPulse) {
+  newPulse = constrain(
+      newPulse,
+      SERVO_MIN_PULSE_US,
+      SERVO_MAX_PULSE_US
+  );
+
+  if (abs(newPulse - tiltPulse) < SERVO_WRITE_DEADBAND_US) {
+    return;
+  }
+
+  tiltPulse = newPulse;
+  servoTilt.writeMicroseconds(tiltPulse);
+}
+
+void centerServos() {
+  panPulse = SERVO_CENTER_PULSE_US;
+  tiltPulse = SERVO_CENTER_PULSE_US;
+
+  servoPan.writeMicroseconds(panPulse);
+  servoTilt.writeMicroseconds(tiltPulse);
+}
+
+void applyPanStep(int stepUs) {
+  writePanPulse(panPulse + stepUs);
+}
+
+void applyTiltStep(int stepUs) {
+  writeTiltPulse(tiltPulse + stepUs);
+}
+
+void setAbsoluteServoPositions(int newPan, int newTilt) {
+  writePanPulse(newPan);
+  writeTiltPulse(newTilt);
+}
+
+// =====================================================
+// SENSORES
+// =====================================================
+
+void requestDs18b20Conversion(uint32_t now) {
+  ds18b20.requestTemperatures();
+
+  dsConversionStartedAt = now;
+  lastDsConversionRequest = now;
+  dsConversionPending = true;
+}
+
+void updateDs18b20(uint32_t now) {
+  if (
+      dsConversionPending &&
+      now - dsConversionStartedAt >= DS18B20_CONVERSION_MS
+  ) {
+    float newTemperature = ds18b20.getTempCByIndex(0);
+
+    if (
+        newTemperature != DEVICE_DISCONNECTED_C &&
+        newTemperature >= -55.0f &&
+        newTemperature <= 125.0f
+    ) {
+      ds18b20TempC = newTemperature;
+    } else {
+      ds18b20TempC = NAN;
+    }
+
+    dsConversionPending = false;
+  }
+
+  if (
+      !dsConversionPending &&
+      now - lastDsConversionRequest >= SENSOR_READ_INTERVAL_MS
+  ) {
+    requestDs18b20Conversion(now);
+  }
+}
+
+void readDhtAndSoil() {
+  dhtTempC = dht.readTemperature();
+  dhtHumidity = dht.readHumidity();
+
+  readSoilSensor();
+}
+
+// =====================================================
+// TELEMETRÍA BLE
+// =====================================================
+
 void notifyState() {
-  if (!deviceConnected || pTxCharacteristic == nullptr) return;
+  if (!deviceConnected || pTxCharacteristic == nullptr) {
+    return;
+  }
 
   char payload[160];
-  snprintf(payload, sizeof(payload),
-           "P:%d,T:%d,S:%d,DS:%.2f,DT:%.2f,DH:%.2f,SR:%d,SP:%d",
-           panPulse,
-           tiltPulse,
-           speedMode,
-           ds18b20TempC,
-           dhtTempC,
-           dhtHumidity,
-           soilRaw,
-           soilPercent);
+
+  snprintf(
+      payload,
+      sizeof(payload),
+      "P:%d,T:%d,S:%d,DS:%.2f,DT:%.2f,DH:%.2f,SR:%d,SP:%d",
+      panPulse,
+      tiltPulse,
+      speedMode,
+      ds18b20TempC,
+      dhtTempC,
+      dhtHumidity,
+      soilRaw,
+      soilPercent
+  );
 
   pTxCharacteristic->setValue(payload);
   pTxCharacteristic->notify();
 }
 
 // =====================================================
+// COLA SIMPLE DE COMANDOS
+// =====================================================
+
+void queueCommand(CommandType command) {
+  portENTER_CRITICAL(&commandMux);
+
+  pendingCommand = command;
+  commandAvailable = true;
+
+  portEXIT_CRITICAL(&commandMux);
+}
+
+void queueSpeedMode(int newSpeedMode) {
+  portENTER_CRITICAL(&commandMux);
+
+  pendingSpeedMode = newSpeedMode;
+  pendingSpeedAvailable = true;
+
+  portEXIT_CRITICAL(&commandMux);
+}
+
+void queueAbsolutePosition(int newPan, int newTilt) {
+  portENTER_CRITICAL(&commandMux);
+
+  pendingAbsPan = newPan;
+  pendingAbsTilt = newTilt;
+  pendingAbsAvailable = true;
+
+  portEXIT_CRITICAL(&commandMux);
+}
+
+bool consumeCommand(CommandType& command) {
+  bool available = false;
+
+  portENTER_CRITICAL(&commandMux);
+
+  if (commandAvailable) {
+    command = pendingCommand;
+
+    pendingCommand = CommandType::NONE;
+    commandAvailable = false;
+
+    available = true;
+  }
+
+  portEXIT_CRITICAL(&commandMux);
+
+  return available;
+}
+
+bool consumeSpeedMode(int& newMode) {
+  bool available = false;
+
+  portENTER_CRITICAL(&commandMux);
+
+  if (pendingSpeedAvailable) {
+    newMode = pendingSpeedMode;
+
+    pendingSpeedMode = -1;
+    pendingSpeedAvailable = false;
+
+    available = true;
+  }
+
+  portEXIT_CRITICAL(&commandMux);
+
+  return available;
+}
+
+bool consumeAbsolutePosition(int& newPan, int& newTilt) {
+  bool available = false;
+
+  portENTER_CRITICAL(&commandMux);
+
+  if (pendingAbsAvailable) {
+    newPan = pendingAbsPan;
+    newTilt = pendingAbsTilt;
+
+    pendingAbsAvailable = false;
+
+    available = true;
+  }
+
+  portEXIT_CRITICAL(&commandMux);
+
+  return available;
+}
+
+void clearPendingMovementCommands() {
+  portENTER_CRITICAL(&commandMux);
+
+  pendingCommand = CommandType::NONE;
+  commandAvailable = false;
+
+  portEXIT_CRITICAL(&commandMux);
+}
+
+// =====================================================
 // BLE CALLBACKS
 // =====================================================
+
 class ServerCallbacks : public NimBLEServerCallbacks {
-  void onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) override {
+  void onConnect(
+      NimBLEServer* pServer,
+      NimBLEConnInfo& connInfo
+  ) override {
     deviceConnected = true;
   }
 
-  void onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) override {
+  void onDisconnect(
+      NimBLEServer* pServer,
+      NimBLEConnInfo& connInfo,
+      int reason
+  ) override {
     deviceConnected = false;
+
+    // En movimiento por pasos no hay movimiento continuo.
+    // Solo elimina cualquier orden que todavía no se haya procesado.
+    clearPendingMovementCommands();
+
     NimBLEDevice::startAdvertising();
   }
 };
 
 class RxCallbacks : public NimBLECharacteristicCallbacks {
-  void onWrite(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) override {
+  void onWrite(
+      NimBLECharacteristic* pCharacteristic,
+      NimBLEConnInfo& connInfo
+  ) override {
     std::string value = pCharacteristic->getValue();
-    if (value.empty()) return;
 
-    String cmd = String(value.c_str());
+    if (value.empty()) {
+      return;
+    }
+
+    String cmd(value.c_str());
+
     cmd.trim();
     cmd.toUpperCase();
 
     if (cmd == "PAN_LEFT") {
-      bleCommand = CommandType::PAN_LEFT;
-    } else if (cmd == "PAN_RIGHT") {
-      bleCommand = CommandType::PAN_RIGHT;
-    } else if (cmd == "TILT_UP") {
-      bleCommand = CommandType::TILT_UP;
-    } else if (cmd == "TILT_DOWN") {
-      bleCommand = CommandType::TILT_DOWN;
-    } else if (cmd == "CENTER") {
-      bleCommand = CommandType::CENTER;
-    } else if (cmd == "STOP") {
-      bleCommand = CommandType::STOP;
-    } else if (cmd.startsWith("SET_SPEED:")) {
+      queueCommand(CommandType::PAN_LEFT);
+      return;
+    }
+
+    if (cmd == "PAN_RIGHT") {
+      queueCommand(CommandType::PAN_RIGHT);
+      return;
+    }
+
+    if (cmd == "TILT_UP") {
+      queueCommand(CommandType::TILT_UP);
+      return;
+    }
+
+    if (cmd == "TILT_DOWN") {
+      queueCommand(CommandType::TILT_DOWN);
+      return;
+    }
+
+    if (cmd == "CENTER") {
+      queueCommand(CommandType::CENTER);
+      return;
+    }
+
+    if (cmd == "STOP") {
+      queueCommand(CommandType::STOP);
+      return;
+    }
+
+    if (cmd.startsWith("SET_SPEED:")) {
+      String speedText = cmd.substring(
+          strlen("SET_SPEED:")
+      );
+
+      speedText.trim();
+
       int newMode = -1;
-      String speedText = cmd.substring(10);
-      if (parseIntegerStrict(speedText, newMode) && newMode >= 0 && newMode <= 4) {
-        bleSpeedMode = newMode;
-      }
-    } else if (cmd.startsWith("SET_ABS:")) {
-      // Formato: SET_ABS:pan,tilt
-      int colonPos = cmd.indexOf(':');
-      int commaPos = cmd.indexOf(',', colonPos + 1);
-      int secondCommaPos = cmd.indexOf(',', commaPos + 1);
 
-      if (colonPos > 0 &&
-          commaPos > colonPos + 1 &&
-          commaPos < cmd.length() - 1 &&
-          secondCommaPos < 0) {
-        int newPan = 0;
-        int newTilt = 0;
-        String panText = cmd.substring(colonPos + 1, commaPos);
-        String tiltText = cmd.substring(commaPos + 1);
-
-        if (parseIntegerStrict(panText, newPan) && parseIntegerStrict(tiltText, newTilt)) {
-          pendingPanPulse = constrain(newPan, minPulse, maxPulse);
-          pendingTiltPulse = constrain(newTilt, minPulse, maxPulse);
-          hasPendingAbs = true;
-        }
+      if (
+          parseIntegerStrict(speedText, newMode) &&
+          newMode >= 0 &&
+          newMode < SPEED_PROFILE_COUNT
+      ) {
+        queueSpeedMode(newMode);
       }
+
+      return;
+    }
+
+    if (cmd.startsWith("SET_ABS:")) {
+      String valuesText = cmd.substring(
+          strlen("SET_ABS:")
+      );
+
+      valuesText.trim();
+
+      int commaPos = valuesText.indexOf(',');
+
+      if (
+          commaPos <= 0 ||
+          commaPos >= valuesText.length() - 1
+      ) {
+        return;
+      }
+
+      // Rechaza más de una coma.
+      if (valuesText.indexOf(',', commaPos + 1) >= 0) {
+        return;
+      }
+
+      String panText = valuesText.substring(0, commaPos);
+      String tiltText = valuesText.substring(commaPos + 1);
+
+      panText.trim();
+      tiltText.trim();
+
+      int newPan = 0;
+      int newTilt = 0;
+
+      if (
+          parseIntegerStrict(panText, newPan) &&
+          parseIntegerStrict(tiltText, newTilt)
+      ) {
+        newPan = constrain(
+            newPan,
+            SERVO_MIN_PULSE_US,
+            SERVO_MAX_PULSE_US
+        );
+
+        newTilt = constrain(
+            newTilt,
+            SERVO_MIN_PULSE_US,
+            SERVO_MAX_PULSE_US
+        );
+
+        queueAbsolutePosition(newPan, newTilt);
+      }
+
+      return;
     }
   }
 };
+
+// =====================================================
+// BLE SETUP
+// =====================================================
 
 void setupBLE() {
   NimBLEDevice::init(BLE_DEVICE_NAME);
 
   NimBLEServer* pServer = NimBLEDevice::createServer();
+
   pServer->setCallbacks(new ServerCallbacks());
 
-  NimBLEService* pService = pServer->createService(SERVICE_UUID);
+  NimBLEService* pService =
+      pServer->createService(SERVICE_UUID);
 
-  NimBLECharacteristic* pRxCharacteristic = pService->createCharacteristic(
-    CHARACTERISTIC_RX,
-    NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR
-  );
+  NimBLECharacteristic* pRxCharacteristic =
+      pService->createCharacteristic(
+          CHARACTERISTIC_RX,
+          NIMBLE_PROPERTY::WRITE |
+          NIMBLE_PROPERTY::WRITE_NR
+      );
 
-  pTxCharacteristic = pService->createCharacteristic(
-    CHARACTERISTIC_TX,
-    NIMBLE_PROPERTY::NOTIFY | NIMBLE_PROPERTY::READ
-  );
+  pTxCharacteristic =
+      pService->createCharacteristic(
+          CHARACTERISTIC_TX,
+          NIMBLE_PROPERTY::NOTIFY |
+          NIMBLE_PROPERTY::READ
+      );
 
   pRxCharacteristic->setCallbacks(new RxCallbacks());
+
   pTxCharacteristic->setValue("READY");
 
   pService->start();
 
-  NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
+  NimBLEAdvertising* pAdvertising =
+      NimBLEDevice::getAdvertising();
 
-  NimBLEAdvertisementData advData;
-  NimBLEAdvertisementData scanData;
+  NimBLEAdvertisementData advertisementData;
+  NimBLEAdvertisementData scanResponseData;
 
-  advData.setName(BLE_DEVICE_NAME);
-  advData.addServiceUUID(SERVICE_UUID);
+  advertisementData.setName(BLE_DEVICE_NAME);
+  advertisementData.addServiceUUID(SERVICE_UUID);
 
-  scanData.setName(BLE_DEVICE_NAME);
+  scanResponseData.setName(BLE_DEVICE_NAME);
 
-  pAdvertising->setAdvertisementData(advData);
-  pAdvertising->setScanResponseData(scanData);
+  pAdvertising->setAdvertisementData(
+      advertisementData
+  );
+
+  pAdvertising->setScanResponseData(
+      scanResponseData
+  );
+
   pAdvertising->start();
+}
+
+// =====================================================
+// PROCESAMIENTO DE COMANDOS
+// =====================================================
+
+void processConfigurationCommands() {
+  int newSpeedMode = -1;
+
+  if (consumeSpeedMode(newSpeedMode)) {
+    speedMode = newSpeedMode;
+    applySpeedMode();
+  }
+
+  int newPan = 0;
+  int newTilt = 0;
+
+  if (consumeAbsolutePosition(newPan, newTilt)) {
+    setAbsoluteServoPositions(newPan, newTilt);
+  }
+}
+
+void processSingleServoCommand() {
+  CommandType command = CommandType::NONE;
+
+  if (!consumeCommand(command)) {
+    return;
+  }
+
+  // Cada comando se consume exactamente una vez.
+  switch (command) {
+    case CommandType::PAN_LEFT:
+      applyPanStep(-currentServoStep);
+      break;
+
+    case CommandType::PAN_RIGHT:
+      applyPanStep(currentServoStep);
+      break;
+
+    case CommandType::TILT_UP:
+      applyTiltStep(currentServoStep);
+      break;
+
+    case CommandType::TILT_DOWN:
+      applyTiltStep(-currentServoStep);
+      break;
+
+    case CommandType::CENTER:
+      centerServos();
+      break;
+
+    case CommandType::STOP:
+      // No existe movimiento continuo.
+      // STOP solamente limpia cualquier orden pendiente.
+      clearPendingMovementCommands();
+      break;
+
+    case CommandType::NONE:
+    default:
+      break;
+  }
 }
 
 // =====================================================
 // SETUP
 // =====================================================
+
 void setup() {
   delay(500);
 
-  // Serial.begin(115200);
-
-  servoPan.setPeriodHertz(50);
-  servoTilt.setPeriodHertz(50);
-  servoPan.attach(SERVO_PAN_PIN, minPulse, maxPulse);
-  servoTilt.attach(SERVO_TILT_PIN, minPulse, maxPulse);
-  centerServos();
-
-  pinMode(SOIL_SENSOR_PIN, INPUT);
-  analogReadResolution(12);
-  analogSetPinAttenuation(SOIL_SENSOR_PIN, ADC_11db);
-
-  ds18b20.begin();
-  // 10 bits reduce el tiempo de conversion respecto a 12 bits.
-  ds18b20.setResolution(10);
-  dht.begin();
-  readSensors();
+  Serial.begin(115200);
 
   applySpeedMode();
+
+  attachServos();
+  centerServos();
+
+  setupSoilSensor();
+
+  ds18b20.begin();
+  ds18b20.setResolution(10);
+
+  // Conversión no bloqueante.
+  ds18b20.setWaitForConversion(false);
+
+  dht.begin();
+
+  readDhtAndSoil();
+  requestDs18b20Conversion(millis());
+
   setupBLE();
+
+  Serial.println("ESP32-CameraHead listo");
 }
 
 // =====================================================
 // LOOP
 // =====================================================
+
 void loop() {
-  static uint32_t lastLoop = 0;
-  static uint32_t lastSensorRead = 0;
+  static uint32_t lastGeneralLoop = 0;
+  static uint32_t lastServoCommand = 0;
+  static uint32_t lastDhtSoilRead = 0;
   static uint32_t lastNotify = 0;
 
   uint32_t now = millis();
 
-  if (now - lastSensorRead >= SENSOR_READ_INTERVAL_MS) {
-    readSensors();
-    lastSensorRead = now;
+  // DS18B20 asíncrono.
+  updateDs18b20(now);
+
+  // DHT22 y sensor de suelo.
+  if (
+      now - lastDhtSoilRead >= SENSOR_READ_INTERVAL_MS
+  ) {
+    lastDhtSoilRead = now;
+    readDhtAndSoil();
   }
 
-  if (deviceConnected && (now - lastNotify >= STATE_NOTIFY_INTERVAL_MS)) {
-    notifyState();
+  // Telemetría.
+  if (
+      deviceConnected &&
+      now - lastNotify >= STATE_NOTIFY_INTERVAL_MS
+  ) {
     lastNotify = now;
+    notifyState();
   }
 
-  if (now - lastLoop < LOOP_INTERVAL_MS) {
-    return;
-  }
-  lastLoop = now;
-
-  if (bleSpeedMode >= 0) {
-    speedMode = bleSpeedMode;
-    applySpeedMode();
-    bleSpeedMode = -1;
+  // Configuración general.
+  if (
+      now - lastGeneralLoop >= LOOP_INTERVAL_MS
+  ) {
+    lastGeneralLoop = now;
+    processConfigurationCommands();
   }
 
-  if (hasPendingAbs) {
-    int newPan = pendingPanPulse;
-    int newTilt = pendingTiltPulse;
-
-    panPulse = newPan;
-    tiltPulse = newTilt;
-
-    servoPan.writeMicroseconds(panPulse);
-    servoTilt.writeMicroseconds(tiltPulse);
-
-    hasPendingAbs = false;
-  }
-
-  if (bleCommand != CommandType::NONE) {
-    switch (bleCommand) {
-      case CommandType::PAN_LEFT:
-        applyPanStep(currentServoStep);
-        break;
-      case CommandType::PAN_RIGHT:
-        applyPanStep(-currentServoStep);
-        break;
-      case CommandType::TILT_UP:
-        applyTiltStep(currentServoStep);
-        break;
-      case CommandType::TILT_DOWN:
-        applyTiltStep(-currentServoStep);
-        break;
-      case CommandType::CENTER:
-        centerServos();
-        break;
-      case CommandType::STOP:
-        // El firmware funciona step-per-command; STOP solo limpia comandos pendientes.
-        bleCommand = CommandType::NONE;
-        break;
-      case CommandType::NONE:
-      default:
-        break;
-    }
-
-    bleCommand = CommandType::NONE;
+  // Consume como máximo un comando de servo cada 20 ms.
+  //
+  // Un PAN_LEFT recibido equivale exactamente a:
+  // panPulse -= currentServoStep
+  //
+  // Después de aplicarlo, el comando queda consumido.
+  if (
+      now - lastServoCommand >= SERVO_UPDATE_INTERVAL_MS
+  ) {
+    lastServoCommand = now;
+    processSingleServoCommand();
   }
 }
