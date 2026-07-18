@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 
 git_safe() {
     git -c safe.directory="$PROJECT_DIR" "$@"
+}
+
+choose_python() {
+    if [ -x "./.venv/bin/python" ]; then
+        echo "./.venv/bin/python"
+    elif [ -x "./venv/bin/python" ]; then
+        echo "./venv/bin/python"
+    else
+        echo ""
+    fi
 }
 
 echo "Buscando actualizaciones en origin/main..."
@@ -22,12 +32,27 @@ fi
 echo "Hay cambios disponibles. Actualizando repositorio..."
 git_safe pull origin main
 
-if [ -d "./venv" ] && [ -x "./venv/bin/pip" ]; then
-    echo "Actualizando dependencias desde ./venv..."
-    ./venv/bin/pip install --upgrade -r requirements.txt
-else
-    echo "No se encontro entorno virtual en ./venv. Se omite instalacion de dependencias."
+PYTHON_BIN="$(choose_python)"
+
+if [ -z "$PYTHON_BIN" ]; then
+    echo "No se encontro un entorno virtual. Creando .venv..."
+    python3 -m venv .venv
+    PYTHON_BIN="./.venv/bin/python"
 fi
 
-echo "Reiniciando servicio cameracontrol.service..."
-sudo systemctl restart cameracontrol.service
+echo "Actualizando dependencias con $PYTHON_BIN..."
+"$PYTHON_BIN" -m pip install --upgrade pip
+"$PYTHON_BIN" -m pip install --upgrade -r requirements.txt
+
+echo "Verificando que tuya_iot pueda importarse..."
+"$PYTHON_BIN" - <<'PY'
+import tuya_iot
+print("tuya_iot OK")
+PY
+
+if sudo systemctl list-unit-files 2>/dev/null | grep -q '^cameracontrol.service'; then
+    echo "Reiniciando servicio cameracontrol.service..."
+    sudo systemctl restart cameracontrol.service
+else
+    echo "No se encontro el servicio cameracontrol.service; se omite el reinicio."
+fi
