@@ -8,3 +8,6 @@ bleak
 # Database support
 flask_sqlalchemy
 sqlalchemy
+
+# Tuya Smart Life integration
+tuya-iot-py-sdk>=0.6.0

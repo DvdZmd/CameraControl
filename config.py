@@ -91,3 +91,17 @@ class AppConfig:
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     camera: CameraConfig = field(default_factory=CameraConfig)
     timelapse: TimelapseConfig = field(default_factory=TimelapseConfig)
+    tuya: 'TuyaConfig' = field(default_factory=lambda: TuyaConfig())
+
+@dataclass
+class TuyaConfig:
+    """Configuración para la integración con Tuya Smart Life."""
+    # IMPORTANT: Do NOT store secrets in source. Provide values via environment variables
+    api_key: str = os.environ.get("TUYA_API_KEY", "")  # Tu Access ID de la Tuya IoT Platform
+    api_secret: str = os.environ.get("TUYA_API_SECRET", "")  # Tu Access Secret de la Tuya IoT Platform
+    api_endpoint: str = os.environ.get("TUYA_API_ENDPOINT", "https://openapi.tuyaus.com")  # Cambia a tu región (ej. https://openapi.tuyaeu.com para Europa)
+    device_id: str = os.environ.get("TUYA_DEVICE_ID", "")  # El ID de tu dispositivo (el enchufe)
+    username: str = os.environ.get("TUYA_USERNAME", "")  # Tu usuario de Tuya Smart Life / email
+    password: str = os.environ.get("TUYA_PASSWORD", "")  # Tu contraseña de Tuya Smart Life
+    country_code: str = os.environ.get("TUYA_COUNTRY_CODE", "")  # Código de país para Smart Home login, p.ej. "34" para España
+    schema: str = os.environ.get("TUYA_SCHEMA", "tuya")  # Esquema de la app Tuya/Smart Life (Smart Home login)

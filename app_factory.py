@@ -3,7 +3,10 @@ from database.models import db
 from routes.admin_routes import admin_bp
 from routes.camera_routes import camera_bp
 from routes.esp32_routes import esp32_bp
+from routes.tuya_routes import tuya_bp
 from esp32.esp32 import Esp32Controller
+from tuya.tuya_controller import TuyaController
+from config import AppConfig
 import atexit
 
 import os
@@ -23,18 +26,33 @@ def create_app():
     """
     app = Flask(__name__)
 
+    # Cargar configuración desde el objeto AppConfig
+    # (En un futuro, esto podría venir de un archivo YAML o similar)
+    app_config = AppConfig()
+
     # Database config
     db_path = os.path.join(os.path.dirname(__file__), 'database', 'app.db')
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     db.init_app(app)
 
+    # Inicializar y registrar controlador del ESP32
     app.config["BLE_CAMERA_CONTROLLER"] = ble_controller
+
+    # Inicializar y registrar controlador de Tuya
+    tuya_controller = TuyaController(config=app_config.tuya)
+    # Conectamos al iniciar la app, pero manejamos el fallo para no bloquear el inicio
+    connection_result = tuya_controller.connect()
+    if not connection_result["ok"]:
+        # Usamos app.logger que estará disponible una vez que la app esté configurada
+        app.logger.warning(f"No se pudo conectar a la API de Tuya al iniciar: {connection_result.get('error')}")
+    app.config["TUYA_CONTROLLER"] = tuya_controller
 
     # Register routes
     app.register_blueprint(admin_bp)
     app.register_blueprint(camera_bp)
     app.register_blueprint(esp32_bp)
+    app.register_blueprint(tuya_bp)
 
     # Secret key for session management
     app.secret_key = 'REPLACE_WITH_RANDOM_SECRET_KEY'  # use os.urandom(24) in production

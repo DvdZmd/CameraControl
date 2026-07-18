@@ -190,6 +190,71 @@ async function sendEsp32CustomCommand() {
     }
 }
 
+/* --- Funciones para el control de Tuya --- */
+
+function showTuyaFeedback(message, isError = false) {
+    const feedback = document.getElementById('tuya-feedback');
+    if (!feedback) return;
+
+    feedback.classList.remove('hidden', 'status-error');
+    feedback.textContent = message;
+    if (isError) {
+        feedback.classList.add('status-error');
+    }
+    // Ocultar el mensaje después de unos segundos
+    setTimeout(() => feedback.classList.add('hidden'), 3000);
+}
+
+async function refreshTuyaStatus() {
+    try {
+        const response = await fetch('/api/tuya/status');
+        const data = await response.json();
+
+        const badge = document.getElementById('tuya-status-badge');
+        const toggle = document.getElementById('tuya-toggle');
+
+        if (!badge || !toggle) return;
+
+        if (data.ok && data.status) {
+            const isOn = data.status.switch_1 === true;
+            badge.textContent = isOn ? 'Encendido' : 'Apagado';
+            badge.className = `device-badge ${isOn ? 'on' : 'off'}`;
+            toggle.checked = isOn;
+        } else {
+            badge.textContent = 'Error';
+            badge.className = 'device-badge unknown';
+            console.error('Error obteniendo estado de Tuya:', data.error);
+        }
+    } catch (error) {
+        console.error('Error de red obteniendo estado de Tuya:', error);
+        const badge = document.getElementById('tuya-status-badge');
+        if(badge) {
+            badge.textContent = 'Offline';
+            badge.className = 'device-badge unknown';
+        }
+    }
+}
+
+async function toggleTuyaPlug(event) {
+    const toggle = event.target;
+    const newState = toggle.checked;
+    const endpoint = newState ? '/api/tuya/on' : '/api/tuya/off';
+
+    try {
+        const response = await fetch(endpoint, { method: 'POST' });
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'La operación falló');
+        }
+        showTuyaFeedback(`Enchufe ${newState ? 'encendido' : 'apagado'}.`);
+        await refreshTuyaStatus(); // Refrescar estado para confirmar
+    } catch (error) {
+        showTuyaFeedback(error.message, true);
+        toggle.checked = !newState; // Revertir el cambio visual si hay error
+    }
+}
+
 let cameraMaxW = 1280;
 let cameraMaxH = 720;
 
@@ -520,6 +585,7 @@ function setupEventListeners() {
             case 'esp32-disconnect': disconnectEsp32(); break;
             case 'esp32-center': sendEsp32Center(); break;
             case 'esp32-stop': sendEsp32Stop(); break;
+            case 'toggle-tuya-plug': toggleTuyaPlug(e); break;
             case 'esp32-send-custom-command': sendEsp32CustomCommand(); break;
         }
     });
@@ -571,7 +637,10 @@ async function initializeDashboard() {
     await initCameraSpecs();
     await checkCameraCapabilities();
     await refreshEsp32Status();
+    await refreshTuyaStatus();
+
     setInterval(refreshEsp32Status, 3000);
+    setInterval(refreshTuyaStatus, 5000); // Actualizamos el estado del enchufe cada 5 seg
 
     // Initial check for AF support to hide elements if needed
     const res = await fetch(cameraApiUrl('/camera_status'));
