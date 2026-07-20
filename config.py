@@ -2,7 +2,34 @@
 # Camera Control Configuration
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List, Tuple
+
+
+def _load_env_file() -> None:
+    """Load environment variables from a .env file in the project root.
+
+    Values already present in the process environment take precedence over the
+    file contents, which makes local overrides work as expected.
+    """
+    env_paths = [Path(__file__).resolve().parent / ".env"]
+
+    for env_path in env_paths:
+        if not env_path.exists():
+            continue
+
+        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            os.environ.setdefault(key, value)
+
+
+_load_env_file()
 
 # === GLOBAL CONSTANTS (used by imports) ===
 # Logging
