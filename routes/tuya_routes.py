@@ -15,17 +15,25 @@ def get_tuya_controller():
         raise RuntimeError("Controlador Tuya no configurado en Flask")
     return controller
 
+
+def _tuya_response(result):
+    if not isinstance(result, dict):
+        return jsonify({"ok": False, "error": "Respuesta inválida del controlador Tuya"}), 502
+    if result.get("ok"):
+        return jsonify(result), 200
+    return jsonify(result), 503
+
 @tuya_bp.route("/status", methods=["GET"])
 def get_tuya_status():
     """
     Obtiene el estado actual del dispositivo Tuya.
     """
     controller = get_tuya_controller()
-    status = controller.get_status()
-    if status["ok"]:
-        return jsonify(status), 200
-    else:
-        return jsonify(status), 500
+    try:
+        return _tuya_response(controller.get_status())
+    except Exception as error:
+        current_app.logger.exception("Error consultando estado Tuya")
+        return jsonify({"ok": False, "error": str(error)}), 503
 
 @tuya_bp.route("/on", methods=["POST"])
 def turn_on_plug():
@@ -33,11 +41,11 @@ def turn_on_plug():
     Enciende el enchufe Tuya.
     """
     controller = get_tuya_controller()
-    result = controller.set_status(True)
-    if result["ok"]:
-        return jsonify(result), 200
-    else:
-        return jsonify(result), 500
+    try:
+        return _tuya_response(controller.set_status(True))
+    except Exception as error:
+        current_app.logger.exception("Error encendiendo dispositivo Tuya")
+        return jsonify({"ok": False, "error": str(error)}), 503
 
 @tuya_bp.route("/off", methods=["POST"])
 def turn_off_plug():
@@ -45,8 +53,8 @@ def turn_off_plug():
     Apaga el enchufe Tuya.
     """
     controller = get_tuya_controller()
-    result = controller.set_status(False)
-    if result["ok"]:
-        return jsonify(result), 200
-    else:
-        return jsonify(result), 500
+    try:
+        return _tuya_response(controller.set_status(False))
+    except Exception as error:
+        current_app.logger.exception("Error apagando dispositivo Tuya")
+        return jsonify({"ok": False, "error": str(error)}), 503

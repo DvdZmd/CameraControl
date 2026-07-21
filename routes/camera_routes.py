@@ -3,6 +3,24 @@ from rpicam_z.rpicam_z import CAMERA_IMPORT_ERROR, UnavailableCamera, rpicam_z
 import time
 import io
 
+
+MAX_DIMENSION_PX = 10000
+ALLOWED_ROTATIONS = {0, 90, 180, 270}
+CONTROL_RANGES = {
+    'Brightness': (-1.0, 1.0),
+    'Contrast': (0.0, 32.0),
+    'Saturation': (0.0, 32.0),
+    'Sharpness': (0.0, 16.0),
+    'AfMode': (0, 2),
+    'LensPosition': (0.0, 32.0),
+    'ExposureTime': (1, 1_000_000_000),
+    'AnalogueGain': (1.0, 16.0),
+}
+SETTINGS_FIELDS = {
+    'width', 'height', 'rotation', 'timelapse', 'interval', 't_width', 't_height',
+    *CONTROL_RANGES,
+}
+
 camera_bp = Blueprint(
     'camera_controller', 
     __name__, 
@@ -20,6 +38,41 @@ def _camera_unavailable_response(error):
         "status": "error",
         "message": str(error),
     }), 503
+
+
+def _error_response(message, status=400):
+    return jsonify({"status": "error", "message": message}), status
+
+
+def _parse_int(value, field):
+    if isinstance(value, bool):
+        raise ValueError(f"{field} debe ser un entero")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{field} debe ser un entero") from error
+    if isinstance(value, float) and not value.is_integer():
+        raise ValueError(f"{field} debe ser un entero")
+    return parsed
+
+
+def _validate_dimensions(width, height):
+    width = _parse_int(width, "width")
+    height = _parse_int(height, "height")
+    if not (1 <= width <= MAX_DIMENSION_PX and 1 <= height <= MAX_DIMENSION_PX):
+        raise ValueError(f"width y height deben estar entre 1 y {MAX_DIMENSION_PX} píxeles")
+    return width, height
+
+
+def _validate_control(name, value):
+    minimum, maximum = CONTROL_RANGES[name]
+    try:
+        parsed = int(value) if name in {'AfMode', 'ExposureTime'} else float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{name} debe ser numérico") from error
+    if isinstance(value, bool) or not minimum <= parsed <= maximum:
+        raise ValueError(f"{name} debe estar entre {minimum} y {maximum}")
+    return parsed
 
 @camera_bp.route('/')
 def index():
@@ -76,7 +129,13 @@ def apply_preset():
              -H "Content-Type: application/json" \
              -d '{"preset": "LUNAR_PHOTOGRAPHY"}'
     """
-    preset_name = request.json.get('preset') # Example: 'LUNAR_PHOTOGRAPHY'
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return _error_response("Se requiere un objeto JSON")
+    preset_name = data.get('preset')
+    if not isinstance(preset_name, str) or not preset_name.strip():
+        return _error_response("preset debe ser un string no vacío")
+    preset_name = preset_name.strip()
     try:
         applied = rpicamz.apply_preset(preset_name)
     except RuntimeError as error:
@@ -104,8 +163,13 @@ def take_photo_custom():
              --output custom.jpg
     """
     # Receive width and height through URL parameters (?w=1920&h=1080)
-    w = request.args.get('w', default=1280, type=int)
-    h = request.args.get('h', default=720, type=int)
+    try:
+        w, h = _validate_dimensions(
+            request.args.get('w', default=1280),
+            request.args.get('h', default=720),
+        )
+    except ValueError as error:
+        return _error_response(str(error))
     
     try:
         image_binary = rpicamz.take_custom_photo(w, h)
@@ -241,7 +305,10 @@ def camera_status():
     Example:
         curl http://localhost:5000/api/camera/camera_status
     """
-    return jsonify(rpicamz.get_capabilities())
+    try:
+        return jsonify(rpicamz.get_capabilities())
+    except RuntimeError as error:
+        return _camera_unavailable_response(error)
 
 
 @camera_bp.route('/update_settings', methods=['POST'])
@@ -264,41 +331,82 @@ def update_settings():
              -H "Content-Type: application/json" \
              -d '{"width": 1280, "height": 720, "rotation": 90, "Brightness": 0.1}'
     """
-    data = request.json
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return _error_response("Se requiere un objeto JSON")
+    if not data:
+        return _error_response("El objeto JSON no puede estar vacío")
+
     try:
-        # Resolution change
-        if 'width' in data and 'height' in data:
-            rpicamz.set_resolution(int(data['width']), int(data['height']))
+        unknown_fields = sorted(set(data) - SETTINGS_FIELDS)
+        if unknown_fields:
+            raise ValueError(f"Campos no soportados: {', '.join(unknown_fields)}")
 
-        # Rotation handling
+        validated = {}
+
+        has_width = 'width' in data
+        has_height = 'height' in data
+        if has_width != has_height:
+            raise ValueError("width y height deben enviarse juntos")
+        if has_width:
+            validated['resolution'] = _validate_dimensions(data['width'], data['height'])
+
         if 'rotation' in data:
-            rpicamz.set_rotation(int(data['rotation']))
+            rotation = _parse_int(data['rotation'], 'rotation')
+            if rotation not in ALLOWED_ROTATIONS:
+                raise ValueError("rotation debe ser 0, 90, 180 o 270")
+            validated['rotation'] = rotation
 
-        # Timelapse handling
         if 'timelapse' in data:
-            if data['timelapse'] == 'start':
-                interval = int(data.get('interval', 5))
+            action = data['timelapse']
+            if action not in {'start', 'stop'}:
+                raise ValueError("timelapse debe ser 'start' o 'stop'")
+            if action == 'start':
+                interval = _parse_int(data.get('interval', 5), 'interval')
+                if interval <= 0:
+                    raise ValueError("interval debe ser mayor que cero segundos")
                 # Optional: pass the desired resolution for timelapse
-                tw = data.get('t_width') 
+                tw = data.get('t_width')
                 th = data.get('t_height')
-                rpicamz.start_timelapse(interval, tw, th)
+                if (tw is None) != (th is None):
+                    raise ValueError("t_width y t_height deben enviarse juntos")
+                if tw is not None:
+                    tw, th = _validate_dimensions(tw, th)
+                validated['timelapse'] = ('start', interval, tw, th)
+            else:
+                validated['timelapse'] = ('stop',)
+        elif any(field in data for field in {'interval', 't_width', 't_height'}):
+            raise ValueError("interval, t_width y t_height requieren timelapse='start'")
+
+        controls = {}
+        for param in CONTROL_RANGES:
+            if param in data:
+                controls[param] = _validate_control(param, data[param])
+        validated['controls'] = controls
+    except ValueError as error:
+        return _error_response(str(error))
+
+    try:
+        if 'resolution' in validated:
+            rpicamz.set_resolution(*validated['resolution'])
+
+        if 'rotation' in validated:
+            rpicamz.set_rotation(validated['rotation'])
+
+        if 'timelapse' in validated:
+            timelapse = validated['timelapse']
+            if timelapse[0] == 'start':
+                rpicamz.start_timelapse(*timelapse[1:])
             else:
                 rpicamz.stop_timelapse()
 
-        # Update image processing controls
-        image_params = ['Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition']
-        for param in image_params:
-            if param in data:
-                rpicamz.update_control(param, data[param])
+        image_params = {'Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition'}
+        for param, value in validated['controls'].items():
+            rpicamz.update_control(param, value)
+            if param in image_params:
                 # Add a small delay to allow image processing settings to apply before the next frame is requested.
                 # This helps prevent the UI from appearing to "freeze" for these specific controls.
                 time.sleep(0.05)
-
-        # Update sensor controls (these are usually applied immediately by the sensor)
-        sensor_params = ['ExposureTime', 'AnalogueGain']
-        for param in sensor_params:
-            if param in data:
-                rpicamz.update_control(param, data[param])
     except RuntimeError as error:
         return _camera_unavailable_response(error)
             

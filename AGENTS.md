@@ -140,11 +140,13 @@ Ten cuidado al mezclar APIs sync y async.
 Para pan/tilt, la experiencia deseada suele ser:
 
 - Click corto: un paso.
-- Botón mantenido: movimiento continuo.
-- Al soltar: `STOP`.
 - Centro: ambos ejes.
 - Velocidad seleccionable.
 - Estado actual visible cuando exista telemetría.
+
+El firmware vigente `PanTiltMicrocontroller/FungiESP.ino` trabaja por pasos:
+cada click envía un único comando y no existe movimiento continuo por botón
+mantenido. `STOP` sólo descarta órdenes pendientes.
 
 Confirma siempre el protocolo vigente en Python y en el firmware.
 

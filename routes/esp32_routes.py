@@ -1,4 +1,5 @@
 from flask import Blueprint, current_app, jsonify, request
+import re
 
 esp32_bp = Blueprint(
     "camera",
@@ -21,6 +22,48 @@ def get_ble_controller():
     if controller is None:
         raise RuntimeError("BLE controller no configurado en Flask")
     return controller
+
+
+SIMPLE_COMMANDS = {
+    "PAN_LEFT",
+    "PAN_RIGHT",
+    "TILT_UP",
+    "TILT_DOWN",
+    "CENTER",
+    "STOP",
+}
+SET_SPEED_PATTERN = re.compile(r"SET_SPEED:([0-4])")
+SET_ABS_PATTERN = re.compile(r"SET_ABS:(\d+),(\d+)")
+SERVO_PULSE_MIN_US = 500
+SERVO_PULSE_MAX_US = 2400
+
+
+def _json_object():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return None, (jsonify({"ok": False, "error": "Se requiere un objeto JSON"}), 400)
+    return data, None
+
+
+def _validate_command(raw_command):
+    if not isinstance(raw_command, str) or not raw_command.strip():
+        return None, "command debe ser un string no vacío"
+
+    command = raw_command.strip().upper()
+    if command in SIMPLE_COMMANDS:
+        return command, None
+
+    if SET_SPEED_PATTERN.fullmatch(command):
+        return command, None
+
+    absolute_match = SET_ABS_PATTERN.fullmatch(command)
+    if absolute_match:
+        pan, tilt = (int(value) for value in absolute_match.groups())
+        if all(SERVO_PULSE_MIN_US <= value <= SERVO_PULSE_MAX_US for value in (pan, tilt)):
+            return command, None
+        return None, f"pan y tilt deben estar entre {SERVO_PULSE_MIN_US} y {SERVO_PULSE_MAX_US} us"
+
+    return None, f"Comando no permitido o formato inválido: {command}"
 
 
 @esp32_bp.route("/status", methods=["GET"])
@@ -108,23 +151,13 @@ def esp32_command():
              -d '{"command": "PAN_LEFT"}'
     """
     controller = get_ble_controller()
-    data = request.get_json(silent=True) or {}
+    data, error_response = _json_object()
+    if error_response:
+        return error_response
 
-    command = (data.get("command") or "").strip().upper()
-    if not command:
-        return jsonify({"ok": False, "error": "command es requerido"}), 400
-
-    allowed_commands = {
-        "PAN_LEFT",
-        "PAN_RIGHT",
-        "TILT_UP",
-        "TILT_DOWN",
-        "CENTER",
-        "STOP",
-    }
-
-    if not (command in allowed_commands or command.startswith("SET_SPEED:") or command.startswith("SET_ABS:")):
-        return jsonify({"ok": False, "error": f"Comando no permitido: {command}"}), 400
+    command, validation_error = _validate_command(data.get("command"))
+    if validation_error:
+        return jsonify({"ok": False, "error": validation_error}), 400
 
     try:
         result = controller.send_command_sync(command)
@@ -174,14 +207,20 @@ def esp32_speed():
              -d '{"mode": 2}'
     """
     controller = get_ble_controller()
-    data = request.get_json(silent=True) or {}
+    data, error_response = _json_object()
+    if error_response:
+        return error_response
 
     mode = data.get("mode")
     if mode is None:
         return jsonify({"ok": False, "error": "mode es requerido"}), 400
 
     try:
+        if isinstance(mode, bool):
+            raise ValueError("mode debe ser un entero entre 0 y 4")
         mode = int(mode)
+        if str(mode) != str(data.get("mode")).strip() or not 0 <= mode <= 4:
+            raise ValueError("mode debe ser un entero entre 0 y 4")
         result = controller.set_speed_sync(mode)
         return jsonify(result), 200
     except ValueError as ex:
@@ -210,8 +249,14 @@ def esp32_move():
              -d '{"direction": "left"}'
     """
     controller = get_ble_controller()
-    data = request.get_json(silent=True) or {}
-    direction = (data.get("direction") or "").strip().lower()
+    data, error_response = _json_object()
+    if error_response:
+        return error_response
+
+    raw_direction = data.get("direction")
+    if not isinstance(raw_direction, str):
+        return jsonify({"ok": False, "error": "direction debe ser un string"}), 400
+    direction = raw_direction.strip().lower()
 
     direction_map = {
         "left": "PAN_LEFT",
