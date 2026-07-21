@@ -1,144 +1,90 @@
-# 🎥 Raspberry Pi Camera Control
+# 🎥 CameraControl - Plataforma IoT para Raspberry Pi
 
-A lightweight Python Flask web application focused on Raspberry Pi camera streaming and control. This project provides essential camera functionality without additional hardware dependencies like servos, I2C devices, or Bluetooth modules.
+**CameraControl** es una plataforma IoT completa construida sobre Python y Flask, diseñada para el control avanzado de cámaras en una Raspberry Pi. Va más allá de un simple servidor de streaming, integrando control de movimiento pan/tilt a través de un **ESP32 con BLE**, y gestión de dispositivos inteligentes a través de la API de **Tuya**.
 
 ## 🚀 Features
 
-- **Live Camera Streaming**: Real-time MJPEG video feed via web browser
-- **Timelapse Photography**: Automated image capture with configurable intervals
-- **Image Capture**: High-quality photo capture at multiple resolutions
-- **Camera Controls**: 
-  - Multiple resolution options (640x480 to 2592x1944)
-  - Camera rotation (0°, 90°, 180°, 270°)
-  - Stream enable/disable toggle
-- **Simple Configuration**: Easy-to-modify camera settings
-- **Database Integration**: Configuration persistence with SQLAlchemy
-- **Comprehensive Logging**: File and database error logging
-- **RESTful API**: Clean API endpoints for all camera operations
+### Cámara y Vídeo
+- **Live Streaming MJPEG**: Stream de vídeo en tiempo real, de baja latencia, accesible desde cualquier navegador web.
+- **Captura de Imágenes**: Toma de fotos en alta resolución.
+- **Fotografía Timelapse**: Captura automatizada de imágenes en intervalos configurables.
+- **Controles Avanzados de Cámara**: Ajuste de resolución, rotación, brillo, contraste, saturación, exposición y más.
+
+### Control de Hardware y IoT
+- **Control Pan/Tilt (ESP32)**: Manejo preciso de un cabezal pan/tilt a través de un ESP32, comunicado por Bluetooth Low Energy (BLE).
+- **Integración con Tuya**: Controla dispositivos inteligentes (como enchufes) registrados en la plataforma Tuya/Smart Life.
+- **Arquitectura Modular**: El sistema puede funcionar sin el ESP32 o Tuya, degradando su funcionalidad de forma controlada.
+
+### Sistema y API
+- **API RESTful Completa**: Endpoints para todas las funcionalidades, incluyendo cámara, ESP32 y Tuya.
+- **Configuración Segura**: Gestión de secretos (API keys, contraseñas) mediante variables de entorno y archivos `.env`.
+- **Persistencia de Datos**: Uso de una base de datos SQLite para almacenar configuraciones.
+- **Logging Detallado**: Registros de actividad y errores para un diagnóstico sencillo.
 
 ## 🛠️ Hardware Requirements
 
 - Raspberry Pi (3B+, 4, or newer recommended)
 - Raspberry Pi Camera Module (v1, v2, or HQ Camera)
 - MicroSD card (16GB+ recommended)
-- Network connection (WiFi or Ethernet)
+
+### Opcional (para funcionalidades extendidas)
+- **Para Pan/Tilt**:
+  - Un microcontrolador ESP32.
+  - Un cabezal pan/tilt con servos (ej. SG90).
+  - Fuente de alimentación externa para los servos.
+- **Para control de energía**:
+  - Un enchufe inteligente compatible con Tuya / Smart Life.
 
 ## 📦 Installation
 
-### Quick Setup (Recommended)
+1.  **Clonar el Repositorio**
+    ```bash
+    git clone https://github.com/DvdZmd/CameraControl.git
+    cd CameraControl
+    ```
 
-```bash
-# Clone or navigate to the project directory
-cd /path/to/CameraControl
+2.  **Ejecutar el Script de Instalación**
+    Este script se encarga de crear el entorno virtual, instalar dependencias y preparar los directorios necesarios.
+    ```bash
+    ./setup.sh
+    ```
 
-# Run the automated setup script
-./setup.sh
+3.  **Configurar Secretos**
+    La aplicación ahora requiere un archivo `.env` para gestionar las claves de API y otros secretos de forma segura.
+    ```bash
+    # Copia la plantilla de ejemplo
+    cp .env.example .env
 
-# Activate the virtual environment
-source venv/bin/activate
+    # Edita el archivo .env con tus valores
+    nano .env
+    ```
+    Deberás rellenar como mínimo la `FLASK_SECRET_KEY`. Puedes generar una con `python -c 'import os; print(os.urandom(24).hex())'`.
+    Para usar la integración con Tuya, rellena las credenciales correspondientes.
 
-# Start the application
-python app.py
-```
+4.  **Activar el Entorno Virtual**
+    ```bash
+    source venv/bin/activate
+    ```
 
-### Manual Installation
+5.  **Iniciar la Aplicación**
+    ```bash
+    python app.py
+    ```
 
-1. **Update System Packages**
-```bash
-sudo apt update && sudo apt upgrade -y
-```
-
-2. **Install System Dependencies**
-```bash
-sudo apt install -y python3-dev python3-pip python3-venv libcamera-dev \
-    libcamera-apps python3-libcamera python3-kms++ libatlas-base-dev \
-    libjpeg-dev libpng-dev libtiff-dev libavcodec-dev libavformat-dev \
-    libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libgtk-3-dev \
-    libcanberra-gtk-module libcanberra-gtk3-module ffmpeg cmake
-```
-
-3. **Enable Camera Interface**
-```bash
-# Add to /boot/config.txt if not present
-echo "camera_auto_detect=1" | sudo tee -a /boot/config.txt
-sudo reboot  # Required after enabling camera
-```
-
-4. **Create Python Environment**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-5. **Create Required Directories**
-```bash
-mkdir -p /home/pi/Desktop/logs
-mkdir -p /home/pi/Desktop/timelapse
-mkdir -p Pictures
-```
+La aplicación estará disponible en `http://<IP_DE_TU_PI>:5000`.
 
 ## 🚀 Usage
 
-### Starting the Server
-
-```bash
-# Activate virtual environment (if not already active)
-source venv/bin/activate
-
-# Start the Flask application
-python app.py
-```
-
-The server will start on `http://0.0.0.0:5000` and be accessible from:
-- Local Pi: `http://localhost:5000`
-- Network devices: `http://[PI_IP_ADDRESS]:5000`
-
 ### API Endpoints
 
-#### Camera Streaming
-- `GET /video_feed` - Live camera stream (MJPEG)
-- `POST /toggle_camera` - Enable/disable camera stream
-- `POST /set_rotation` - Set camera rotation (0, 90, 180, 270 degrees)
+La aplicación expone una API RESTful para controlar todas sus funciones. Los prefijos principales son:
 
-#### Image Capture
-- `GET /capture_image?width=1280&height=720` - Capture and download image
+- `/api/camera/`: Endpoints para el control de la cámara, streaming y capturas.
+- `/api/esp32/`: Endpoints para la comunicación con el ESP32 (pan/tilt).
+- `/api/tuya/`: Endpoints para interactuar con dispositivos Tuya.
+- `/api/admin/`: Endpoints para la administración del sistema.
 
-#### Timelapse Control
-- `GET /timelapse_status` - Get current timelapse configuration
-- `POST /timelapse` - Start/stop timelapse
-
-**Timelapse Start Example:**
-```json
-{
-    "action": "start",
-    "interval_minutes": 5,
-    "width": 1280,
-    "height": 720
-}
-```
-
-**Timelapse Stop Example:**
-```json
-{
-    "action": "stop"
-}
-```
-
-**Resolution Change Example:**
-```json
-{
-    "resolution": "1280x720"
-}
-```
-
-### Available Resolutions
-- 640x480 (VGA)
-- 800x600 (SVGA)  
-- 1280x720 (HD)
-- 1920x1080 (Full HD)
-- 2592x1944 (Max - depends on camera model)
+Consulta el código en `routes/` para ver la definición detallada de cada endpoint.
 
 ## 📁 Project Structure
 
