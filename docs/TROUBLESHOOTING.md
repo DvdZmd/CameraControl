@@ -51,6 +51,21 @@ Revisar:
 - Secretos.
 - Base de datos.
 
+## Administración del sistema
+
+El dashboard puede disparar un reinicio de la Raspberry Pi mediante:
+
+```bash
+curl -i -X POST http://localhost:5000/api/admin/reboot \
+  -H "Content-Type: application/json" \
+  -d '{"confirm": true}'
+```
+
+Si Flask no corre como root, el usuario del servicio debe tener permiso para
+ejecutar `sudo systemctl reboot` sin requerir TTY ni contraseña interactiva.
+Probar el endpoint sólo cuando sea aceptable interrumpir streaming, BLE, Tuya y
+cualquier captura en curso.
+
 ## Cámara
 
 ```bash

@@ -570,6 +570,42 @@ async function triggerSoftwareUpdate() {
     }
 }
 
+async function triggerSystemReboot() {
+    const btn = document.getElementById('btn-reboot-system');
+    const status = document.getElementById('reboot-status');
+
+    if (!btn || !status) return;
+
+    const confirmed = window.confirm('La Raspberry Pi se reiniciará y el streaming se interrumpirá. ¿Continuar?');
+    if (!confirmed) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Reiniciando...';
+    status.classList.remove('hidden', 'status-error');
+    status.textContent = 'Reinicio solicitado. La página dejará de responder durante el arranque.';
+
+    try {
+        const response = await fetch('/api/admin/reboot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ confirm: true })
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.message || 'No se pudo iniciar el reinicio.');
+        }
+
+        status.textContent = result.message;
+    } catch (err) {
+        console.error('Error al reiniciar Raspberry Pi:', err);
+        btn.disabled = false;
+        btn.textContent = 'Reiniciar Raspberry Pi';
+        status.classList.add('status-error');
+        status.textContent = err.message || 'No se pudo iniciar el reinicio.';
+    }
+}
+
 async function updateCameraSettings(data) {
     try {
         const response = await fetch(cameraApiUrl('/update_settings'), {
@@ -674,6 +710,7 @@ function setupEventListeners() {
             case 'capture-custom-photo': captureCustomPhoto(); break;
             case 'reset-camera': resetCamera(); break;
             case 'update-software': triggerSoftwareUpdate(); break;
+            case 'reboot-system': triggerSystemReboot(); break;
             case 'toggle-timelapse': toggleTimelapse(); break;
             case 'esp32-connect': connectEsp32(); break;
             case 'esp32-disconnect': disconnectEsp32(); break;

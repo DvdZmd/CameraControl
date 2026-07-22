@@ -1,9 +1,10 @@
 import os
+import shutil
 import subprocess
 import threading
 import time
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 
 admin_bp = Blueprint(
@@ -34,6 +35,35 @@ def _run_update_script(script_path, project_root):
             )
     except OSError as ex:
         print(f"Error al disparar update.sh: {ex}")
+
+
+def _reboot_command():
+    systemctl = shutil.which("systemctl")
+    reboot = shutil.which("reboot")
+
+    command = [systemctl, "reboot"] if systemctl else [reboot]
+    if command[0] is None:
+        raise RuntimeError("No se encontró systemctl ni reboot en el sistema")
+
+    if os.geteuid() != 0:
+        sudo = shutil.which("sudo")
+        if sudo:
+            command.insert(0, sudo)
+
+    return command
+
+
+def _run_reboot_command(command):
+    time.sleep(0.5)
+    try:
+        subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError as ex:
+        print(f"Error al disparar reboot: {ex}")
 
 
 @admin_bp.route("/update", methods=["POST"])
@@ -71,3 +101,46 @@ def trigger_update():
         "status": "updating",
         "message": "Script de actualización disparado correctamente.",
     })
+
+
+@admin_bp.route("/reboot", methods=["POST"])
+def trigger_reboot():
+    """
+    Trigger a Raspberry Pi reboot after returning the HTTP response.
+
+    The endpoint requires an explicit JSON confirmation to reduce accidental
+    invocation from a stray POST.
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or data.get("confirm") is not True:
+        return jsonify({
+            "status": "error",
+            "message": "Confirmación requerida para reiniciar la Raspberry Pi.",
+        }), 400
+
+    try:
+        command = _reboot_command()
+    except RuntimeError as ex:
+        return jsonify({
+            "status": "error",
+            "message": str(ex),
+        }), 500
+
+    reboot_thread = threading.Thread(
+        target=_run_reboot_command,
+        args=(command,),
+        daemon=True,
+    )
+
+    try:
+        reboot_thread.start()
+    except RuntimeError as ex:
+        return jsonify({
+            "status": "error",
+            "message": f"No se pudo disparar el reinicio: {ex}",
+        }), 500
+
+    return jsonify({
+        "status": "rebooting",
+        "message": "Reinicio de Raspberry Pi disparado correctamente.",
+    }), 202
