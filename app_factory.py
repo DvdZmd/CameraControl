@@ -8,10 +8,45 @@ from esp32.esp32 import Esp32Controller
 from tuya.tuya_controller import TuyaController
 from config import AppConfig
 import atexit
+import threading
 
 import os
 
 ble_controller = Esp32Controller()
+
+
+def _connect_tuya(controller, logger):
+    """Conecta Tuya fuera del camino crítico de creación de la aplicación."""
+    try:
+        connection_result = controller.connect()
+    except Exception:
+        logger.exception("Excepción no controlada al inicializar la conexión con Tuya")
+        return
+
+    if not isinstance(connection_result, dict):
+        logger.error("Respuesta inválida al inicializar la conexión con Tuya")
+        return
+
+    if connection_result.get("ok"):
+        logger.info("Conexión inicial con la API de Tuya establecida")
+        return
+
+    logger.warning(
+        "No se pudo conectar a la API de Tuya al iniciar: %s",
+        connection_result.get("error", "error no especificado"),
+    )
+
+
+def _start_tuya_initialization(controller, logger):
+    """Inicia en segundo plano el intento inicial de conexión con Tuya."""
+    initialization_thread = threading.Thread(
+        target=_connect_tuya,
+        args=(controller, logger),
+        name="tuya-initialization",
+        daemon=True,
+    )
+    initialization_thread.start()
+    return initialization_thread
 
 def create_app():
     """
@@ -39,14 +74,14 @@ def create_app():
     # Inicializar y registrar controlador del ESP32
     app.config["BLE_CAMERA_CONTROLLER"] = ble_controller
 
-    # Inicializar y registrar controlador de Tuya
+    # Registrar primero el controlador compartido para que las rutas puedan
+    # degradar de forma controlada mientras finaliza el intento de conexión.
     tuya_controller = TuyaController(config=app_config.tuya)
-    # Conectamos al iniciar la app, pero manejamos el fallo para no bloquear el inicio
-    connection_result = tuya_controller.connect()
-    if not connection_result["ok"]:
-        # Usamos app.logger que estará disponible una vez que la app esté configurada
-        app.logger.warning(f"No se pudo conectar a la API de Tuya al iniciar: {connection_result.get('error')}")
     app.config["TUYA_CONTROLLER"] = tuya_controller
+    app.config["TUYA_INITIALIZATION_THREAD"] = _start_tuya_initialization(
+        tuya_controller,
+        app.logger,
+    )
 
     # Register routes
     app.register_blueprint(admin_bp)
@@ -54,8 +89,13 @@ def create_app():
     app.register_blueprint(esp32_bp)
     app.register_blueprint(tuya_bp)
 
-    # Secret key for session management
-    app.secret_key = 'REPLACE_WITH_RANDOM_SECRET_KEY'  # use os.urandom(24) in production
+    # Secret key for session management. An ephemeral fallback keeps local
+    # development usable without embedding a shared secret in source control.
+    app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
+    if not os.environ.get("FLASK_SECRET_KEY"):
+        app.logger.warning(
+            "FLASK_SECRET_KEY no configurada; se usará una clave efímera hasta reiniciar"
+        )
 
     # Initialize database
     with app.app_context():

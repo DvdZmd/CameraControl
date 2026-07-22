@@ -41,6 +41,9 @@ Responsable de:
 - Inicializar integraciones opcionales.
 - Ejecutar limpieza al terminar.
 
+La conexión inicial con Tuya se ejecuta en un hilo daemon para no bloquear la
+creación de Flask. El controlador se registra antes en `app.config`.
+
 Los controladores compartidos pueden registrarse en `app.config`.
 
 Ejemplos conceptuales:

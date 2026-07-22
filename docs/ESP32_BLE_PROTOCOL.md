@@ -10,6 +10,13 @@ Nombre habitual del dispositivo:
 
 `ESP32-CameraHead`
 
+El firmware vigente y confirmado es:
+
+`PanTiltMicrocontroller/FungiESP.ino`
+
+`PanTiltMicrocontroller/PanTiltPro.ino` se conserva como variante histórica y
+no debe modificarse ni usarse como contrato actual.
+
 El firmware vigente es la fuente de verdad para:
 
 - Nombre BLE.
@@ -145,23 +152,20 @@ Si el backend ofrece wrappers síncronos:
 Experiencia esperada:
 
 - Click: movimiento de un paso.
-- Mantener: movimiento continuo.
-- Soltar: `STOP`.
 - Centro: ambos ejes.
 - Velocidad: seleccionable.
 - Estado: visible.
 
-El frontend debe contemplar:
+No se implementará por ahora movimiento continuo al mantener pulsado. Cada
+comando cardinal se consume una sola vez en `FungiESP.ino`. `STOP` existe para
+limpiar órdenes pendientes, no para detener un movimiento sostenido.
 
-- Pointer down.
-- Pointer up.
-- Pointer leave.
-- Pointer cancel.
-- Touch end.
-- Pérdida de foco.
-- `STOP` defensivo.
+Formato vigente de posición absoluta:
 
-Es preferible que el ESP32 mantenga el movimiento tras un comando de inicio y se detenga con `STOP`, en lugar de recibir cientos de comandos por segundo.
+`SET_ABS:<pan>,<tilt>`
+
+Ambos valores son pulsos en microsegundos dentro del rango configurado por el
+firmware.
 
 ## Servos
 
@@ -191,6 +195,9 @@ Datos candidatos:
 - Velocidad.
 
 Preferir `Preferences`/NVS.
+
+La persistencia aún no está implementada en `FungiESP.ino`; esta sección
+describe el criterio para una tarea futura.
 
 Evitar escrituras por cada paso.
 
