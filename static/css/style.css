@@ -212,6 +212,111 @@ button:disabled {
     font-size: 0.9rem;
 }
 
+.tuya-devices-list {
+    display: grid;
+    gap: 10px;
+}
+
+.tuya-device-card {
+    background: #232323;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.tuya-device-info {
+    display: grid;
+    gap: 3px;
+    margin-bottom: 10px;
+}
+
+.tuya-device-info strong {
+    font-size: 0.95rem;
+}
+
+.tuya-device-info span,
+.tuya-device-info small,
+.empty-state {
+    color: #9aa0a6;
+    overflow-wrap: anywhere;
+}
+
+.tuya-device-info span {
+    font-size: 0.78rem;
+}
+
+.tuya-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.device-badge {
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.device-badge.on {
+    background: rgba(0, 255, 136, 0.12);
+    color: var(--accent);
+}
+
+.device-badge.off,
+.device-badge.unknown {
+    background: rgba(255, 255, 255, 0.08);
+    color: #b7b7b7;
+}
+
+.toggle-switch {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.toggle-checkbox {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.toggle-label {
+    display: block;
+    width: 48px;
+    height: 26px;
+    background: #444;
+    border-radius: 999px;
+    cursor: pointer;
+    position: relative;
+}
+
+.toggle-label::after {
+    content: "";
+    width: 20px;
+    height: 20px;
+    background: #d8d8d8;
+    border-radius: 50%;
+    position: absolute;
+    left: 3px;
+    top: 3px;
+    transition: transform 160ms ease, background 160ms ease;
+}
+
+.toggle-checkbox:checked + .toggle-label {
+    background: rgba(0, 255, 136, 0.35);
+}
+
+.toggle-checkbox:checked + .toggle-label::after {
+    transform: translateX(22px);
+    background: var(--accent);
+}
+
+.toggle-checkbox:disabled + .toggle-label {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
 .esp32-label {
     color: #9aa0a6;
 }

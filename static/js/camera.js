@@ -283,51 +283,142 @@ function showTuyaFeedback(message, isError = false) {
 
 async function refreshTuyaStatus() {
     try {
-        const response = await fetch('/api/tuya/status');
+        const response = await fetch('/api/tuya/devices');
         const data = await response.json();
 
-        const badge = document.getElementById('tuya-status-badge');
-        const toggle = document.getElementById('tuya-toggle');
+        const list = document.getElementById('tuya-devices-list');
+        if (!list) return;
 
-        if (!badge || !toggle) return;
-
-        if (data.ok && data.status) {
-            const isOn = data.status.switch_1 === true;
-            badge.textContent = isOn ? 'Encendido' : 'Apagado';
-            badge.className = `device-badge ${isOn ? 'on' : 'off'}`;
-            toggle.checked = isOn;
+        if (data.ok && Array.isArray(data.devices)) {
+            renderTuyaDevices(data.devices);
         } else {
-            badge.textContent = 'Error';
-            badge.className = 'device-badge unknown';
+            list.innerHTML = '<p class="empty-state">No se pudo cargar el estado de Tuya.</p>';
             console.error('Error obteniendo estado de Tuya:', data.error);
         }
     } catch (error) {
         console.error('Error de red obteniendo estado de Tuya:', error);
-        const badge = document.getElementById('tuya-status-badge');
-        if(badge) {
-            badge.textContent = 'Offline';
-            badge.className = 'device-badge unknown';
+        const list = document.getElementById('tuya-devices-list');
+        if (list) {
+            list.innerHTML = '<p class="empty-state">Tuya offline.</p>';
         }
     }
+}
+
+function renderTuyaDevices(devices) {
+    const list = document.getElementById('tuya-devices-list');
+    if (!list) return;
+
+    if (devices.length === 0) {
+        list.innerHTML = '<p class="empty-state">Sin dispositivos configurados.</p>';
+        return;
+    }
+
+    list.innerHTML = devices.map(device => {
+        const isOn = device.is_on === true;
+        const statusClass = device.status_ok ? (isOn ? 'on' : 'off') : 'unknown';
+        const statusText = device.status_ok ? (isOn ? 'Encendido' : 'Apagado') : 'Error';
+        const checked = isOn ? 'checked' : '';
+        const disabled = device.status_ok ? '' : 'disabled';
+        return `
+            <div class="tuya-device-card">
+                <div class="tuya-device-info">
+                    <strong>${escapeHtml(device.name)}</strong>
+                    <span>${escapeHtml(device.device_id)}</span>
+                    <small>${escapeHtml(device.switch_code)}</small>
+                </div>
+                <div class="tuya-controls">
+                    <span class="device-badge ${statusClass}">${statusText}</span>
+                    <div class="toggle-switch">
+                        <input
+                            type="checkbox"
+                            class="toggle-checkbox"
+                            id="tuya-toggle-${device.id}"
+                            data-action="toggle-tuya-device"
+                            data-device-id="${device.id}"
+                            ${checked}
+                            ${disabled}
+                        >
+                        <label for="tuya-toggle-${device.id}" class="toggle-label"></label>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[char]));
 }
 
 async function toggleTuyaPlug(event) {
     const toggle = event.target;
     const newState = toggle.checked;
-    const endpoint = newState ? '/api/tuya/on' : '/api/tuya/off';
+    const deviceId = toggle.dataset.deviceId;
+
+    if (!deviceId) return;
 
     try {
-        const response = await fetch(endpoint, { method: 'POST' });
+        const response = await fetch(`/api/tuya/devices/${deviceId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ on: newState })
+        });
         const data = await response.json();
 
         if (!response.ok || !data.ok) {
             throw new Error(data.error || 'La operación falló');
         }
-        showTuyaFeedback(`Enchufe ${newState ? 'encendido' : 'apagado'}.`);
+        showTuyaFeedback(`Dispositivo ${newState ? 'encendido' : 'apagado'}.`);
         await refreshTuyaStatus(); // Refrescar estado para confirmar
     } catch (error) {
         showTuyaFeedback(error.message, true);
         toggle.checked = !newState; // Revertir el cambio visual si hay error
+    }
+}
+
+async function addTuyaDevice() {
+    const nameInput = document.getElementById('tuya-device-name');
+    const deviceIdInput = document.getElementById('tuya-device-id');
+    const switchCodeInput = document.getElementById('tuya-switch-code');
+
+    if (!nameInput || !deviceIdInput || !switchCodeInput) return;
+
+    const payload = {
+        name: nameInput.value.trim(),
+        device_id: deviceIdInput.value.trim(),
+        switch_code: switchCodeInput.value.trim() || 'switch_1'
+    };
+
+    if (!payload.name || !payload.device_id) {
+        showTuyaFeedback('Nombre y Device ID son requeridos.', true);
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/tuya/devices', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'No se pudo agregar el dispositivo.');
+        }
+
+        nameInput.value = '';
+        deviceIdInput.value = '';
+        switchCodeInput.value = 'switch_1';
+        showTuyaFeedback('Dispositivo agregado.');
+        await refreshTuyaStatus();
+    } catch (error) {
+        showTuyaFeedback(error.message || 'No se pudo agregar el dispositivo.', true);
     }
 }
 
@@ -717,7 +808,7 @@ function setupEventListeners() {
             case 'esp32-center': sendEsp32Center(); break;
             case 'esp32-save-current-position': saveEsp32CurrentPosition(); break;
             case 'esp32-return-position': returnEsp32ToSavedPosition(); break;
-            case 'toggle-tuya-plug': toggleTuyaPlug(e); break;
+            case 'add-tuya-device': addTuyaDevice(); break;
             case 'esp32-send-custom-command': sendEsp32CustomCommand(); break;
         }
     });
@@ -732,6 +823,8 @@ function setupEventListeners() {
             applyPreset(e.target.value);
         } else if (action === 'esp32-set-speed') {
             setEsp32Speed(e.target.value);
+        } else if (action === 'toggle-tuya-device') {
+            toggleTuyaPlug(e);
         } else if (control) {
             const valueType = e.target.dataset.type || (e.target.step ? 'float' : 'string');
             const value = parseValue(e.target.value, valueType);

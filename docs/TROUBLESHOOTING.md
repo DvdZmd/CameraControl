@@ -153,7 +153,8 @@ Revisar:
 
 - Variables de entorno.
 - Región.
-- Device ID.
+- Device ID cargado en el dashboard o `TUYA_DEVICE_ID` legado.
+- Código de switch, normalmente `switch_1`.
 - Local key o credenciales.
 - Timeout.
 - Conectividad.

@@ -58,15 +58,19 @@ class TuyaController:
             self.logger.exception("Excepción al conectar con Tuya")
             return {"ok": False, "error": f"Error al conectar con la API de Tuya: {e}"}
 
-    def get_status(self):
+    def get_status(self, device_id=None):
         """
         Obtiene el estado actual del dispositivo (incluyendo si está encendido o apagado).
 
         Returns:
             Un diccionario con el es1010tado del dispositivo o un error.
         """
+        target_device_id = device_id or self.config.device_id
+        if not target_device_id:
+            return {"ok": False, "error": "device_id de Tuya no configurado"}
+
         try:
-            response = self.api.get(f"/v1.0/devices/{self.config.device_id}/status")
+            response = self.api.get(f"/v1.0/devices/{target_device_id}/status")
             if response.get("success"):
                 # Buscamos el código 'switch_1' que normalmente representa el estado on/off
                 status = {item['code']: item['value'] for item in response['result']}
@@ -76,7 +80,7 @@ class TuyaController:
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
-    def set_status(self, switch_state: bool):
+    def set_status(self, switch_state: bool, device_id=None, switch_code="switch_1"):
         """
         Enciende o apaga el enchufe.
 
@@ -86,9 +90,13 @@ class TuyaController:
         Returns:
             Un diccionario confirmando el resultado de la operación.
         """
-        commands = {'commands': [{'code': 'switch_1', 'value': switch_state}]}
+        target_device_id = device_id or self.config.device_id
+        if not target_device_id:
+            return {"ok": False, "error": "device_id de Tuya no configurado"}
+
+        commands = {'commands': [{'code': switch_code, 'value': switch_state}]}
         try:
-            response = self.api.post(f"/v1.0/devices/{self.config.device_id}/commands", commands)
+            response = self.api.post(f"/v1.0/devices/{target_device_id}/commands", commands)
             if response.get("success"):
                 return {"ok": True, "result": response.get("result")}
             else:

@@ -97,7 +97,12 @@ Debe encapsular:
 - Conexión con la API.
 - Lectura de estado.
 - Encendido y apagado.
+- Alta local de dispositivos ya registrados en Tuya IoT Platform.
 - Traducción de errores externos.
+
+Las credenciales de usuario, API key, secret, región y schema viven en
+variables de entorno. El dashboard sólo persiste metadatos operativos del
+dispositivo: nombre informativo, `device_id` y código de switch.
 
 #### Administración
 

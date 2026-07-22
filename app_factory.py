@@ -3,6 +3,7 @@ from database.models import db
 from routes.admin_routes import admin_bp
 from routes import camera_routes
 from routes import esp32_routes
+from routes import tuya_routes
 from routes.camera_routes import camera_bp
 from routes.esp32_routes import esp32_bp
 from routes.tuya_routes import tuya_bp
@@ -108,6 +109,9 @@ def create_app():
         ensure_esp32_schema = getattr(esp32_routes, "ensure_esp32_settings_schema", None)
         if callable(ensure_esp32_schema):
             ensure_esp32_schema(app.logger)
+        ensure_tuya_device = getattr(tuya_routes, "ensure_tuya_legacy_device", None)
+        if callable(ensure_tuya_device):
+            ensure_tuya_device(app_config.tuya, app.logger)
         apply_saved_settings = getattr(camera_routes, "apply_saved_camera_settings", None)
         if callable(apply_saved_settings):
             apply_saved_settings(app.logger)

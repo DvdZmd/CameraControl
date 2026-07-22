@@ -73,3 +73,13 @@ class Esp32Settings(db.Model):
     custom_tilt_pulse = db.Column(db.Integer, nullable=True)
     speed_mode = db.Column(db.Integer, nullable=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TuyaDevice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    device_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    switch_code = db.Column(db.String(80), nullable=False, default="switch_1")
+    enabled = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

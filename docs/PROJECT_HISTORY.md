@@ -176,6 +176,10 @@ Debe fallar de manera controlada.
 
 No bloquear Flask durante el inicio por una API externa.
 
+El dashboard no descubre ni da de alta dispositivos en la nube de Tuya. Sólo
+permite registrar localmente dispositivos ya existentes en Tuya IoT Platform
+mediante nombre informativo, `device_id` y código de switch.
+
 ## README
 
 El README puede describir una etapa simplificada del proyecto y no incluir ESP32, BLE o Tuya.
