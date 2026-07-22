@@ -2,6 +2,7 @@ from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy.exc import IntegrityError
 
 from database.models import TuyaDevice, db
+from tuya.tuya_controller import normalize_tuya_status
 
 tuya_bp = Blueprint(
     "tuya",
@@ -48,8 +49,20 @@ def _serialize_device(device, status_result=None):
         payload["status_ok"] = bool(status_result.get("ok"))
         if status_result.get("ok"):
             status = status_result.get("status") or {}
+            normalized = (
+                status_result
+                if "electrical" in status_result
+                else normalize_tuya_status(status, device.switch_code)
+            )
             payload["status"] = status
-            payload["is_on"] = status.get(device.switch_code) is True
+            payload["is_on"] = normalized["switch"]["is_on"]
+            payload["switch"] = normalized["switch"]
+            payload["electrical"] = normalized["electrical"]
+            payload["safety"] = normalized["safety"]
+            payload["settings"] = normalized["settings"]
+            payload["capabilities"] = normalized["capabilities"]
+            payload["cached"] = bool(status_result.get("cached"))
+            payload["fetched_at"] = status_result.get("fetched_at")
         else:
             payload["error"] = status_result.get("error", "Error desconocido")
 
@@ -233,7 +246,10 @@ def list_tuya_devices():
     payload = []
     for device in devices:
         try:
-            status_result = controller.get_status(device.device_id)
+            status_result = controller.get_status(
+                device.device_id,
+                switch_code=device.switch_code,
+            )
         except Exception as error:
             current_app.logger.exception("Error consultando estado Tuya")
             status_result = {"ok": False, "error": str(error)}

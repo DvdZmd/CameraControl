@@ -326,6 +326,9 @@ function renderTuyaDevices(devices) {
             : '<span>Tuya: sin nombre remoto</span>';
         const editedName = editingState.names.get(String(device.id));
         const displayName = editedName !== undefined ? editedName : device.name;
+        const telemetry = renderTuyaTelemetry(device);
+        const settings = renderTuyaSettings(device);
+        const error = device.status_ok ? '' : `<p class="tuya-error">${escapeHtml(device.error || 'No se pudo consultar Tuya')}</p>`;
         return `
             <div class="tuya-device-card">
                 <div class="tuya-device-info">
@@ -344,6 +347,9 @@ function renderTuyaDevices(devices) {
                     <span>${escapeHtml(device.device_id)}</span>
                     <small>${escapeHtml(device.switch_code)}</small>
                 </div>
+                ${error}
+                ${telemetry}
+                ${settings}
                 <div class="tuya-controls">
                     <span class="device-badge ${statusClass}">${statusText}</span>
                     <div class="toggle-switch">
@@ -365,6 +371,143 @@ function renderTuyaDevices(devices) {
     }).join('');
 
     restoreTuyaNameFocus(editingState);
+}
+
+function renderTuyaTelemetry(device) {
+    const electrical = device.electrical || {};
+    const safety = device.safety || {};
+    const capabilities = device.capabilities || {};
+    const faults = Array.isArray(safety.faults) ? safety.faults : [];
+    const faultText = faults.length
+        ? faults.map(fault => fault.label || fault.code).join(', ')
+        : 'Sin fallas';
+    const faultClass = faults.length ? 'warning' : 'ok';
+
+    if (!device.status_ok) {
+        return '';
+    }
+
+    const meteringGrid = capabilities.has_electrical_metering ? `
+        <div class="tuya-metrics-grid">
+            ${renderTuyaMetric(
+                'Voltaje',
+                formatMeasurement(electrical.voltage_v, 'V', 1),
+                'Tension de red medida por el enchufe en su entrada/salida de alimentacion. Sirve para ver si la linea esta cerca del valor esperado.'
+            )}
+            ${renderTuyaMetric(
+                'Corriente',
+                formatMeasurement(electrical.current_ma, 'mA', 0),
+                'Corriente instantanea que esta demandando la carga conectada al enchufe. No es acumulativa.'
+            )}
+            ${renderTuyaMetric(
+                'Potencia',
+                formatMeasurement(electrical.power_w, 'W', 1),
+                'Potencia instantanea calculada por el medidor interno del enchufe a partir de la carga conectada.'
+            )}
+            ${renderTuyaMetric(
+                'Energia',
+                formatMeasurement(electrical.added_energy_kwh, 'kWh', 3),
+                'Energia incremental reportada por Tuya. Para historico o acumulado confiable CameraControl debe guardar muestras en la base de datos.'
+            )}
+        </div>
+    ` : '<p class="tuya-muted">Sin medición eléctrica reportada.</p>';
+
+    return `
+        <div class="tuya-telemetry">
+            ${meteringGrid}
+            <div class="tuya-status-line">
+                <span class="tuya-fault ${faultClass}">${escapeHtml(faultText)}</span>
+                <span>${device.cached ? 'cache' : 'vivo'}${device.fetched_at ? ` · ${escapeHtml(formatTuyaTimestamp(device.fetched_at))}` : ''}</span>
+            </div>
+        </div>
+    `;
+}
+
+function renderTuyaMetric(label, value, hint) {
+    return `
+        <div class="tuya-metric">
+            <span class="tuya-metric-label">
+                ${escapeHtml(label)}
+                <span
+                    class="tuya-hint"
+                    title="${escapeAttribute(hint)}"
+                    aria-label="${escapeAttribute(hint)}"
+                    tabindex="0"
+                >!</span>
+            </span>
+            <strong>${escapeHtml(value)}</strong>
+        </div>
+    `;
+}
+
+function renderTuyaSettings(device) {
+    if (!device.status_ok) return '';
+
+    const settings = device.settings || {};
+    const safety = device.safety || {};
+    const items = [
+        ['Countdown', formatCountdown(settings.countdown_seconds)],
+        ['Relay inicio', humanizeTuyaRelayStatus(settings.relay_status)],
+        ['LED', humanizeTuyaLightMode(settings.light_mode)],
+        ['Bloqueo', formatBooleanState(safety.child_lock)],
+    ].filter(([, value]) => value !== '--');
+
+    if (!items.length) return '';
+
+    return `
+        <div class="tuya-settings-list">
+            ${items.map(([label, value]) => `
+                <span><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>
+            `).join('')}
+        </div>
+    `;
+}
+
+function formatMeasurement(value, unit, decimals) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return '--';
+    }
+    return `${value.toFixed(decimals)} ${unit}`;
+}
+
+function formatCountdown(value) {
+    if (!Number.isInteger(value)) return '--';
+    if (value <= 0) return 'Inactivo';
+    const minutes = Math.floor(value / 60);
+    const seconds = value % 60;
+    if (minutes <= 0) return `${seconds}s`;
+    return `${minutes}m ${seconds}s`;
+}
+
+function formatBooleanState(value) {
+    if (value === true) return 'Activo';
+    if (value === false) return 'Inactivo';
+    return '--';
+}
+
+function humanizeTuyaRelayStatus(value) {
+    return {
+        power_on: 'Encender',
+        power_off: 'Apagar',
+        last: 'Último estado',
+        on: 'Encender',
+        off: 'Apagar',
+        memory: 'Memoria',
+    }[value] || (value ? String(value) : '--');
+}
+
+function humanizeTuyaLightMode(value) {
+    return {
+        none: 'Apagado',
+        relay: 'Sigue relay',
+        pos: 'Ubicación',
+    }[value] || (value ? String(value) : '--');
+}
+
+function formatTuyaTimestamp(timestamp) {
+    const date = new Date(Number(timestamp) * 1000);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function escapeHtml(value) {
@@ -973,7 +1116,11 @@ async function initializeDashboard() {
     await refreshTuyaStatus();
 
     setInterval(refreshEsp32Status, 3000);
-    setInterval(refreshTuyaStatus, 5000); // Actualizamos el estado del enchufe cada 5 seg
+    setInterval(() => {
+        if (!document.hidden) {
+            refreshTuyaStatus();
+        }
+    }, 15000);
 
     // Initial check for AF support to hide elements if needed
     const res = await fetch(cameraApiUrl('/camera_status'));

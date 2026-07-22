@@ -12,7 +12,7 @@ class FakeTuyaController:
         self.details_by_device = {}
         self.commands = []
 
-    def get_status(self, device_id=None):
+    def get_status(self, device_id=None, switch_code="switch_1"):
         return {
             "ok": True,
             "status": self.status_by_device.get(device_id, {"switch_1": False}),
@@ -109,6 +109,43 @@ class TuyaRoutesTests(unittest.TestCase):
         self.assertEqual(len(devices), 1)
         self.assertEqual(devices[0]["name"], "Bomba")
         self.assertTrue(devices[0]["is_on"])
+        self.assertEqual(devices[0]["switch"]["code"], "switch_1")
+
+    def test_lists_devices_with_normalized_electrical_data(self):
+        with self.app.app_context():
+            db.session.add(TuyaDevice(
+                name="Luz cultivo",
+                device_id="light-1",
+                switch_code="switch_1",
+            ))
+            db.session.commit()
+        self.controller.status_by_device["light-1"] = {
+            "switch_1": True,
+            "cur_voltage": 2284,
+            "cur_current": 120,
+            "cur_power": 253,
+            "add_ele": 125,
+            "fault": 5,
+            "child_lock": False,
+            "relay_status": "power_off",
+            "light_mode": "relay",
+            "countdown_1": 0,
+        }
+
+        response = self.client.get("/api/tuya/devices")
+
+        self.assertEqual(response.status_code, 200)
+        device = response.get_json()["devices"][0]
+        self.assertEqual(device["electrical"]["voltage_v"], 228.4)
+        self.assertEqual(device["electrical"]["current_ma"], 120)
+        self.assertEqual(device["electrical"]["power_w"], 25.3)
+        self.assertEqual(device["electrical"]["added_energy_kwh"], 0.125)
+        self.assertTrue(device["capabilities"]["has_electrical_metering"])
+        self.assertEqual(
+            [fault["code"] for fault in device["safety"]["faults"]],
+            ["ov_cr", "ov_pwr"],
+        )
+        self.assertEqual(device["settings"]["relay_status"], "power_off")
 
     def test_updates_local_device_name(self):
         with self.app.app_context():

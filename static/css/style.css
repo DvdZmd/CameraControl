@@ -262,6 +262,101 @@ button:disabled {
     font-size: 0.78rem;
 }
 
+.tuya-error {
+    color: #ff8f8f;
+    font-size: 0.82rem;
+    margin: 0 0 10px;
+}
+
+.tuya-telemetry {
+    border-top: 1px solid #333;
+    border-bottom: 1px solid #333;
+    padding: 10px 0;
+    margin-bottom: 10px;
+}
+
+.tuya-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.tuya-metric {
+    min-width: 0;
+    background: #1b1b1b;
+    border: 1px solid #303030;
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.tuya-metric-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #9aa0a6;
+    font-size: 0.72rem;
+    margin-bottom: 4px;
+}
+
+.tuya-hint {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid #6f7782;
+    color: #cdd3da;
+    font-size: 0.62rem;
+    font-weight: bold;
+    line-height: 1;
+    cursor: help;
+}
+
+.tuya-hint:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.tuya-metric strong {
+    display: block;
+    color: #f3f3f3;
+    font-size: 0.95rem;
+    overflow-wrap: anywhere;
+}
+
+.tuya-status-line,
+.tuya-settings-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    color: #9aa0a6;
+    font-size: 0.75rem;
+    margin-top: 8px;
+}
+
+.tuya-settings-list {
+    margin: 0 0 10px;
+}
+
+.tuya-settings-list strong {
+    color: #d8d8d8;
+}
+
+.tuya-fault.ok {
+    color: var(--accent);
+}
+
+.tuya-fault.warning {
+    color: #ffc857;
+}
+
+.tuya-muted {
+    color: #9aa0a6;
+    font-size: 0.8rem;
+    margin: 0;
+}
+
 .tuya-controls {
     display: flex;
     justify-content: space-between;
