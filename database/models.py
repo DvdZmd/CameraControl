@@ -50,3 +50,18 @@ class TimelapseConfig(db.Model):
     is_running = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+
+class CameraSettings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    camera_key = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    camera_model = db.Column(db.String(255), nullable=True)
+    max_width = db.Column(db.Integer, nullable=True)
+    max_height = db.Column(db.Integer, nullable=True)
+    af_supported = db.Column(db.Boolean, nullable=True)
+    width = db.Column(db.Integer, nullable=False)
+    height = db.Column(db.Integer, nullable=False)
+    rotation = db.Column(db.Integer, nullable=False, default=0)
+    pipeline_rotation = db.Column(db.Integer, nullable=False, default=0)
+    display_rotation = db.Column(db.Integer, nullable=False, default=0)
+    controls = db.Column(db.JSON, nullable=False, default=dict)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

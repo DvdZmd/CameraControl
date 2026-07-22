@@ -1,4 +1,5 @@
-from flask import Blueprint, Response, request, jsonify, render_template, send_file
+from flask import Blueprint, Response, current_app, request, jsonify, render_template, send_file
+from database.models import CameraSettings, db
 from rpicam_z.rpicam_z import CAMERA_IMPORT_ERROR, UnavailableCamera, rpicam_z
 import time
 import io
@@ -6,6 +7,7 @@ import io
 
 MAX_DIMENSION_PX = 10000
 ALLOWED_ROTATIONS = {0, 90, 180, 270}
+SAFE_PIPELINE_ROTATIONS = {0, 180}
 CONTROL_RANGES = {
     'Brightness': (-1.0, 1.0),
     'Contrast': (0.0, 32.0),
@@ -16,9 +18,17 @@ CONTROL_RANGES = {
     'ExposureTime': (1, 1_000_000_000),
     'AnalogueGain': (1.0, 16.0),
 }
+BOOLEAN_CONTROLS = {'AeEnable'}
+PERSISTABLE_CONTROLS = {
+    *CONTROL_RANGES,
+    *BOOLEAN_CONTROLS,
+    'AwbMode',
+    'DigitalGain',
+}
 SETTINGS_FIELDS = {
     'width', 'height', 'rotation', 'timelapse', 'interval', 't_width', 't_height',
     *CONTROL_RANGES,
+    *BOOLEAN_CONTROLS,
 }
 
 camera_bp = Blueprint(
@@ -65,6 +75,13 @@ def _validate_dimensions(width, height):
 
 
 def _validate_control(name, value):
+    if name in BOOLEAN_CONTROLS:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str) and value.lower() in {'true', 'false'}:
+            return value.lower() == 'true'
+        raise ValueError(f"{name} debe ser booleano")
+
     minimum, maximum = CONTROL_RANGES[name]
     try:
         parsed = int(value) if name in {'AfMode', 'ExposureTime'} else float(value)
@@ -73,6 +90,227 @@ def _validate_control(name, value):
     if isinstance(value, bool) or not minimum <= parsed <= maximum:
         raise ValueError(f"{name} debe estar entre {minimum} y {maximum}")
     return parsed
+
+
+def _camera_properties():
+    picam2 = getattr(rpicamz, 'picam2', None)
+    properties = getattr(picam2, 'camera_properties', None)
+    return properties if isinstance(properties, dict) else {}
+
+
+def _camera_model():
+    properties = _camera_properties()
+    return properties.get('Model') or properties.get('SensorModel')
+
+
+def _camera_key(capabilities):
+    model = _camera_model() or 'unknown'
+    max_width = capabilities.get('max_width')
+    max_height = capabilities.get('max_height')
+    af_supported = capabilities.get('af_supported')
+    return f"{model}:{max_width}x{max_height}:af={int(bool(af_supported))}"
+
+
+def _supported_camera_controls():
+    picam2 = getattr(rpicamz, 'picam2', None)
+    available_controls = getattr(picam2, 'camera_controls', None)
+    if isinstance(available_controls, dict):
+        controls = set(available_controls)
+    else:
+        controls = set(PERSISTABLE_CONTROLS)
+
+    if not getattr(rpicamz, 'af_supported', False):
+        controls.discard('AfMode')
+        controls.discard('LensPosition')
+    return controls
+
+
+def _rotation_state(capabilities=None):
+    if capabilities is None:
+        capabilities = {}
+
+    requested = capabilities.get('current_rotation', getattr(rpicamz, 'current_rotation', 0))
+    pipeline = capabilities.get('pipeline_rotation', getattr(rpicamz, 'pipeline_rotation', None))
+    if pipeline is None:
+        pipeline = requested if requested in SAFE_PIPELINE_ROTATIONS else 0
+
+    display = capabilities.get('display_rotation', getattr(rpicamz, 'display_rotation', None))
+    if display is None:
+        display = (requested - pipeline) % 360
+
+    return {
+        'rotation': requested,
+        'pipeline_rotation': pipeline,
+        'display_rotation': display,
+    }
+
+
+def _set_camera_rotation(rotation):
+    set_rotation = getattr(rpicamz, 'set_rotation', None)
+    if not callable(set_rotation):
+        return False
+
+    capabilities = rpicamz.get_capabilities()
+    supported_pipeline_rotations = set(
+        capabilities.get('supported_pipeline_rotations') or SAFE_PIPELINE_ROTATIONS
+    )
+
+    if 'supported_pipeline_rotations' in capabilities or rotation in supported_pipeline_rotations:
+        return set_rotation(rotation) is not False
+
+    # Compatibilidad con rpicam-z antiguo: no enviar 90/270 al pipeline.
+    pipeline_rotation = rotation if rotation in supported_pipeline_rotations else 0
+    if set_rotation(pipeline_rotation) is False:
+        return False
+    rpicamz.current_rotation = rotation
+    rpicamz.pipeline_rotation = pipeline_rotation
+    rpicamz.display_rotation = (rotation - rpicamz.pipeline_rotation) % 360
+    return True
+
+
+def _current_camera_state(capabilities=None, overrides=None):
+    if capabilities is None:
+        capabilities = rpicamz.get_capabilities()
+    overrides = overrides or {}
+
+    controls = getattr(rpicamz, 'controls', {})
+    if not isinstance(controls, dict):
+        controls = {}
+
+    supported_controls = _supported_camera_controls()
+    persisted_controls = {
+        name: value
+        for name, value in controls.items()
+        if name in PERSISTABLE_CONTROLS and name in supported_controls
+    }
+
+    rotation = _rotation_state(capabilities)
+    rotation.update({key: value for key, value in overrides.items() if key in rotation})
+
+    return {
+        'camera_key': _camera_key(capabilities),
+        'camera_model': _camera_model(),
+        'max_width': capabilities.get('max_width'),
+        'max_height': capabilities.get('max_height'),
+        'af_supported': capabilities.get('af_supported'),
+        'width': overrides.get('width') or capabilities.get('current_width') or getattr(rpicamz, 'current_width', 1280),
+        'height': overrides.get('height') or capabilities.get('current_height') or getattr(rpicamz, 'current_height', 720),
+        'rotation': rotation['rotation'],
+        'pipeline_rotation': rotation['pipeline_rotation'],
+        'display_rotation': rotation['display_rotation'],
+        'controls': persisted_controls,
+    }
+
+
+def ensure_camera_settings_schema(logger=None):
+    if not _database_ready():
+        return
+
+    try:
+        with db.engine.begin() as connection:
+            columns = {
+                row[1]
+                for row in connection.exec_driver_sql("PRAGMA table_info(camera_settings)")
+            }
+            migrations = {
+                "pipeline_rotation": "ALTER TABLE camera_settings ADD COLUMN pipeline_rotation INTEGER NOT NULL DEFAULT 0",
+                "display_rotation": "ALTER TABLE camera_settings ADD COLUMN display_rotation INTEGER NOT NULL DEFAULT 0",
+            }
+            for column, statement in migrations.items():
+                if column not in columns:
+                    connection.exec_driver_sql(statement)
+    except Exception:
+        active_logger = logger or current_app.logger
+        active_logger.exception("No se pudo actualizar el esquema de configuración de cámara")
+
+
+def _save_current_camera_settings(overrides=None):
+    if not _database_ready():
+        return
+
+    try:
+        state = _current_camera_state(overrides=overrides)
+        settings = CameraSettings.query.filter_by(camera_key=state['camera_key']).first()
+        if settings is None:
+            settings = CameraSettings(camera_key=state['camera_key'])
+            db.session.add(settings)
+
+        settings.camera_model = state['camera_model']
+        settings.max_width = state['max_width']
+        settings.max_height = state['max_height']
+        settings.af_supported = state['af_supported']
+        settings.width = state['width']
+        settings.height = state['height']
+        settings.rotation = state['rotation']
+        settings.pipeline_rotation = state['pipeline_rotation']
+        settings.display_rotation = state['display_rotation']
+        settings.controls = state['controls']
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        current_app.logger.exception("No se pudo persistir la configuración de cámara")
+
+
+def _saved_camera_settings(capabilities=None):
+    if not _database_ready():
+        return None
+
+    if capabilities is None:
+        capabilities = rpicamz.get_capabilities()
+    return CameraSettings.query.filter_by(camera_key=_camera_key(capabilities)).first()
+
+
+def _apply_control(name, value):
+    result = rpicamz.update_control(name, value)
+    if result is False:
+        current_app.logger.warning("Control de cámara no aplicado: %s=%r", name, value)
+    return result
+
+
+def _database_ready():
+    try:
+        db.engine
+    except RuntimeError:
+        return False
+    return True
+
+
+def apply_saved_camera_settings(logger=None):
+    logger = logger or current_app.logger
+    if not callable(getattr(rpicamz, 'get_capabilities', None)):
+        logger.warning("No se aplicó configuración persistida: controlador de cámara incompleto")
+        return False
+
+    try:
+        capabilities = rpicamz.get_capabilities()
+        saved = _saved_camera_settings(capabilities)
+        if saved is None:
+            return False
+
+        max_width = capabilities.get('max_width') or MAX_DIMENSION_PX
+        max_height = capabilities.get('max_height') or MAX_DIMENSION_PX
+        width = min(saved.width, max_width)
+        height = min(saved.height, max_height)
+        if width != capabilities.get('current_width') or height != capabilities.get('current_height'):
+            rpicamz.set_resolution(width, height)
+
+        if saved.rotation in ALLOWED_ROTATIONS and not _set_camera_rotation(saved.rotation):
+            logger.warning("Rotación persistida no aplicada: %s", saved.rotation)
+
+        supported_controls = _supported_camera_controls()
+        controls = saved.controls or {}
+        for name, value in controls.items():
+            if name in supported_controls and name in PERSISTABLE_CONTROLS:
+                _apply_control(name, value)
+
+        logger.info("Configuración de cámara persistida aplicada: %s", saved.camera_key)
+        return True
+    except RuntimeError as error:
+        logger.warning("No se aplicó configuración persistida de cámara: %s", error)
+        return False
 
 @camera_bp.route('/')
 def index():
@@ -109,6 +347,7 @@ def reset_camera():
         rpicamz.reset_to_defaults()
     except RuntimeError as error:
         return _camera_unavailable_response(error)
+    _save_current_camera_settings()
     return jsonify({"status": "success", "message": "Camera reset to defaults"})
 
 @camera_bp.route('/apply_preset', methods=['POST'])
@@ -142,6 +381,7 @@ def apply_preset():
         return _camera_unavailable_response(error)
 
     if applied:
+        _save_current_camera_settings()
         return jsonify({"status": "success"})
     return jsonify({"status": "error", "message": "Preset not found"}), 404
 
@@ -306,7 +546,18 @@ def camera_status():
         curl http://localhost:5000/api/camera/camera_status
     """
     try:
-        return jsonify(rpicamz.get_capabilities())
+        capabilities = rpicamz.get_capabilities()
+        state = _current_camera_state(capabilities)
+        capabilities.update({
+            "camera_key": state['camera_key'],
+            "camera_model": state['camera_model'],
+            "current_rotation": state['rotation'],
+            "pipeline_rotation": state['pipeline_rotation'],
+            "display_rotation": state['display_rotation'],
+            "controls": state['controls'],
+            "supported_controls": sorted(_supported_camera_controls()),
+        })
+        return jsonify(capabilities)
     except RuntimeError as error:
         return _camera_unavailable_response(error)
 
@@ -379,7 +630,7 @@ def update_settings():
             raise ValueError("interval, t_width y t_height requieren timelapse='start'")
 
         controls = {}
-        for param in CONTROL_RANGES:
+        for param in (*CONTROL_RANGES, *BOOLEAN_CONTROLS):
             if param in data:
                 controls[param] = _validate_control(param, data[param])
         validated['controls'] = controls
@@ -391,7 +642,8 @@ def update_settings():
             rpicamz.set_resolution(*validated['resolution'])
 
         if 'rotation' in validated:
-            rpicamz.set_rotation(validated['rotation'])
+            if not _set_camera_rotation(validated['rotation']):
+                raise RuntimeError("No se pudo aplicar la rotación de cámara")
 
         if 'timelapse' in validated:
             timelapse = validated['timelapse']
@@ -400,14 +652,26 @@ def update_settings():
             else:
                 rpicamz.stop_timelapse()
 
-        image_params = {'Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition'}
+        image_params = {'Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition', 'AeEnable'}
         for param, value in validated['controls'].items():
-            rpicamz.update_control(param, value)
+            _apply_control(param, value)
             if param in image_params:
                 # Add a small delay to allow image processing settings to apply before the next frame is requested.
                 # This helps prevent the UI from appearing to "freeze" for these specific controls.
                 time.sleep(0.05)
     except RuntimeError as error:
         return _camera_unavailable_response(error)
-            
-    return jsonify({"status": "success"})
+
+    if 'resolution' in validated or 'rotation' in validated or validated['controls']:
+        overrides = {}
+        if 'resolution' in validated:
+            overrides['width'], overrides['height'] = validated['resolution']
+        _save_current_camera_settings(overrides)
+
+    rotation = _rotation_state(rpicamz.get_capabilities())
+    return jsonify({
+        "status": "success",
+        "current_rotation": rotation['rotation'],
+        "pipeline_rotation": rotation['pipeline_rotation'],
+        "display_rotation": rotation['display_rotation'],
+    })

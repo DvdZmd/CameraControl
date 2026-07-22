@@ -273,6 +273,57 @@ async function initCameraSpecs() {
     // Si es una V2, será 3280x2464
 }
 
+function setControlValue(control, value) {
+    const element = document.getElementById(control);
+    if (!element || value === undefined || value === null) return;
+
+    element.value = String(value);
+
+    const display = document.getElementById(`val-${control}`);
+    if (display) {
+        display.innerText = element.value;
+    }
+}
+
+function setResolutionValue(width, height) {
+    const label = document.getElementById('resolution-label');
+    if (label && width && height) {
+        label.innerText = `${width}x${height} @ 30fps`;
+    }
+
+    const preset = document.getElementById('res-preset');
+    const customInputs = document.getElementById('custom-res-inputs');
+    if (!preset || !width || !height) return;
+
+    const resolution = `${width}x${height}`;
+    const presetOption = Array.from(preset.options).find(option => option.value === resolution);
+    if (presetOption) {
+        preset.value = resolution;
+        if (customInputs) customInputs.style.display = 'none';
+    } else {
+        preset.value = 'custom';
+        if (customInputs) customInputs.style.display = 'flex';
+        const customW = document.getElementById('custom-w');
+        const customH = document.getElementById('custom-h');
+        if (customW) customW.value = width;
+        if (customH) customH.value = height;
+    }
+}
+
+function hydrateCameraControls(status) {
+    setResolutionValue(status.current_width, status.current_height);
+    applyVideoRotation(parseInt(status.display_rotation || 0, 10));
+
+    const controls = status.controls || {};
+    Object.entries(controls).forEach(([control, value]) => setControlValue(control, value));
+
+    const afMode = document.getElementById('AfMode');
+    const focusSlider = document.getElementById('manual-focus-container');
+    if (afMode && focusSlider) {
+        focusSlider.style.display = afMode.value === "0" ? "block" : "none";
+    }
+}
+
 function handleResolutionChange(val) {
     const customDiv = document.getElementById('custom-res-inputs');
     if (val === 'custom') {
@@ -379,32 +430,6 @@ async function checkCameraCapabilities() {
     }
 }
 
-let timeout;
-document.querySelectorAll('.camera-slider').forEach(slider => {
-    slider.addEventListener('input', (e) => {
-        const param = e.target.id;
-        const value = e.target.value;
-
-        // Cancelamos el envío anterior si el usuario sigue moviendo el slider
-        clearTimeout(timeout);
-        
-        // Solo enviamos el comando después de 50ms de inactividad
-        timeout = setTimeout(() => {
-            updateCameraSettings({ [param]: parseFloat(value) });
-        }, 50);
-    });
-});;
-
-// Actualizar visualización de valores al mover sliders
-document.querySelectorAll('.camera-slider').forEach(slider => {
-    slider.addEventListener('input', (e) => {
-        const display = document.getElementById(`val-${e.target.id}`);
-        if (display) {
-            display.innerText = e.target.value;
-        }
-    });
-});
-
 // Aplicar un preset desde el selector
 async function applyPreset(presetName) {
     if (!presetName) return;
@@ -478,8 +503,10 @@ async function updateCameraSettings(data) {
         });
         const result = await response.json();
         console.log("Configuración actualizada:", result);
+        return result;
     } catch (err) {
         console.error("Error actualizando cámara:", err);
+        return null;
     }
 }
 
@@ -507,22 +534,10 @@ function applyVideoRotation(angle) {
 
 async function setRotation(angle) {
     const parsedAngle = parseInt(angle, 10);
-    applyVideoRotation(parsedAngle);
-
-    if (parsedAngle === 0) {
-        await updateCameraSettings({ rotation: parsedAngle });
-        return;
+    const result = await updateCameraSettings({ rotation: parsedAngle });
+    if (result) {
+        applyVideoRotation(parseInt(result.display_rotation || 0, 10));
     }
-
-    if (parsedAngle === 180) {
-        return;
-    }
-
-    if (parsedAngle === 90 || parsedAngle === 270) {
-        return;
-    }
-
-    await updateCameraSettings({ rotation: parsedAngle });
 }
 
 let timelapseRunning = false;
@@ -645,6 +660,7 @@ async function initializeDashboard() {
     // Initial check for AF support to hide elements if needed
     const res = await fetch(cameraApiUrl('/camera_status'));
     const status = await res.json();
+    hydrateCameraControls(status);
     if (!status.af_supported) {
         const afControl = document.getElementById('AfModeDiv');
         if (afControl) afControl.style.display = 'none';

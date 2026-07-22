@@ -183,6 +183,27 @@ Al usar exposición manual, puede ser necesario desactivar AE.
 
 No asumir que todos los controles se aplican inmediatamente.
 
+## Persistencia de configuración
+
+La última configuración aplicada de stream e imagen se persiste en SQLite por
+identidad de cámara. La identidad prioriza el modelo reportado por Picamera2 y
+usa como respaldo la resolución máxima detectada junto con soporte de autofocus.
+
+Al iniciar Flask se intenta restaurar la configuración persistida para la cámara
+actual. Los controles guardados se filtran contra los controles soportados por
+la cámara vigente para evitar aplicar opciones de una versión de sensor distinta.
+
+La rotación se guarda como configuración de cámara con tres valores:
+
+- `rotation`: rotación solicitada por el usuario.
+- `pipeline_rotation`: rotación aplicada realmente por `rpicam-z`/Picamera2.
+- `display_rotation`: compensación visual que debe aplicar el frontend.
+
+El controlador `rpicam-z` trata 0 y 180 como rotaciones de pipeline seguras. Para
+90 y 270 conserva la rotación solicitada en la configuración y devuelve la
+compensación visual necesaria. El CSS sólo consume `display_rotation`; no decide
+por sí mismo cómo rotar.
+
 ## Autofocus
 
 Camera v3 puede soportar:

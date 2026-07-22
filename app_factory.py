@@ -1,6 +1,7 @@
 from flask import Flask
 from database.models import db
 from routes.admin_routes import admin_bp
+from routes import camera_routes
 from routes.camera_routes import camera_bp
 from routes.esp32_routes import esp32_bp
 from routes.tuya_routes import tuya_bp
@@ -100,6 +101,12 @@ def create_app():
     # Initialize database
     with app.app_context():
         db.create_all()
+        ensure_camera_schema = getattr(camera_routes, "ensure_camera_settings_schema", None)
+        if callable(ensure_camera_schema):
+            ensure_camera_schema(app.logger)
+        apply_saved_settings = getattr(camera_routes, "apply_saved_camera_settings", None)
+        if callable(apply_saved_settings):
+            apply_saved_settings(app.logger)
         #TODO: Load saved timelapse configuration
         #load_timelapse_config()
 

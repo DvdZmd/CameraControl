@@ -3,6 +3,7 @@ import sys
 from types import ModuleType
 
 from flask import Flask
+from database.models import CameraSettings, db
 
 
 class BootstrapCamera:
@@ -26,9 +27,23 @@ from routes.esp32_routes import esp32_bp
 class FakeCamera:
     def __init__(self):
         self.calls = []
+        self.current_width = 1280
+        self.current_height = 720
+        self.current_rotation = 0
+        self.pipeline_rotation = 0
+        self.display_rotation = 0
+        self.max_sensor_res = (4608, 2592)
+        self.af_supported = False
+        self.controls = {
+            "Brightness": 0.0,
+            "Contrast": 1.0,
+            "Saturation": 1.0,
+            "AeEnable": True,
+        }
 
     def apply_preset(self, preset):
         self.calls.append(("preset", preset))
+        self.controls["Contrast"] = 1.5
         return True
 
     def take_custom_photo(self, width, height):
@@ -36,13 +51,29 @@ class FakeCamera:
         return b"jpeg"
 
     def get_capabilities(self):
-        return {"af_supported": False}
+        return {
+            "max_width": self.max_sensor_res[0],
+            "max_height": self.max_sensor_res[1],
+            "af_supported": self.af_supported,
+            "current_width": self.current_width,
+            "current_height": self.current_height,
+            "current_rotation": self.current_rotation,
+            "pipeline_rotation": self.pipeline_rotation,
+            "display_rotation": self.display_rotation,
+            "supported_pipeline_rotations": [0, 180],
+        }
 
     def set_resolution(self, width, height):
+        self.current_width = width
+        self.current_height = height
         self.calls.append(("resolution", width, height))
 
     def set_rotation(self, rotation):
+        self.current_rotation = rotation
+        self.pipeline_rotation = rotation if rotation in {0, 180} else 0
+        self.display_rotation = (rotation - self.pipeline_rotation) % 360
         self.calls.append(("rotation", rotation))
+        return True
 
     def start_timelapse(self, interval, width, height):
         self.calls.append(("timelapse", interval, width, height))
@@ -51,7 +82,9 @@ class FakeCamera:
         self.calls.append(("stop_timelapse",))
 
     def update_control(self, name, value):
+        self.controls[name] = value
         self.calls.append(("control", name, value))
+        return True
 
 
 class FakeBleController:
@@ -119,6 +152,83 @@ class ApiValidationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(("resolution", 1280, 720), self.camera.calls)
         self.assertIn(("control", "Brightness", 0.2), self.camera.calls)
+
+    def test_camera_persists_applied_settings_when_database_is_available(self):
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        db.init_app(app)
+        app.register_blueprint(camera_bp)
+
+        with app.app_context():
+            db.create_all()
+
+        client = app.test_client()
+        response = client.post(
+            "/api/camera/update_settings",
+            json={"width": 1920, "height": 1080, "rotation": 90, "AeEnable": False},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        with app.app_context():
+            saved = CameraSettings.query.one()
+            self.assertEqual(saved.width, 1920)
+            self.assertEqual(saved.height, 1080)
+            self.assertEqual(saved.rotation, 90)
+            self.assertEqual(saved.pipeline_rotation, 0)
+            self.assertEqual(saved.display_rotation, 90)
+            self.assertFalse(saved.controls["AeEnable"])
+
+        self.assertIn(("rotation", 90), self.camera.calls)
+
+        status = client.get("/api/camera/camera_status").get_json()
+        self.assertEqual(status["current_width"], 1920)
+        self.assertEqual(status["current_height"], 1080)
+        self.assertEqual(status["current_rotation"], 90)
+        self.assertEqual(status["pipeline_rotation"], 0)
+        self.assertEqual(status["display_rotation"], 90)
+        self.assertFalse(status["controls"]["AeEnable"])
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
+
+    def test_camera_applies_saved_settings_on_startup(self):
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        db.init_app(app)
+
+        with app.app_context():
+            db.create_all()
+            db.session.add(CameraSettings(
+                camera_key="unknown:4608x2592:af=0",
+                max_width=4608,
+                max_height=2592,
+                af_supported=False,
+                width=1640,
+                height=1232,
+                rotation=270,
+                pipeline_rotation=0,
+                display_rotation=270,
+                controls={"Brightness": 0.4, "AeEnable": False, "AfMode": 2},
+            ))
+            db.session.commit()
+
+            applied = camera_routes.apply_saved_camera_settings(app.logger)
+
+        self.assertTrue(applied)
+        self.assertIn(("resolution", 1640, 1232), self.camera.calls)
+        self.assertIn(("control", "Brightness", 0.4), self.camera.calls)
+        self.assertIn(("control", "AeEnable", False), self.camera.calls)
+        self.assertNotIn(("control", "AfMode", 2), self.camera.calls)
+        self.assertIn(("rotation", 270), self.camera.calls)
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
 
     def test_esp32_rejects_invalid_set_speed_command(self):
         response = self.client.post("/api/esp32/command", json={"command": "SET_SPEED:99"})
