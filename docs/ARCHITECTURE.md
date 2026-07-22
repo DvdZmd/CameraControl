@@ -102,7 +102,8 @@ Debe encapsular:
 
 Las credenciales de usuario, API key, secret, región y schema viven en
 variables de entorno. El dashboard sólo persiste metadatos operativos del
-dispositivo: nombre informativo, `device_id` y código de switch.
+dispositivo: alias local editable, nombre remoto reportado por Tuya cuando está
+disponible, `device_id` y código de switch.
 
 #### Administración
 

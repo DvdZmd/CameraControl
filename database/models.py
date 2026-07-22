@@ -78,6 +78,7 @@ class Esp32Settings(db.Model):
 class TuyaDevice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
+    tuya_name = db.Column(db.String(255), nullable=True)
     device_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
     switch_code = db.Column(db.String(80), nullable=False, default="switch_1")
     enabled = db.Column(db.Boolean, nullable=False, default=True)

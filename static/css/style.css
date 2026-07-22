@@ -230,8 +230,25 @@ button:disabled {
     margin-bottom: 10px;
 }
 
+.tuya-device-title {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
 .tuya-device-info strong {
     font-size: 0.95rem;
+}
+
+.tuya-name-input {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1b1b1b;
+    color: white;
+    box-sizing: border-box;
 }
 
 .tuya-device-info span,
@@ -250,6 +267,14 @@ button:disabled {
     justify-content: space-between;
     align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
+}
+
+.tuya-device-title button,
+.tuya-controls button {
+    flex: 0 0 auto;
+    padding: 7px 9px;
+    font-size: 0.78rem;
 }
 
 .device-badge {

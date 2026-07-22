@@ -80,6 +80,31 @@ class TuyaController:
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
+    def get_device_details(self, device_id=None):
+        """
+        Obtiene metadatos del dispositivo Tuya, incluyendo nombre remoto cuando
+        la cuenta y el plan de API lo permiten.
+        """
+        target_device_id = device_id or self.config.device_id
+        if not target_device_id:
+            return {"ok": False, "error": "device_id de Tuya no configurado"}
+
+        try:
+            response = self.api.get(f"/v1.0/devices/{target_device_id}")
+            if not response.get("success"):
+                return {"ok": False, "error": response.get("msg", "Error desconocido")}
+
+            result = response.get("result") or {}
+            return {
+                "ok": True,
+                "device_id": target_device_id,
+                "name": result.get("name") or result.get("device_name"),
+                "online": result.get("online"),
+                "product_name": result.get("product_name"),
+            }
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     def set_status(self, switch_state: bool, device_id=None, switch_code="switch_1"):
         """
         Enciende o apaga el enchufe.

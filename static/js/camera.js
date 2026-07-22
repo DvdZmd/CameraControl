@@ -308,6 +308,8 @@ function renderTuyaDevices(devices) {
     const list = document.getElementById('tuya-devices-list');
     if (!list) return;
 
+    const editingState = getTuyaNameEditingState(list);
+
     if (devices.length === 0) {
         list.innerHTML = '<p class="empty-state">Sin dispositivos configurados.</p>';
         return;
@@ -319,10 +321,26 @@ function renderTuyaDevices(devices) {
         const statusText = device.status_ok ? (isOn ? 'Encendido' : 'Apagado') : 'Error';
         const checked = isOn ? 'checked' : '';
         const disabled = device.status_ok ? '' : 'disabled';
+        const tuyaName = device.tuya_name
+            ? `<span>Tuya: ${escapeHtml(device.tuya_name)}</span>`
+            : '<span>Tuya: sin nombre remoto</span>';
+        const editedName = editingState.names.get(String(device.id));
+        const displayName = editedName !== undefined ? editedName : device.name;
         return `
             <div class="tuya-device-card">
                 <div class="tuya-device-info">
-                    <strong>${escapeHtml(device.name)}</strong>
+                    <div class="tuya-device-title">
+                        <input
+                            class="tuya-name-input"
+                            type="text"
+                            value="${escapeAttribute(displayName)}"
+                            data-tuya-name-input="${device.id}"
+                            data-tuya-original-name="${escapeAttribute(device.name)}"
+                            aria-label="Nombre informativo"
+                        >
+                        <button type="button" data-action="save-tuya-device-name" data-device-id="${device.id}">Guardar</button>
+                    </div>
+                    ${tuyaName}
                     <span>${escapeHtml(device.device_id)}</span>
                     <small>${escapeHtml(device.switch_code)}</small>
                 </div>
@@ -340,10 +358,13 @@ function renderTuyaDevices(devices) {
                         >
                         <label for="tuya-toggle-${device.id}" class="toggle-label"></label>
                     </div>
+                    <button type="button" data-action="refresh-tuya-device-details" data-device-id="${device.id}">Refrescar Tuya</button>
                 </div>
             </div>
         `;
     }).join('');
+
+    restoreTuyaNameFocus(editingState);
 }
 
 function escapeHtml(value) {
@@ -354,6 +375,46 @@ function escapeHtml(value) {
         '"': '&quot;',
         "'": '&#39;'
     }[char]));
+}
+
+function escapeAttribute(value) {
+    return escapeHtml(value);
+}
+
+function getTuyaNameEditingState(list) {
+    const activeInput = document.activeElement && document.activeElement.matches('.tuya-name-input')
+        ? document.activeElement
+        : null;
+    const names = new Map();
+
+    list.querySelectorAll('.tuya-name-input').forEach(input => {
+        const deviceId = input.dataset.tuyaNameInput;
+        if (!deviceId) return;
+
+        const originalName = input.dataset.tuyaOriginalName || '';
+        if (input === activeInput || input.value !== originalName) {
+            names.set(deviceId, input.value);
+        }
+    });
+
+    return {
+        activeDeviceId: activeInput ? activeInput.dataset.tuyaNameInput : null,
+        selectionStart: activeInput ? activeInput.selectionStart : null,
+        selectionEnd: activeInput ? activeInput.selectionEnd : null,
+        names,
+    };
+}
+
+function restoreTuyaNameFocus(editingState) {
+    if (!editingState.activeDeviceId) return;
+
+    const input = document.querySelector(`[data-tuya-name-input="${editingState.activeDeviceId}"]`);
+    if (!input) return;
+
+    input.focus();
+    if (editingState.selectionStart !== null && editingState.selectionEnd !== null) {
+        input.setSelectionRange(editingState.selectionStart, editingState.selectionEnd);
+    }
 }
 
 async function toggleTuyaPlug(event) {
@@ -379,6 +440,51 @@ async function toggleTuyaPlug(event) {
     } catch (error) {
         showTuyaFeedback(error.message, true);
         toggle.checked = !newState; // Revertir el cambio visual si hay error
+    }
+}
+
+async function saveTuyaDeviceName(deviceId) {
+    const input = document.querySelector(`[data-tuya-name-input="${deviceId}"]`);
+    if (!input) return;
+
+    const name = input.value.trim();
+    if (!name) {
+        showTuyaFeedback('El nombre informativo no puede quedar vacío.', true);
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/tuya/devices/${deviceId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'No se pudo actualizar el nombre.');
+        }
+
+        showTuyaFeedback('Nombre informativo actualizado.');
+        await refreshTuyaStatus();
+    } catch (error) {
+        showTuyaFeedback(error.message || 'No se pudo actualizar el nombre.', true);
+    }
+}
+
+async function refreshTuyaDeviceDetails(deviceId) {
+    try {
+        const response = await fetch(`/api/tuya/devices/${deviceId}/details`, { method: 'POST' });
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'No se pudo refrescar el nombre de Tuya.');
+        }
+
+        showTuyaFeedback('Nombre de Tuya actualizado.');
+        await refreshTuyaStatus();
+    } catch (error) {
+        showTuyaFeedback(error.message || 'No se pudo refrescar el nombre de Tuya.', true);
     }
 }
 
@@ -809,6 +915,8 @@ function setupEventListeners() {
             case 'esp32-save-current-position': saveEsp32CurrentPosition(); break;
             case 'esp32-return-position': returnEsp32ToSavedPosition(); break;
             case 'add-tuya-device': addTuyaDevice(); break;
+            case 'save-tuya-device-name': saveTuyaDeviceName(actionTarget.dataset.deviceId); break;
+            case 'refresh-tuya-device-details': refreshTuyaDeviceDetails(actionTarget.dataset.deviceId); break;
             case 'esp32-send-custom-command': sendEsp32CustomCommand(); break;
         }
     });

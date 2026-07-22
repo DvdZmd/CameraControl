@@ -178,7 +178,9 @@ No bloquear Flask durante el inicio por una API externa.
 
 El dashboard no descubre ni da de alta dispositivos en la nube de Tuya. Sólo
 permite registrar localmente dispositivos ya existentes en Tuya IoT Platform
-mediante nombre informativo, `device_id` y código de switch.
+mediante alias informativo editable, `device_id` y código de switch. Cuando la
+API de Tuya permite leer detalle del dispositivo, el nombre remoto se muestra
+como referencia separada del alias local.
 
 ## README
 

@@ -109,6 +109,9 @@ def create_app():
         ensure_esp32_schema = getattr(esp32_routes, "ensure_esp32_settings_schema", None)
         if callable(ensure_esp32_schema):
             ensure_esp32_schema(app.logger)
+        ensure_tuya_schema = getattr(tuya_routes, "ensure_tuya_devices_schema", None)
+        if callable(ensure_tuya_schema):
+            ensure_tuya_schema(app.logger)
         ensure_tuya_device = getattr(tuya_routes, "ensure_tuya_legacy_device", None)
         if callable(ensure_tuya_device):
             ensure_tuya_device(app_config.tuya, app.logger)

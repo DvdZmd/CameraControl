@@ -38,6 +38,7 @@ def _serialize_device(device, status_result=None):
     payload = {
         "id": device.id,
         "name": device.name,
+        "tuya_name": device.tuya_name,
         "device_id": device.device_id,
         "switch_code": device.switch_code,
         "enabled": device.enabled,
@@ -53,6 +54,29 @@ def _serialize_device(device, status_result=None):
             payload["error"] = status_result.get("error", "Error desconocido")
 
     return payload
+
+
+def _remote_tuya_name(details):
+    if not isinstance(details, dict) or not details.get("ok"):
+        return None
+
+    name = details.get("name")
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    return None
+
+
+def _refresh_tuya_device_details(controller, device):
+    get_details = getattr(controller, "get_device_details", None)
+    if not callable(get_details):
+        return None
+
+    result = get_details(device.device_id)
+    remote_name = _remote_tuya_name(result)
+    if remote_name and remote_name != device.tuya_name:
+        device.tuya_name = remote_name
+        db.session.commit()
+    return result
 
 
 def _validate_device_payload(data):
@@ -88,6 +112,25 @@ def _validate_device_payload(data):
     }, None
 
 
+def _validate_device_update_payload(data):
+    if not isinstance(data, dict):
+        return None, "Se requiere un objeto JSON"
+
+    updates = {}
+    if "name" in data:
+        name = data.get("name")
+        if not isinstance(name, str) or not name.strip():
+            return None, "name debe ser un string no vacío"
+        name = name.strip()
+        if len(name) > 120:
+            return None, "name no puede superar 120 caracteres"
+        updates["name"] = name
+
+    if not updates:
+        return None, "No hay cambios válidos para aplicar"
+    return updates, None
+
+
 def _device_or_404(device_pk):
     if not _database_ready():
         return None, (jsonify({"ok": False, "error": "Base de datos no disponible"}), 503)
@@ -109,6 +152,7 @@ def ensure_tuya_legacy_device(config, logger=None):
 
         db.session.add(TuyaDevice(
             name="Enchufe Tuya",
+            tuya_name=None,
             device_id=config.device_id,
             switch_code="switch_1",
         ))
@@ -120,6 +164,24 @@ def ensure_tuya_legacy_device(config, logger=None):
             pass
         active_logger = logger or current_app.logger
         active_logger.exception("No se pudo inicializar el dispositivo Tuya legado")
+
+
+def ensure_tuya_devices_schema(logger=None):
+    if not _database_ready():
+        return
+
+    try:
+        with db.engine.begin() as connection:
+            columns = {
+                row[1]
+                for row in connection.exec_driver_sql("PRAGMA table_info(tuya_device)")
+            }
+            if "tuya_name" not in columns:
+                connection.exec_driver_sql("ALTER TABLE tuya_device ADD COLUMN tuya_name VARCHAR(255)")
+    except Exception:
+        active_logger = logger or current_app.logger
+        active_logger.exception("No se pudo actualizar el esquema de dispositivos Tuya")
+
 
 @tuya_bp.route("/status", methods=["GET"])
 def get_tuya_status():
@@ -204,7 +266,61 @@ def add_tuya_device():
         current_app.logger.exception("Error agregando dispositivo Tuya")
         return jsonify({"ok": False, "error": str(error)}), 500
 
+    try:
+        controller = get_tuya_controller()
+        _refresh_tuya_device_details(controller, device)
+    except Exception as error:
+        db.session.rollback()
+        current_app.logger.warning("No se pudo obtener detalle del dispositivo Tuya: %s", error)
+
     return jsonify({"ok": True, "device": _serialize_device(device)}), 201
+
+
+@tuya_bp.route("/devices/<int:device_pk>", methods=["PATCH"])
+def update_tuya_device(device_pk):
+    """
+    Actualiza metadatos locales del dispositivo Tuya.
+    """
+    device, error_response = _device_or_404(device_pk)
+    if error_response:
+        return error_response
+
+    updates, validation_error = _validate_device_update_payload(request.get_json(silent=True))
+    if validation_error:
+        return jsonify({"ok": False, "error": validation_error}), 400
+
+    try:
+        for key, value in updates.items():
+            setattr(device, key, value)
+        db.session.commit()
+        return jsonify({"ok": True, "device": _serialize_device(device)}), 200
+    except Exception as error:
+        db.session.rollback()
+        current_app.logger.exception("Error actualizando dispositivo Tuya")
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@tuya_bp.route("/devices/<int:device_pk>/details", methods=["POST"])
+def refresh_tuya_device_details(device_pk):
+    """
+    Refresca metadatos remotos del dispositivo desde Tuya.
+    """
+    device, error_response = _device_or_404(device_pk)
+    if error_response:
+        return error_response
+
+    controller = get_tuya_controller()
+    try:
+        result = _refresh_tuya_device_details(controller, device)
+        if not isinstance(result, dict):
+            return jsonify({"ok": False, "error": "El controlador no soporta detalle de dispositivo"}), 501
+        if not result.get("ok"):
+            return _tuya_response(result)
+        return jsonify({"ok": True, "device": _serialize_device(device)}), 200
+    except Exception as error:
+        db.session.rollback()
+        current_app.logger.exception("Error refrescando detalle Tuya")
+        return jsonify({"ok": False, "error": str(error)}), 503
 
 
 @tuya_bp.route("/devices/<int:device_pk>/status", methods=["POST"])
