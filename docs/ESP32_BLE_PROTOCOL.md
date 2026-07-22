@@ -173,15 +173,16 @@ firmware.
 
 Endpoints específicos del dashboard:
 
-- `GET /api/esp32/status`: estado BLE, última telemetría y posición configurada
-  persistida cuando exista.
+- `GET /api/esp32/status`: estado BLE, última telemetría, posición configurada
+  y perfil de velocidad persistidos cuando existan.
 - `POST /api/esp32/connect`: conecta por BLE. Puede bloquear mientras escanea y
   negocia GATT.
 - `POST /api/esp32/disconnect`: cierra la conexión BLE activa.
 - `POST /api/esp32/move`: acepta `direction` con `left`, `right`, `up` o
   `down`; cada request envía un único paso.
 - `POST /api/esp32/center`: envía `CENTER`.
-- `POST /api/esp32/speed`: acepta `mode` entre 0 y 4.
+- `POST /api/esp32/speed`: acepta `mode` entre 0 y 4, envía `SET_SPEED` y
+  persiste el perfil seleccionado para rehidratar el dashboard.
 - `POST /api/esp32/position/current`: guarda en SQLite la posición `P`/`T`
   recibida en la última telemetría válida. No mueve los servos.
 - `POST /api/esp32/position/return`: valida la posición persistida y envía
@@ -214,7 +215,8 @@ Estos valores pueden cambiar.
 
 Datos candidatos:
 
-- Posición custom del dashboard en SQLite: pan y tilt.
+- Configuración del dashboard en SQLite: posición custom `pan`/`tilt` y perfil
+  de velocidad.
 - En firmware futuro: pan, tilt y velocidad.
 
 Preferir `Preferences`/NVS.

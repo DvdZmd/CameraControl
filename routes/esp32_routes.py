@@ -95,6 +95,30 @@ def _saved_position_payload(settings=None):
     }
 
 
+def _saved_speed_mode(settings=None):
+    settings = settings or _saved_esp32_settings()
+    if settings is None or settings.speed_mode is None:
+        return None
+    return settings.speed_mode
+
+
+def ensure_esp32_settings_schema(logger=None):
+    if not _database_ready():
+        return
+
+    try:
+        with db.engine.begin() as connection:
+            columns = {
+                row[1]
+                for row in connection.exec_driver_sql("PRAGMA table_info(esp32_settings)")
+            }
+            if "speed_mode" not in columns:
+                connection.exec_driver_sql("ALTER TABLE esp32_settings ADD COLUMN speed_mode INTEGER")
+    except Exception:
+        active_logger = logger or current_app.logger
+        active_logger.exception("No se pudo actualizar el esquema de configuración ESP32")
+
+
 def _parse_servo_pulse(value, name):
     try:
         pulse = int(value)
@@ -133,7 +157,9 @@ def esp32_status():
     """
     controller = get_ble_controller()
     status = controller.get_status_sync()
-    status["saved_position"] = _saved_position_payload()
+    settings = _saved_esp32_settings()
+    status["saved_position"] = _saved_position_payload(settings)
+    status["saved_speed_mode"] = _saved_speed_mode(settings)
     return jsonify(status), 200
 
 
@@ -334,10 +360,22 @@ def esp32_speed():
         if str(mode) != str(data.get("mode")).strip() or not 0 <= mode <= 4:
             raise ValueError("mode debe ser un entero entre 0 y 4")
         result = controller.set_speed_sync(mode)
+        if _database_ready():
+            settings = db.session.get(Esp32Settings, DEFAULT_SETTINGS_ID)
+            if settings is None:
+                settings = Esp32Settings(id=DEFAULT_SETTINGS_ID)
+                db.session.add(settings)
+            settings.speed_mode = mode
+            db.session.commit()
+            result["saved_speed_mode"] = mode
         return jsonify(result), 200
     except ValueError as ex:
         return jsonify({"ok": False, "error": str(ex)}), 400
     except Exception as ex:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         return jsonify({"ok": False, "error": str(ex)}), 500
 
 

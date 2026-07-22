@@ -51,6 +51,14 @@ function formatSavedPosition(savedPosition) {
     return `P ${savedPosition.pan} / T ${savedPosition.tilt}`;
 }
 
+function normalizeSpeedMode(value) {
+    if (value === null || value === undefined || value === '') {
+        return null;
+    }
+    const mode = Number(value);
+    return Number.isInteger(mode) && mode >= 0 && mode <= 4 ? String(mode) : null;
+}
+
 async function refreshEsp32Status() {
     try {
         const response = await fetch('/api/esp32/status');
@@ -61,6 +69,7 @@ async function refreshEsp32Status() {
         const address = document.getElementById('esp32-address');
         const lastStateEl = document.getElementById('esp32-last-state');
         const savedPositionEl = document.getElementById('esp32-saved-position');
+        const speedSelect = document.getElementById('esp32-speed-select');
 
         if (badge) {
             badge.textContent = data.connected ? 'Conectado' : 'Desconectado';
@@ -76,6 +85,14 @@ async function refreshEsp32Status() {
             // La clave para velocidad es 'S'
             const speedMode = stateValue(lastState, 'S');
             lastStateEl.textContent = speedMode !== null ? `Perfil Vel. ${speedMode}` : 'N/A';
+        }
+        if (speedSelect) {
+            const savedSpeedMode = normalizeSpeedMode(data.saved_speed_mode);
+            const telemetrySpeedMode = normalizeSpeedMode(stateValue(lastState, 'S'));
+            const speedMode = savedSpeedMode || telemetrySpeedMode;
+            if (speedMode !== null) {
+                speedSelect.value = speedMode;
+            }
         }
 
         // Sensores Ambientales y de Suelo
@@ -210,6 +227,10 @@ async function setEsp32Speed(mode) {
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || 'No se pudo actualizar la velocidad');
+        }
+        const speedSelect = document.getElementById('esp32-speed-select');
+        if (speedSelect) {
+            speedSelect.value = String(mode);
         }
         showEsp32Feedback(`Velocidad actualizada al perfil ${mode}`);
         await refreshEsp32Status();

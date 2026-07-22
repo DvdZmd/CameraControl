@@ -263,6 +263,57 @@ class ApiValidationTests(unittest.TestCase):
         response = self.client.post("/api/esp32/speed", json={"mode": True})
         self.assertEqual(response.status_code, 400)
 
+    def test_esp32_persists_speed_mode(self):
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        ble = FakeBleController()
+        app.config["BLE_CAMERA_CONTROLLER"] = ble
+        db.init_app(app)
+        app.register_blueprint(esp32_bp)
+
+        with app.app_context():
+            db.create_all()
+
+        client = app.test_client()
+        response = client.post("/api/esp32/speed", json={"mode": 4})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["saved_speed_mode"], 4)
+        self.assertEqual(ble.commands, ["SET_SPEED:4"])
+        with app.app_context():
+            saved = db.session.get(Esp32Settings, 1)
+            self.assertEqual(saved.speed_mode, 4)
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
+
+    def test_esp32_status_includes_saved_speed_mode(self):
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        ble = FakeBleController()
+        app.config["BLE_CAMERA_CONTROLLER"] = ble
+        db.init_app(app)
+        app.register_blueprint(esp32_bp)
+
+        with app.app_context():
+            db.create_all()
+            db.session.add(Esp32Settings(id=1, speed_mode=3))
+            db.session.commit()
+
+        client = app.test_client()
+        response = client.get("/api/esp32/status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["saved_speed_mode"], 3)
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
+
     def test_esp32_saves_current_position_from_telemetry(self):
         app = Flask(__name__)
         app.config["TESTING"] = True
