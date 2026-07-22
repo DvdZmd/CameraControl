@@ -65,3 +65,10 @@ class CameraSettings(db.Model):
     display_rotation = db.Column(db.Integer, nullable=False, default=0)
     controls = db.Column(db.JSON, nullable=False, default=dict)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Esp32Settings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    custom_pan_pulse = db.Column(db.Integer, nullable=True)
+    custom_tilt_pulse = db.Column(db.Integer, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

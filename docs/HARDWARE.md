@@ -192,5 +192,5 @@ Antes de probar movimiento:
 - Confirmar centro.
 - Confirmar pulsos.
 - Evitar que cables queden tensos.
-- Tener un `STOP`.
 - Probar a baja velocidad.
+- Probar pasos individuales antes de usar retorno a posición absoluta.

@@ -153,6 +153,8 @@ Experiencia esperada:
 
 - Click: movimiento de un paso.
 - Centro: ambos ejes.
+- Posición configurada: guardar la posición actual reportada por telemetría y
+  volver a ella con `SET_ABS`.
 - Velocidad: seleccionable.
 - Estado: visible.
 
@@ -166,6 +168,28 @@ Formato vigente de posición absoluta:
 
 Ambos valores son pulsos en microsegundos dentro del rango configurado por el
 firmware.
+
+## API Flask
+
+Endpoints específicos del dashboard:
+
+- `GET /api/esp32/status`: estado BLE, última telemetría y posición configurada
+  persistida cuando exista.
+- `POST /api/esp32/connect`: conecta por BLE. Puede bloquear mientras escanea y
+  negocia GATT.
+- `POST /api/esp32/disconnect`: cierra la conexión BLE activa.
+- `POST /api/esp32/move`: acepta `direction` con `left`, `right`, `up` o
+  `down`; cada request envía un único paso.
+- `POST /api/esp32/center`: envía `CENTER`.
+- `POST /api/esp32/speed`: acepta `mode` entre 0 y 4.
+- `POST /api/esp32/position/current`: guarda en SQLite la posición `P`/`T`
+  recibida en la última telemetría válida. No mueve los servos.
+- `POST /api/esp32/position/return`: valida la posición persistida y envía
+  `SET_ABS:<pan>,<tilt>`.
+
+El botón `Parar` no forma parte del dashboard actual. Aunque el firmware acepta
+`STOP` para limpiar órdenes pendientes, no hay movimiento continuo que requiera
+un botón dedicado de parada.
 
 ## Servos
 
@@ -190,9 +214,8 @@ Estos valores pueden cambiar.
 
 Datos candidatos:
 
-- Pan.
-- Tilt.
-- Velocidad.
+- Posición custom del dashboard en SQLite: pan y tilt.
+- En firmware futuro: pan, tilt y velocidad.
 
 Preferir `Preferences`/NVS.
 
@@ -204,7 +227,6 @@ Evitar escrituras por cada paso.
 Estrategias:
 
 - Debounce.
-- Guardar al recibir `STOP`.
 - Guardar tras inactividad.
 - Guardar sólo si cambió.
 - Validar al iniciar.

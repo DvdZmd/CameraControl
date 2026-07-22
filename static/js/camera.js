@@ -26,6 +26,31 @@ function showEsp32Feedback(message, isError = false) {
     }
 }
 
+function setEsp32ConnectLoading(isLoading) {
+    const button = document.getElementById('esp32-connect-btn');
+    const label = document.getElementById('esp32-connect-label');
+    const spinner = button ? button.querySelector('.btn-spinner') : null;
+
+    if (button) button.disabled = isLoading;
+    if (label) label.textContent = isLoading ? 'Conectando...' : 'Conectar ESP32';
+    if (spinner) spinner.classList.toggle('hidden', !isLoading);
+}
+
+function stateValue(state, key) {
+    if (!state || !Object.prototype.hasOwnProperty.call(state, key)) {
+        return null;
+    }
+    const value = state[key];
+    return value === null || value === undefined || value === '' ? null : value;
+}
+
+function formatSavedPosition(savedPosition) {
+    if (!savedPosition || savedPosition.pan === undefined || savedPosition.tilt === undefined) {
+        return '--';
+    }
+    return `P ${savedPosition.pan} / T ${savedPosition.tilt}`;
+}
+
 async function refreshEsp32Status() {
     try {
         const response = await fetch('/api/esp32/status');
@@ -35,6 +60,7 @@ async function refreshEsp32Status() {
         const deviceName = document.getElementById('esp32-device-name');
         const address = document.getElementById('esp32-address');
         const lastStateEl = document.getElementById('esp32-last-state');
+        const savedPositionEl = document.getElementById('esp32-saved-position');
 
         if (badge) {
             badge.textContent = data.connected ? 'Conectado' : 'Desconectado';
@@ -48,19 +74,30 @@ async function refreshEsp32Status() {
         const lastState = data.last_state || {};
         if (lastStateEl) {
             // La clave para velocidad es 'S'
-            lastStateEl.textContent = lastState.S ? `Perfil Vel. ${lastState.S}` : 'N/A';
+            const speedMode = stateValue(lastState, 'S');
+            lastStateEl.textContent = speedMode !== null ? `Perfil Vel. ${speedMode}` : 'N/A';
         }
 
         // Sensores Ambientales y de Suelo
-        document.getElementById('sensor-dht-temp').textContent = lastState.DT ? `${parseFloat(lastState.DT).toFixed(1)} °C` : '--';
-        document.getElementById('sensor-dht-humidity').textContent = lastState.DH ? `${parseFloat(lastState.DH).toFixed(1)} %` : '--';
-        document.getElementById('sensor-ds-temp').textContent = lastState.DS ? `${parseFloat(lastState.DS).toFixed(1)} °C` : '--';
-        document.getElementById('sensor-soil-percent').textContent = lastState.SP ? `${lastState.SP} %` : '--';
-        document.getElementById('sensor-soil-raw').textContent = lastState.SR || '--';
+        const dhtTemp = stateValue(lastState, 'DT');
+        const dhtHumidity = stateValue(lastState, 'DH');
+        const dsTemp = stateValue(lastState, 'DS');
+        const soilPercent = stateValue(lastState, 'SP');
+        const soilRaw = stateValue(lastState, 'SR');
+        document.getElementById('sensor-dht-temp').textContent = dhtTemp !== null ? `${parseFloat(dhtTemp).toFixed(1)} °C` : '--';
+        document.getElementById('sensor-dht-humidity').textContent = dhtHumidity !== null ? `${parseFloat(dhtHumidity).toFixed(1)} %` : '--';
+        document.getElementById('sensor-ds-temp').textContent = dsTemp !== null ? `${parseFloat(dsTemp).toFixed(1)} °C` : '--';
+        document.getElementById('sensor-soil-percent').textContent = soilPercent !== null ? `${soilPercent} %` : '--';
+        document.getElementById('sensor-soil-raw').textContent = soilRaw !== null ? soilRaw : '--';
 
         // Estado de Movimiento (Servos)
-        document.getElementById('servo-pan-pulse').textContent = lastState.P || '--';
-        document.getElementById('servo-tilt-pulse').textContent = lastState.T || '--';
+        const panPulse = stateValue(lastState, 'P');
+        const tiltPulse = stateValue(lastState, 'T');
+        document.getElementById('servo-pan-pulse').textContent = panPulse !== null ? panPulse : '--';
+        document.getElementById('servo-tilt-pulse').textContent = tiltPulse !== null ? tiltPulse : '--';
+        if (savedPositionEl) {
+            savedPositionEl.textContent = formatSavedPosition(data.saved_position);
+        }
 
     } catch (error) {
         console.error('Error obteniendo estado ESP32:', error);
@@ -68,6 +105,8 @@ async function refreshEsp32Status() {
 }
 
 async function connectEsp32() {
+    setEsp32ConnectLoading(true);
+    showEsp32Feedback('Conectando con ESP32...');
     try {
         const response = await fetch('/api/esp32/connect', { method: 'POST' });
         const data = await response.json();
@@ -78,6 +117,8 @@ async function connectEsp32() {
         await refreshEsp32Status();
     } catch (error) {
         showEsp32Feedback(error.message || 'No se pudo conectar al ESP32', true);
+    } finally {
+        setEsp32ConnectLoading(false);
     }
 }
 
@@ -127,21 +168,35 @@ async function sendEsp32Center() {
     }
 }
 
-async function sendEsp32Stop() {
+async function saveEsp32CurrentPosition() {
     try {
-        const response = await fetch('/api/esp32/command', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command: 'STOP' })
-        });
+        const response = await fetch('/api/esp32/position/current', { method: 'POST' });
         const data = await response.json();
         if (!response.ok) {
-            throw new Error(data.error || 'No se pudo enviar STOP');
+            throw new Error(data.error || 'No se pudo configurar la posición actual');
         }
-        showEsp32Feedback('Comando STOP enviado');
+        const savedPositionEl = document.getElementById('esp32-saved-position');
+        if (savedPositionEl) {
+            savedPositionEl.textContent = formatSavedPosition(data.saved_position);
+        }
+        showEsp32Feedback('Posición actual configurada');
         await refreshEsp32Status();
     } catch (error) {
-        showEsp32Feedback(error.message || 'No se pudo enviar STOP', true);
+        showEsp32Feedback(error.message || 'No se pudo configurar la posición actual', true);
+    }
+}
+
+async function returnEsp32ToSavedPosition() {
+    try {
+        const response = await fetch('/api/esp32/position/return', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'No se pudo volver a la posición configurada');
+        }
+        showEsp32Feedback('Volviendo a la posición configurada');
+        await refreshEsp32Status();
+    } catch (error) {
+        showEsp32Feedback(error.message || 'No se pudo volver a la posición configurada', true);
     }
 }
 
@@ -576,13 +631,16 @@ async function toggleTimelapse() {
  */
 function setupEventListeners() {
     document.body.addEventListener('click', (e) => {
-        const action = e.target.dataset.action;
+        const actionTarget = e.target.closest('[data-action]');
+        const action = actionTarget ? actionTarget.dataset.action : null;
         if (!action) {
             // Check for group actions (like rotation buttons)
             const group = e.target.closest('[data-action-group]');
             if (group) {
                 const groupAction = group.dataset.actionGroup;
-                const value = e.target.dataset.value;
+                const valueTarget = e.target.closest('[data-value]');
+                const value = valueTarget ? valueTarget.dataset.value : null;
+                if (!value) return;
                 if (groupAction === 'set-rotation') setRotation(value);
                 if (groupAction === 'esp32-move') sendEsp32Move(value);
             }
@@ -599,7 +657,8 @@ function setupEventListeners() {
             case 'esp32-connect': connectEsp32(); break;
             case 'esp32-disconnect': disconnectEsp32(); break;
             case 'esp32-center': sendEsp32Center(); break;
-            case 'esp32-stop': sendEsp32Stop(); break;
+            case 'esp32-save-current-position': saveEsp32CurrentPosition(); break;
+            case 'esp32-return-position': returnEsp32ToSavedPosition(); break;
             case 'toggle-tuya-plug': toggleTuyaPlug(e); break;
             case 'esp32-send-custom-command': sendEsp32CustomCommand(); break;
         }

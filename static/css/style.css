@@ -244,7 +244,61 @@ button:disabled {
 }
 
 .esp32-move-grid {
-    grid-template-columns: repeat(2, 1fr);
+    width: min(230px, 100%);
+    aspect-ratio: 1;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 8px;
+    margin: 0 auto 14px;
+    align-items: center;
+    justify-items: center;
+}
+
+.esp32-move-btn,
+.esp32-center-pad-btn {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    padding: 0;
+    font-weight: 700;
+}
+
+.esp32-move-btn {
+    font-size: 1.7rem;
+    background: #3f4645;
+    border: 1px solid #56615e;
+}
+
+.esp32-center-pad-btn {
+    grid-column: 2;
+    grid-row: 2;
+    background: var(--accent);
+    color: #000;
+    font-size: 0.8rem;
+}
+
+.move-up {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.move-left {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+.move-right {
+    grid-column: 3;
+    grid-row: 2;
+}
+
+.move-down {
+    grid-column: 2;
+    grid-row: 3;
+}
+
+.esp32-position-card {
+    margin-top: 8px;
 }
 
 .esp32-input {
@@ -266,6 +320,24 @@ button:disabled {
 
 .status-error {
     color: #ff6666;
+}
+
+.btn-spinner {
+    display: inline-block;
+    width: 0.9em;
+    height: 0.9em;
+    border: 2px solid rgba(0, 0, 0, 0.28);
+    border-top-color: #000;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: -0.12em;
+    animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .hidden { display: none; }

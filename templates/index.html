@@ -228,22 +228,33 @@
                         </div>
                     </div>
                     <div class="esp32-actions">
-                        <button class="btn-primary" data-action="esp32-connect" type="button">Conectar ESP32</button>
+                        <button id="esp32-connect-btn" class="btn-primary" data-action="esp32-connect" type="button">
+                            <span class="btn-spinner hidden" aria-hidden="true"></span>
+                            <span id="esp32-connect-label">Conectar ESP32</span>
+                        </button>
                         <button class="btn-danger" data-action="esp32-disconnect" type="button">Desconectar</button>
                     </div>
+                    <div id="esp32-feedback" class="status-message hidden"></div>
                 </section>
 
                 <section class="control-group" aria-labelledby="esp32-movement-heading">
                     <h3>Control de movimiento</h3>
                     <div class="btn-grid esp32-move-grid" data-action-group="esp32-move">
-                        <button type="button" data-value="up" aria-label="Mover arriba">⬆️ Arriba</button>
-                        <button type="button" data-value="left" aria-label="Mover izquierda">⬅️ Izquierda</button>
-                        <button type="button" data-value="right" aria-label="Mover derecha">➡️ Derecha</button>
-                        <button type="button" data-value="down" aria-label="Mover abajo">⬇️ Abajo</button>
+                        <button class="esp32-move-btn move-up" type="button" data-value="up" aria-label="Mover arriba">↑</button>
+                        <button class="esp32-move-btn move-left" type="button" data-value="left" aria-label="Mover izquierda">←</button>
+                        <button class="esp32-center-pad-btn" type="button" data-action="esp32-center" aria-label="Centrar">Centro</button>
+                        <button class="esp32-move-btn move-right" type="button" data-value="right" aria-label="Mover derecha">→</button>
+                        <button class="esp32-move-btn move-down" type="button" data-value="down" aria-label="Mover abajo">↓</button>
+                    </div>
+                    <div class="esp32-status-card esp32-position-card">
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">Posición configurada</span>
+                            <span id="esp32-saved-position">--</span>
+                        </div>
                     </div>
                     <div class="esp32-actions">
-                        <button class="btn-primary" data-action="esp32-center" type="button">Centro</button>
-                        <button type="button" data-action="esp32-stop">Parar</button>
+                        <button class="btn-primary" data-action="esp32-save-current-position" type="button">Configurar posición actual</button>
+                        <button type="button" data-action="esp32-return-position">Volver a posición</button>
                     </div>
                 </section>
 
@@ -266,7 +277,6 @@
                     <div class="esp32-actions">
                         <button class="btn-primary" data-action="esp32-send-custom-command" type="button">Enviar comando</button>
                     </div>
-                    <div id="esp32-feedback" class="status-message hidden"></div>
                 </section>
 
                 <section class="control-group" aria-labelledby="esp32-sensors-heading">

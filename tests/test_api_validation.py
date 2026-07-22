@@ -3,7 +3,7 @@ import sys
 from types import ModuleType
 
 from flask import Flask
-from database.models import CameraSettings, db
+from database.models import CameraSettings, Esp32Settings, db
 
 
 class BootstrapCamera:
@@ -90,6 +90,7 @@ class FakeCamera:
 class FakeBleController:
     def __init__(self):
         self.commands = []
+        self.last_state = {"P": "1450", "T": "1500", "S": "2"}
 
     def send_command_sync(self, command):
         self.commands.append(command)
@@ -98,6 +99,14 @@ class FakeBleController:
     def set_speed_sync(self, mode):
         self.commands.append(f"SET_SPEED:{mode}")
         return {"ok": True}
+
+    def get_status_sync(self):
+        return {
+            "connected": True,
+            "address": "AA:BB:CC:DD:EE:FF",
+            "device_name": "ESP32-CameraHead",
+            "last_state": self.last_state,
+        }
 
 
 class ApiValidationTests(unittest.TestCase):
@@ -253,6 +262,84 @@ class ApiValidationTests(unittest.TestCase):
     def test_esp32_rejects_boolean_speed(self):
         response = self.client.post("/api/esp32/speed", json={"mode": True})
         self.assertEqual(response.status_code, 400)
+
+    def test_esp32_saves_current_position_from_telemetry(self):
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        ble = FakeBleController()
+        app.config["BLE_CAMERA_CONTROLLER"] = ble
+        db.init_app(app)
+        app.register_blueprint(esp32_bp)
+
+        with app.app_context():
+            db.create_all()
+
+        client = app.test_client()
+        response = client.post("/api/esp32/position/current")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["saved_position"], {"pan": 1450, "tilt": 1500})
+        with app.app_context():
+            saved = db.session.get(Esp32Settings, 1)
+            self.assertEqual(saved.custom_pan_pulse, 1450)
+            self.assertEqual(saved.custom_tilt_pulse, 1500)
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
+
+    def test_esp32_returns_to_saved_position(self):
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        ble = FakeBleController()
+        app.config["BLE_CAMERA_CONTROLLER"] = ble
+        db.init_app(app)
+        app.register_blueprint(esp32_bp)
+
+        with app.app_context():
+            db.create_all()
+            db.session.add(Esp32Settings(
+                id=1,
+                custom_pan_pulse=1600,
+                custom_tilt_pulse=1400,
+            ))
+            db.session.commit()
+
+        client = app.test_client()
+        response = client.post("/api/esp32/position/return")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(ble.commands, ["SET_ABS:1600,1400"])
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
+
+    def test_esp32_return_requires_saved_position(self):
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        ble = FakeBleController()
+        app.config["BLE_CAMERA_CONTROLLER"] = ble
+        db.init_app(app)
+        app.register_blueprint(esp32_bp)
+
+        with app.app_context():
+            db.create_all()
+
+        client = app.test_client()
+        response = client.post("/api/esp32/position/return")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(ble.commands, [])
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
 
 
 if __name__ == "__main__":

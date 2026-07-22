@@ -1,4 +1,5 @@
 from flask import Blueprint, current_app, jsonify, request
+from database.models import Esp32Settings, db
 import re
 
 esp32_bp = Blueprint(
@@ -36,6 +37,7 @@ SET_SPEED_PATTERN = re.compile(r"SET_SPEED:([0-4])")
 SET_ABS_PATTERN = re.compile(r"SET_ABS:(\d+),(\d+)")
 SERVO_PULSE_MIN_US = 500
 SERVO_PULSE_MAX_US = 2400
+DEFAULT_SETTINGS_ID = 1
 
 
 def _json_object():
@@ -66,6 +68,54 @@ def _validate_command(raw_command):
     return None, f"Comando no permitido o formato inválido: {command}"
 
 
+def _database_ready():
+    try:
+        return db.engine is not None
+    except Exception:
+        return False
+
+
+def _saved_esp32_settings():
+    if not _database_ready():
+        return None
+    return db.session.get(Esp32Settings, DEFAULT_SETTINGS_ID)
+
+
+def _saved_position_payload(settings=None):
+    settings = settings or _saved_esp32_settings()
+    if (
+        settings is None
+        or settings.custom_pan_pulse is None
+        or settings.custom_tilt_pulse is None
+    ):
+        return None
+    return {
+        "pan": settings.custom_pan_pulse,
+        "tilt": settings.custom_tilt_pulse,
+    }
+
+
+def _parse_servo_pulse(value, name):
+    try:
+        pulse = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} no está disponible en la telemetría ESP32")
+
+    if not SERVO_PULSE_MIN_US <= pulse <= SERVO_PULSE_MAX_US:
+        raise ValueError(
+            f"{name} debe estar entre {SERVO_PULSE_MIN_US} y {SERVO_PULSE_MAX_US} us"
+        )
+    return pulse
+
+
+def _current_servo_position(controller):
+    status = controller.get_status_sync()
+    last_state = status.get("last_state") or {}
+    pan = _parse_servo_pulse(last_state.get("P"), "pan")
+    tilt = _parse_servo_pulse(last_state.get("T"), "tilt")
+    return pan, tilt
+
+
 @esp32_bp.route("/status", methods=["GET"])
 def esp32_status():
     """
@@ -83,6 +133,7 @@ def esp32_status():
     """
     controller = get_ble_controller()
     status = controller.get_status_sync()
+    status["saved_position"] = _saved_position_payload()
     return jsonify(status), 200
 
 
@@ -183,6 +234,67 @@ def esp32_center():
     controller = get_ble_controller()
     try:
         result = controller.center_sync()
+        return jsonify(result), 200
+    except Exception as ex:
+        return jsonify({"ok": False, "error": str(ex)}), 500
+
+
+@esp32_bp.route("/position/current", methods=["POST"])
+def esp32_save_current_position():
+    """
+    Persist the current ESP32 pan/tilt position from cached telemetry.
+
+    The route does not move the servos. It requires valid ``P`` and ``T`` values
+    in the latest ESP32 notification and stores them as the custom return
+    position.
+    """
+    controller = get_ble_controller()
+    if not _database_ready():
+        return jsonify({"ok": False, "error": "Base de datos no disponible"}), 503
+
+    try:
+        pan, tilt = _current_servo_position(controller)
+        settings = db.session.get(Esp32Settings, DEFAULT_SETTINGS_ID)
+        if settings is None:
+            settings = Esp32Settings(id=DEFAULT_SETTINGS_ID)
+            db.session.add(settings)
+
+        settings.custom_pan_pulse = pan
+        settings.custom_tilt_pulse = tilt
+        db.session.commit()
+        return jsonify({"ok": True, "saved_position": _saved_position_payload(settings)}), 200
+    except ValueError as ex:
+        return jsonify({"ok": False, "error": str(ex)}), 400
+    except Exception as ex:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": str(ex)}), 500
+
+
+@esp32_bp.route("/position/return", methods=["POST"])
+def esp32_return_to_saved_position():
+    """
+    Move the ESP32 head to the persisted custom pan/tilt position.
+
+    The route validates persisted pulse values before sending ``SET_ABS`` to the
+    firmware.
+    """
+    controller = get_ble_controller()
+    saved_position = _saved_position_payload()
+    if saved_position is None:
+        return jsonify({"ok": False, "error": "No hay una posición configurada"}), 404
+
+    pan = saved_position["pan"]
+    tilt = saved_position["tilt"]
+    if not all(SERVO_PULSE_MIN_US <= value <= SERVO_PULSE_MAX_US for value in (pan, tilt)):
+        return jsonify({"ok": False, "error": "La posición guardada es inválida"}), 400
+
+    try:
+        command = f"SET_ABS:{pan},{tilt}"
+        result = controller.send_command_sync(command)
+        result["saved_position"] = saved_position
         return jsonify(result), 200
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 500

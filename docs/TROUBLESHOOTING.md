@@ -225,6 +225,6 @@ Si se ejecuta manualmente, capturar stdout y stderr.
 5. Timelapse inicia y detiene.
 6. ESP32 conecta.
 7. Pan/tilt responde.
-8. `STOP` funciona.
+8. Posición configurada guarda y vuelve con `SET_ABS`.
 9. Tuya no bloquea.
 10. Logs no muestran errores nuevos.
