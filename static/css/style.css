@@ -221,7 +221,53 @@ button:disabled {
     background: #232323;
     border: 1px solid #3a3a3a;
     border-radius: 8px;
-    padding: 12px;
+    padding: 10px 12px;
+}
+
+.tuya-device-summary {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 34px;
+}
+
+.tuya-device-summary strong {
+    min-width: 0;
+    color: #f3f3f3;
+    font-size: 0.98rem;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.tuya-expand-button {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid #444;
+    background: #1b1b1b;
+    color: #d8d8d8;
+    font-size: 1.45rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tuya-expand-button span {
+    transform: rotate(0deg);
+    transition: transform 160ms ease;
+}
+
+.tuya-expand-button[aria-expanded="true"] span {
+    transform: rotate(90deg);
+}
+
+.tuya-device-details {
+    border-top: 1px solid #333;
+    margin-top: 10px;
+    padding-top: 10px;
 }
 
 .tuya-device-info {
@@ -359,7 +405,7 @@ button:disabled {
 
 .tuya-controls {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
