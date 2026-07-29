@@ -159,8 +159,22 @@ Revisar:
 - Timeout.
 - Conectividad.
 - Respuesta API.
+- Consumo de cuota en Tuya Dev Platform.
 
 La aplicación debe seguir funcionando si Tuya falla.
+
+El dashboard no debe hacer polling automático contra Tuya Cloud. El endpoint de
+listado local de dispositivos no debe consumir llamadas remotas. Para
+diagnosticar consumo excesivo, buscar:
+
+- Intervalos JavaScript que llamen endpoints Tuya.
+- Endpoints de listado que consulten `/status` remoto por dispositivo.
+- Refresh automático de detalle/nombre remoto al agregar dispositivos.
+- Reintentos sin backoff ante errores 429, cuota o red.
+
+Las lecturas de estado, telemetría eléctrica, fallas o nombre remoto deben
+hacerse sólo cuando el usuario presiona un botón de consulta/refresco en el
+frontend. Encender/apagar es la operación prioritaria para gastar llamadas API.
 
 ## Base de datos
 

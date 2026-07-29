@@ -95,10 +95,22 @@ Puede incluir:
 Debe encapsular:
 
 - Conexión con la API.
-- Lectura de estado.
+- Lectura de estado bajo demanda.
 - Encendido y apagado.
 - Alta local de dispositivos ya registrados en Tuya IoT Platform.
 - Traducción de errores externos.
+
+Tuya Cloud tiene cuota mensual limitada en el plan gratuito observado
+(`Cloud Develop Base Resource Trial`: 30000 API calls/mes, 140000 Message
+Subscription/mes, 50 dispositivos). La arquitectura debe reservar llamadas para
+comandos críticos, especialmente prender/apagar switches. No debe existir
+polling automático contra Tuya Cloud desde frontend o backend.
+
+El listado de dispositivos usa SQLite y no consulta estado remoto. Las lecturas
+informativas remotas, como estado eléctrico, fallas o nombre remoto, deben
+ejecutarse sólo por acción explícita del usuario. Después de un comando de
+encendido/apagado puede mostrarse el último comando enviado como estado local,
+pero no como confirmación remota.
 
 Las credenciales de usuario, API key, secret, región y schema viven en
 variables de entorno. El dashboard sólo persiste metadatos operativos del

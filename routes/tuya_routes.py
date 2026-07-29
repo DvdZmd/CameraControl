@@ -236,24 +236,17 @@ def turn_off_plug():
 @tuya_bp.route("/devices", methods=["GET"])
 def list_tuya_devices():
     """
-    Lista los dispositivos Tuya configurados en la aplicación.
+    Lista los dispositivos Tuya configurados localmente en la aplicación.
+
+    Este endpoint no consulta Tuya Cloud. El cupo gratuito de la IoT Platform es
+    limitado y las lecturas remotas deben quedar detrás de acciones explícitas
+    del usuario.
     """
     if not _database_ready():
         return jsonify({"ok": False, "error": "Base de datos no disponible"}), 503
 
-    controller = get_tuya_controller()
     devices = TuyaDevice.query.filter_by(enabled=True).order_by(TuyaDevice.name.asc()).all()
-    payload = []
-    for device in devices:
-        try:
-            status_result = controller.get_status(
-                device.device_id,
-                switch_code=device.switch_code,
-            )
-        except Exception as error:
-            current_app.logger.exception("Error consultando estado Tuya")
-            status_result = {"ok": False, "error": str(error)}
-        payload.append(_serialize_device(device, status_result))
+    payload = [_serialize_device(device) for device in devices]
 
     return jsonify({"ok": True, "devices": payload}), 200
 
@@ -281,13 +274,6 @@ def add_tuya_device():
         db.session.rollback()
         current_app.logger.exception("Error agregando dispositivo Tuya")
         return jsonify({"ok": False, "error": str(error)}), 500
-
-    try:
-        controller = get_tuya_controller()
-        _refresh_tuya_device_details(controller, device)
-    except Exception as error:
-        db.session.rollback()
-        current_app.logger.warning("No se pudo obtener detalle del dispositivo Tuya: %s", error)
 
     return jsonify({"ok": True, "device": _serialize_device(device)}), 201
 
@@ -362,4 +348,28 @@ def set_tuya_device_status(device_pk):
         return _tuya_response(result)
     except Exception as error:
         current_app.logger.exception("Error modificando dispositivo Tuya")
+        return jsonify({"ok": False, "error": str(error)}), 503
+
+
+@tuya_bp.route("/devices/<int:device_pk>/status", methods=["GET"])
+def refresh_tuya_device_status(device_pk):
+    """
+    Consulta el estado remoto del dispositivo desde Tuya bajo demanda.
+    """
+    device, error_response = _device_or_404(device_pk)
+    if error_response:
+        return error_response
+
+    controller = get_tuya_controller()
+    try:
+        result = controller.get_status(
+            device.device_id,
+            switch_code=device.switch_code,
+            force_refresh=True,
+        )
+        if not result.get("ok"):
+            return _tuya_response(result)
+        return jsonify({"ok": True, "device": _serialize_device(device, result)}), 200
+    except Exception as error:
+        current_app.logger.exception("Error consultando estado Tuya")
         return jsonify({"ok": False, "error": str(error)}), 503

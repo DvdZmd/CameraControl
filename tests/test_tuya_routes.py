@@ -10,9 +10,12 @@ class FakeTuyaController:
     def __init__(self):
         self.status_by_device = {}
         self.details_by_device = {}
+        self.status_requests = []
+        self.detail_requests = []
         self.commands = []
 
-    def get_status(self, device_id=None, switch_code="switch_1"):
+    def get_status(self, device_id=None, switch_code="switch_1", force_refresh=False):
+        self.status_requests.append((device_id, switch_code, force_refresh))
         return {
             "ok": True,
             "status": self.status_by_device.get(device_id, {"switch_1": False}),
@@ -23,6 +26,7 @@ class FakeTuyaController:
         return {"ok": True, "result": True}
 
     def get_device_details(self, device_id=None):
+        self.detail_requests.append(device_id)
         return {
             "ok": True,
             "name": self.details_by_device.get(device_id, f"Tuya {device_id}"),
@@ -52,7 +56,7 @@ class TuyaRoutesTests(unittest.TestCase):
             db.drop_all()
             db.engine.dispose()
 
-    def test_adds_tuya_device(self):
+    def test_adds_tuya_device_without_remote_lookup(self):
         self.controller.details_by_device["device-123"] = "Nombre en Tuya"
 
         response = self.client.post("/api/tuya/devices", json={
@@ -65,11 +69,12 @@ class TuyaRoutesTests(unittest.TestCase):
         payload = response.get_json()
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["device"]["name"], "Luz cultivo")
-        self.assertEqual(payload["device"]["tuya_name"], "Nombre en Tuya")
+        self.assertIsNone(payload["device"]["tuya_name"])
+        self.assertEqual(self.controller.detail_requests, [])
         with self.app.app_context():
             saved = TuyaDevice.query.one()
             self.assertEqual(saved.device_id, "device-123")
-            self.assertEqual(saved.tuya_name, "Nombre en Tuya")
+            self.assertIsNone(saved.tuya_name)
 
     def test_rejects_duplicate_device_id(self):
         self.client.post("/api/tuya/devices", json={
@@ -92,7 +97,7 @@ class TuyaRoutesTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
 
-    def test_lists_devices_with_status(self):
+    def test_lists_devices_without_remote_status_lookup(self):
         with self.app.app_context():
             db.session.add(TuyaDevice(
                 name="Bomba",
@@ -108,17 +113,20 @@ class TuyaRoutesTests(unittest.TestCase):
         devices = response.get_json()["devices"]
         self.assertEqual(len(devices), 1)
         self.assertEqual(devices[0]["name"], "Bomba")
-        self.assertTrue(devices[0]["is_on"])
-        self.assertEqual(devices[0]["switch"]["code"], "switch_1")
+        self.assertNotIn("is_on", devices[0])
+        self.assertNotIn("switch", devices[0])
+        self.assertEqual(self.controller.status_requests, [])
 
-    def test_lists_devices_with_normalized_electrical_data(self):
+    def test_refreshes_device_status_with_normalized_electrical_data_on_demand(self):
         with self.app.app_context():
-            db.session.add(TuyaDevice(
+            device = TuyaDevice(
                 name="Luz cultivo",
                 device_id="light-1",
                 switch_code="switch_1",
-            ))
+            )
+            db.session.add(device)
             db.session.commit()
+            device_pk = device.id
         self.controller.status_by_device["light-1"] = {
             "switch_1": True,
             "cur_voltage": 2284,
@@ -132,20 +140,21 @@ class TuyaRoutesTests(unittest.TestCase):
             "countdown_1": 0,
         }
 
-        response = self.client.get("/api/tuya/devices")
+        response = self.client.get(f"/api/tuya/devices/{device_pk}/status")
 
         self.assertEqual(response.status_code, 200)
-        device = response.get_json()["devices"][0]
-        self.assertEqual(device["electrical"]["voltage_v"], 228.4)
-        self.assertEqual(device["electrical"]["current_ma"], 120)
-        self.assertEqual(device["electrical"]["power_w"], 25.3)
-        self.assertEqual(device["electrical"]["added_energy_kwh"], 0.125)
-        self.assertTrue(device["capabilities"]["has_electrical_metering"])
+        payload_device = response.get_json()["device"]
+        self.assertEqual(payload_device["electrical"]["voltage_v"], 228.4)
+        self.assertEqual(payload_device["electrical"]["current_ma"], 120)
+        self.assertEqual(payload_device["electrical"]["power_w"], 25.3)
+        self.assertEqual(payload_device["electrical"]["added_energy_kwh"], 0.125)
+        self.assertTrue(payload_device["capabilities"]["has_electrical_metering"])
         self.assertEqual(
-            [fault["code"] for fault in device["safety"]["faults"]],
+            [fault["code"] for fault in payload_device["safety"]["faults"]],
             ["ov_cr", "ov_pwr"],
         )
-        self.assertEqual(device["settings"]["relay_status"], "power_off")
+        self.assertEqual(payload_device["settings"]["relay_status"], "power_off")
+        self.assertEqual(self.controller.status_requests, [("light-1", "switch_1", True)])
 
     def test_updates_local_device_name(self):
         with self.app.app_context():

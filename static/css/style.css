@@ -403,6 +403,14 @@ button:disabled {
     margin: 0;
 }
 
+.tuya-power-buttons {
+    display: flex;
+    grid-column: 2 / -1;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .tuya-controls {
     display: flex;
     justify-content: flex-end;
@@ -412,6 +420,7 @@ button:disabled {
 }
 
 .tuya-device-title button,
+.tuya-power-buttons button,
 .tuya-controls button {
     flex: 0 0 auto;
     padding: 7px 9px;

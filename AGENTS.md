@@ -98,6 +98,33 @@ Comportamiento esperado:
 - Autofocus no soportado: control oculto o deshabilitado.
 - Sensor no disponible: estado explícito, no valores inventados.
 
+## Tuya Cloud y cuota API
+
+El plan observado en Tuya Dev Platform para este proyecto es
+`Cloud Develop Base Resource Trial`, con allowance mensual informado por Tuya:
+
+- API calls: 30000/mes.
+- Message Subscription: 140000/mes.
+- Device Access Count: 50 dispositivos.
+
+Cada lectura remota de estado, detalle, listado remoto, refresh de token,
+reintento o comando puede consumir cuota. Por eso la prioridad de la
+integración Tuya es reservar llamadas API para comandos de control,
+especialmente prender/apagar switches.
+
+Reglas obligatorias para Tuya:
+
+- No implementar polling automático de Tuya Cloud desde frontend o backend.
+- No consultar estado, detalle, histórico ni telemetría automáticamente al
+  cargar la página, al listar dispositivos locales o después de cada comando.
+- El listado de dispositivos del dashboard debe usar datos locales de SQLite.
+- Toda lectura informativa remota debe ser on-demand por acción explícita del
+  usuario en el frontend.
+- Después de prender/apagar, se puede mostrar el último comando enviado como
+  estado local/probable, pero no afirmarlo como estado remoto confirmado sin
+  consultar Tuya Cloud.
+- Usar backoff ante errores de red/cuota; evitar reintentos agresivos.
+
 ## Cámara y streaming
 
 La estabilidad del streaming MJPEG es crítica.

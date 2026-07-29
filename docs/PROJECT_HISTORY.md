@@ -182,6 +182,14 @@ mediante alias informativo editable, `device_id` y código de switch. Cuando la
 API de Tuya permite leer detalle del dispositivo, el nombre remoto se muestra
 como referencia separada del alias local.
 
+El usuario confirmó desde Tuya Dev Platform el plan `Cloud Develop Base Resource
+Trial`, con 30000 API calls/mes, 140000 Message Subscription/mes y 50
+dispositivos. A partir de esa restricción, las lecturas informativas remotas de
+Tuya deben ser on-demand desde el frontend. No debe haber polling automático de
+estado, telemetría o detalle remoto. La prioridad de uso de API es prender y
+apagar switches; el dashboard puede mostrar el último comando enviado como
+estado local/probable, pero no como estado remoto confirmado.
+
 ## README
 
 El README puede describir una etapa simplificada del proyecto y no incluir ESP32, BLE o Tuya.

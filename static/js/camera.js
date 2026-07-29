@@ -269,6 +269,7 @@ async function sendEsp32CustomCommand() {
 /* --- Funciones para el control de Tuya --- */
 
 const expandedTuyaDevices = new Set();
+const tuyaStatusByDevice = new Map();
 
 function showTuyaFeedback(message, isError = false) {
     const feedback = document.getElementById('tuya-feedback');
@@ -319,18 +320,22 @@ function renderTuyaDevices(devices) {
 
     list.innerHTML = devices.map(device => {
         const deviceKey = String(device.id);
-        const isOn = device.is_on === true;
-        const checked = isOn ? 'checked' : '';
-        const disabled = device.status_ok ? '' : 'disabled';
+        const cachedStatus = tuyaStatusByDevice.get(deviceKey) || {};
+        const deviceView = { ...cachedStatus, ...device };
+        const isOn = deviceView.is_on === true;
+        const hasKnownState = deviceView.status_ok === true;
+        const statusText = hasKnownState
+            ? (isOn ? 'Encendido' : 'Apagado')
+            : 'Estado no consultado';
         const expanded = expandedTuyaDevices.has(deviceKey);
-        const tuyaName = device.tuya_name
-            ? `<span>Tuya: ${escapeHtml(device.tuya_name)}</span>`
+        const tuyaName = deviceView.tuya_name
+            ? `<span>Tuya: ${escapeHtml(deviceView.tuya_name)}</span>`
             : '<span>Tuya: sin nombre remoto</span>';
         const editedName = editingState.names.get(String(device.id));
-        const displayName = editedName !== undefined ? editedName : device.name;
-        const telemetry = renderTuyaTelemetry(device);
-        const settings = renderTuyaSettings(device);
-        const error = device.status_ok ? '' : `<p class="tuya-error">${escapeHtml(device.error || 'No se pudo consultar Tuya')}</p>`;
+        const displayName = editedName !== undefined ? editedName : deviceView.name;
+        const telemetry = renderTuyaTelemetry(deviceView);
+        const settings = renderTuyaSettings(deviceView);
+        const error = deviceView.status_ok === false ? `<p class="tuya-error">${escapeHtml(deviceView.error || 'No se pudo consultar Tuya')}</p>` : '';
         return `
             <div class="tuya-device-card">
                 <div class="tuya-device-summary">
@@ -345,18 +350,11 @@ function renderTuyaDevices(devices) {
                     >
                         <span aria-hidden="true">›</span>
                     </button>
-                    <strong>${escapeHtml(device.name)}</strong>
-                    <div class="toggle-switch">
-                        <input
-                            type="checkbox"
-                            class="toggle-checkbox"
-                            id="tuya-toggle-${device.id}"
-                            data-action="toggle-tuya-device"
-                            data-device-id="${device.id}"
-                            ${checked}
-                            ${disabled}
-                        >
-                        <label for="tuya-toggle-${device.id}" class="toggle-label"></label>
+                    <strong>${escapeHtml(deviceView.name)}</strong>
+                    <span class="tuya-muted">${escapeHtml(statusText)}</span>
+                    <div class="tuya-power-buttons">
+                        <button type="button" data-action="set-tuya-device-power" data-device-id="${device.id}" data-state="on">Encender</button>
+                        <button type="button" data-action="set-tuya-device-power" data-device-id="${device.id}" data-state="off">Apagar</button>
                     </div>
                 </div>
                 <div
@@ -383,6 +381,7 @@ function renderTuyaDevices(devices) {
                     ${telemetry}
                     ${settings}
                     <div class="tuya-controls">
+                        <button type="button" data-action="refresh-tuya-device-status" data-device-id="${device.id}">Consultar estado</button>
                         <button type="button" data-action="refresh-tuya-device-details" data-device-id="${device.id}">Refrescar Tuya</button>
                     </div>
                 </div>
@@ -428,6 +427,10 @@ function renderTuyaTelemetry(device) {
 
     if (!device.status_ok) {
         return '';
+    }
+
+    if (device.command_only) {
+        return '<p class="tuya-muted">Estado local basado en el ultimo comando enviado. Consultar estado pide el dato real a Tuya Cloud.</p>';
     }
 
     const meteringGrid = capabilities.has_electrical_metering ? `
@@ -603,11 +606,7 @@ function restoreTuyaNameFocus(editingState) {
     }
 }
 
-async function toggleTuyaPlug(event) {
-    const toggle = event.target;
-    const newState = toggle.checked;
-    const deviceId = toggle.dataset.deviceId;
-
+async function setTuyaPlugPower(deviceId, newState) {
     if (!deviceId) return;
 
     try {
@@ -621,11 +620,23 @@ async function toggleTuyaPlug(event) {
         if (!response.ok || !data.ok) {
             throw new Error(data.error || 'La operación falló');
         }
+        const deviceKey = String(deviceId);
+        const previous = tuyaStatusByDevice.get(deviceKey) || {};
+        tuyaStatusByDevice.set(deviceKey, {
+            ...previous,
+            id: Number(deviceId),
+            status_ok: true,
+            is_on: newState,
+            switch: {
+                ...(previous.switch || {}),
+                is_on: newState,
+            },
+            command_only: true,
+        });
         showTuyaFeedback(`Dispositivo ${newState ? 'encendido' : 'apagado'}.`);
-        await refreshTuyaStatus(); // Refrescar estado para confirmar
+        await refreshTuyaStatus();
     } catch (error) {
         showTuyaFeedback(error.message, true);
-        toggle.checked = !newState; // Revertir el cambio visual si hay error
     }
 }
 
@@ -671,6 +682,23 @@ async function refreshTuyaDeviceDetails(deviceId) {
         await refreshTuyaStatus();
     } catch (error) {
         showTuyaFeedback(error.message || 'No se pudo refrescar el nombre de Tuya.', true);
+    }
+}
+
+async function refreshTuyaDeviceStatus(deviceId) {
+    try {
+        const response = await fetch(`/api/tuya/devices/${deviceId}/status`);
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'No se pudo consultar el estado de Tuya.');
+        }
+
+        tuyaStatusByDevice.set(String(deviceId), data.device);
+        showTuyaFeedback('Estado de Tuya actualizado.');
+        await refreshTuyaStatus();
+    } catch (error) {
+        showTuyaFeedback(error.message || 'No se pudo consultar el estado de Tuya.', true);
     }
 }
 
@@ -1102,6 +1130,8 @@ function setupEventListeners() {
             case 'esp32-return-position': returnEsp32ToSavedPosition(); break;
             case 'add-tuya-device': addTuyaDevice(); break;
             case 'save-tuya-device-name': saveTuyaDeviceName(actionTarget.dataset.deviceId); break;
+            case 'set-tuya-device-power': setTuyaPlugPower(actionTarget.dataset.deviceId, actionTarget.dataset.state === 'on'); break;
+            case 'refresh-tuya-device-status': refreshTuyaDeviceStatus(actionTarget.dataset.deviceId); break;
             case 'refresh-tuya-device-details': refreshTuyaDeviceDetails(actionTarget.dataset.deviceId); break;
             case 'toggle-tuya-device-details': toggleTuyaDeviceDetails(actionTarget.dataset.deviceId); break;
             case 'esp32-send-custom-command': sendEsp32CustomCommand(); break;
@@ -1118,8 +1148,6 @@ function setupEventListeners() {
             applyPreset(e.target.value);
         } else if (action === 'esp32-set-speed') {
             setEsp32Speed(e.target.value);
-        } else if (action === 'toggle-tuya-device') {
-            toggleTuyaPlug(e);
         } else if (control) {
             const valueType = e.target.dataset.type || (e.target.step ? 'float' : 'string');
             const value = parseValue(e.target.value, valueType);
@@ -1160,11 +1188,6 @@ async function initializeDashboard() {
     await refreshTuyaStatus();
 
     setInterval(refreshEsp32Status, 3000);
-    setInterval(() => {
-        if (!document.hidden) {
-            refreshTuyaStatus();
-        }
-    }, 15000);
 
     // Initial check for AF support to hide elements if needed
     const res = await fetch(cameraApiUrl('/camera_status'));
