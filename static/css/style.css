@@ -33,6 +33,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
+    min-height: 260px;
 }
 
 #video-feed {
@@ -42,6 +44,37 @@ body {
     box-shadow: 0 0 20px rgba(0,0,0,0.5);
     transition: transform 180ms ease;
     transform-origin: center center;
+}
+
+#video-feed:not([src]),
+#video-feed[src=""] {
+    display: none;
+}
+
+.camera-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: min(520px, 100%);
+    min-height: 220px;
+    border: 1px solid #333;
+    border-radius: 8px;
+    background: #111;
+    color: #d8d8d8;
+    text-align: center;
+    padding: 18px;
+    box-sizing: border-box;
+}
+
+.camera-placeholder.hidden {
+    display: none;
+}
+
+.camera-placeholder span {
+    color: #9aa0a6;
+    font-size: 0.9rem;
 }
 
 #video-feed.rotate-90 {
@@ -130,6 +163,16 @@ h3 { margin-top: 0; color: var(--accent); font-size: 0.9rem; text-transform: upp
     margin-bottom: 10px;
 }
 
+.status-online {
+    color: var(--accent);
+    font-weight: bold;
+}
+
+.status-offline {
+    color: #ff8f8f;
+    font-weight: bold;
+}
+
 .toggle-panel-btn {
     background: rgba(0, 255, 136, 0.12);
     color: var(--accent);
@@ -138,6 +181,21 @@ h3 { margin-top: 0; color: var(--accent); font-size: 0.9rem; text-transform: upp
     border-radius: 999px;
     cursor: pointer;
     transition: background 180ms ease, transform 180ms ease;
+}
+
+.stream-toggle-btn {
+    background: rgba(255, 255, 255, 0.08);
+    color: #f3f3f3;
+    border: 1px solid #555;
+    padding: 8px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.stream-toggle-btn.active {
+    background: rgba(255, 77, 77, 0.16);
+    color: #ff8f8f;
+    border-color: rgba(255, 77, 77, 0.5);
 }
 
 .toggle-panel-btn:hover {

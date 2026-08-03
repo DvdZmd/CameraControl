@@ -10,14 +10,21 @@
     <div class="dashboard">
         <div class="stream-panel">
             <div class="status-bar">
-                <span id="connection-status" class="status-online">● LIVE</span>
+                <span id="connection-status" class="status-offline">● STREAM OFF</span>
                 <span id="resolution-label">1280x720 @ 30fps</span>
+                <button id="stream-toggle-btn" class="stream-toggle-btn" data-action="toggle-camera-stream" type="button">
+                    Prender stream
+                </button>
                 <button id="toggle-panel-btn" class="toggle-panel-btn" data-action="toggle-controls" type="button">
                     Ocultar panel
                 </button>
             </div>
             <div class="video-wrapper">
-                <img id="video-feed" src="{{ url_for('camera_controller.video_feed') }}" alt="Camera Stream">
+                <img id="video-feed" data-stream-url="{{ url_for('camera_controller.video_feed') }}" alt="Camera Stream">
+                <div id="camera-placeholder" class="camera-placeholder">
+                    <strong>Streaming apagado</strong>
+                    <span id="camera-placeholder-detail">Podés prenderlo cuando quieras usar la cámara.</span>
+                </div>
             </div>
         </div>
         <div class="controls-panel">

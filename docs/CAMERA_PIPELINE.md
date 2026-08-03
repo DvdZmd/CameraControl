@@ -88,6 +88,27 @@ No introducir:
 
 salvo que exista un problema medido que lo justifique.
 
+## Encendido del streaming
+
+El servicio Flask debe poder arrancar aunque la cámara no esté conectada. Un
+fallo al crear el controlador de cámara debe degradar las rutas de cámara a un
+error claro, preferentemente HTTP 503, sin impedir que ESP32, Tuya, base de
+datos y frontend sigan disponibles.
+
+El streaming MJPEG se controla explícitamente desde el frontend:
+
+- `POST /api/camera/stream/start`: habilita el streaming y reintenta crear la
+  cámara si estaba ausente o cerrada.
+- `POST /api/camera/stream/stop`: apaga el streaming y libera la cámara cuando
+  el controlador expone `close()`.
+- `GET /api/camera/video_feed`: sólo debe abrirse cuando el streaming está
+  habilitado; si está apagado responde error controlado.
+- `GET /api/camera/camera_status`: expone `available` y `stream_enabled` para
+  que el frontend no asuma cámara presente durante el arranque.
+
+Apagar o prender el stream no debe introducir productores permanentes de frames,
+colas ni polling de cámara.
+
 ## Concurrencia
 
 Antes de cambiar la cámara, revisar:

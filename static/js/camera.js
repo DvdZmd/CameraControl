@@ -744,13 +744,99 @@ async function addTuyaDevice() {
 
 let cameraMaxW = 1280;
 let cameraMaxH = 720;
+let cameraAvailable = false;
+let cameraStreamEnabled = false;
+
+function setCameraStreamUi(enabled, detail) {
+    cameraStreamEnabled = enabled;
+
+    const video = document.getElementById('video-feed');
+    const placeholder = document.getElementById('camera-placeholder');
+    const placeholderDetail = document.getElementById('camera-placeholder-detail');
+    const status = document.getElementById('connection-status');
+    const toggle = document.getElementById('stream-toggle-btn');
+
+    if (video) {
+        if (enabled) {
+            const streamUrl = video.dataset.streamUrl || cameraApiUrl('/video_feed');
+            video.src = `${streamUrl}?t=${Date.now()}`;
+        } else {
+            video.removeAttribute('src');
+        }
+    }
+
+    if (placeholder) {
+        placeholder.classList.toggle('hidden', enabled);
+    }
+    if (placeholderDetail && detail) {
+        placeholderDetail.textContent = detail;
+    }
+    if (status) {
+        status.textContent = enabled ? '● LIVE' : '● STREAM OFF';
+        status.className = enabled ? 'status-online' : 'status-offline';
+    }
+    if (toggle) {
+        toggle.textContent = enabled ? 'Apagar stream' : 'Prender stream';
+        toggle.classList.toggle('active', enabled);
+        toggle.disabled = false;
+    }
+}
+
+function setCameraUnavailable(message) {
+    cameraAvailable = false;
+    setCameraStreamUi(false, message || 'Cámara no disponible. El resto de la app sigue operativo.');
+}
+
+async function fetchCameraStatus() {
+    const response = await fetch(cameraApiUrl('/camera_status'));
+    const data = await response.json();
+    if (!response.ok || data.available === false) {
+        throw new Error(data.message || data.error || 'Cámara no disponible');
+    }
+    cameraAvailable = true;
+    setCameraStreamUi(Boolean(data.stream_enabled), data.stream_enabled ? '' : 'Streaming apagado.');
+    return data;
+}
+
+async function toggleCameraStream() {
+    const toggle = document.getElementById('stream-toggle-btn');
+    if (toggle) toggle.disabled = true;
+
+    const shouldEnable = !cameraStreamEnabled;
+    try {
+        const response = await fetch(
+            cameraApiUrl(shouldEnable ? '/stream/start' : '/stream/stop'),
+            { method: 'POST' }
+        );
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.message || 'No se pudo cambiar el estado del stream');
+        }
+
+        setCameraStreamUi(shouldEnable, shouldEnable ? '' : 'Streaming apagado.');
+        if (shouldEnable) {
+            const status = await fetchCameraStatus();
+            hydrateCameraControls(status);
+        }
+    } catch (error) {
+        console.error('Error cambiando streaming:', error);
+        setCameraUnavailable(error.message);
+    } finally {
+        if (toggle) toggle.disabled = false;
+    }
+}
 
 async function initCameraSpecs() {
-    const res = await fetch(cameraApiUrl('/camera_status'));
-    const data = await res.json();
+    let data;
+    try {
+        data = await fetchCameraStatus();
+    } catch (error) {
+        setCameraUnavailable(error.message);
+        return null;
+    }
     
-    cameraMaxW = data.max_width;
-    cameraMaxH = data.max_height;
+    cameraMaxW = data.max_width || cameraMaxW;
+    cameraMaxH = data.max_height || cameraMaxH;
     
     // Mostramos al usuario el límite real de su cámara
     document.getElementById('max-res-hint').innerText = 
@@ -758,6 +844,7 @@ async function initCameraSpecs() {
         
     // Si la cámara es una V3, el límite será aprox 4608x2592
     // Si es una V2, será 3280x2464
+    return data;
 }
 
 function setControlValue(control, value) {
@@ -862,9 +949,10 @@ async function captureCustomPhoto() {
     const w = document.getElementById('photo-w').value;
     const h = document.getElementById('photo-h').value;
     const video = document.getElementById('video-feed');
+    const wasStreaming = cameraStreamEnabled;
     
     // Indicador visual de que el stream se pausa para capturar
-    video.style.opacity = "0.3";
+    if (video) video.style.opacity = "0.3";
     
     try {
         // Construimos la URL con los parámetros custom
@@ -883,11 +971,13 @@ async function captureCustomPhoto() {
         console.error(err);
     } finally {
         // Restauramos la opacidad y forzamos al navegador a reconectar el stream MJPEG
-        video.style.opacity = "1";
-        setTimeout(() => {
-            const currentSrc = video.src.split('?')[0];
-            video.src = currentSrc + '?t=' + new Date().getTime();
-        }, 1000); // Damos un segundo para que la cámara termine de re-inicializarse
+        if (video) video.style.opacity = "1";
+        if (wasStreaming && video) {
+            setTimeout(() => {
+                const streamUrl = video.dataset.streamUrl || cameraApiUrl('/video_feed');
+                video.src = streamUrl + '?t=' + new Date().getTime();
+            }, 1000); // Damos un segundo para que la cámara termine de re-inicializarse
+        }
     }
 }
 
@@ -895,8 +985,7 @@ async function captureCustomPhoto() {
 // Función para manejar la visibilidad de los controles según el hardware
 async function checkCameraCapabilities() {
     try {
-        const res = await fetch(cameraApiUrl('/camera_status'));
-        const status = await res.json();
+        const status = await fetchCameraStatus();
         
         const afContainer = document.getElementById('af-container');
         const focusSlider = document.getElementById('manual-focus-container');
@@ -914,6 +1003,7 @@ async function checkCameraCapabilities() {
         }
     } catch (e) {
         console.error("Error verificando capacidades:", e);
+        setCameraUnavailable(e.message);
     }
 }
 
@@ -1025,10 +1115,16 @@ async function updateCameraSettings(data) {
             body: JSON.stringify(data)
         });
         const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.message || 'No se pudo actualizar la cámara');
+        }
         console.log("Configuración actualizada:", result);
         return result;
     } catch (err) {
         console.error("Error actualizando cámara:", err);
+        if (!cameraAvailable) {
+            setCameraUnavailable(err.message);
+        }
         return null;
     }
 }
@@ -1117,6 +1213,7 @@ function setupEventListeners() {
 
         switch (action) {
             case 'toggle-controls': toggleControlPanel(); break;
+            case 'toggle-camera-stream': toggleCameraStream(); break;
             case 'apply-custom-resolution': applyCustomResolution(); break;
             case 'capture-custom-photo': captureCustomPhoto(); break;
             case 'reset-camera': resetCamera(); break;
@@ -1182,21 +1279,19 @@ function setupEventListeners() {
 async function initializeDashboard() {
     setupEventListeners();
     restoreControlPanelState();
-    await initCameraSpecs();
-    await checkCameraCapabilities();
+    const cameraStatus = await initCameraSpecs();
+    if (cameraStatus) {
+        hydrateCameraControls(cameraStatus);
+        await checkCameraCapabilities();
+        if (!cameraStatus.af_supported) {
+            const afControl = document.getElementById('AfModeDiv');
+            if (afControl) afControl.style.display = 'none';
+        }
+    }
     await refreshEsp32Status();
     await refreshTuyaStatus();
 
     setInterval(refreshEsp32Status, 3000);
-
-    // Initial check for AF support to hide elements if needed
-    const res = await fetch(cameraApiUrl('/camera_status'));
-    const status = await res.json();
-    hydrateCameraControls(status);
-    if (!status.af_supported) {
-        const afControl = document.getElementById('AfModeDiv');
-        if (afControl) afControl.style.display = 'none';
-    }
 }
 
 window.addEventListener('load', initializeDashboard);

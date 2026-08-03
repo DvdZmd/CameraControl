@@ -37,15 +37,51 @@ camera_bp = Blueprint(
     url_prefix="/api/camera")
 
 
-if CAMERA_IMPORT_ERROR is None:
-    rpicamz = rpicam_z()
-else:
-    rpicamz = UnavailableCamera(CAMERA_IMPORT_ERROR)
+stream_enabled = False
+camera_closed_by_user = False
+
+
+def _unavailable_camera(error):
+    try:
+        return UnavailableCamera(error)
+    except Exception:
+        return _LocalUnavailableCamera(error)
+
+
+class _LocalUnavailableCamera:
+    def __init__(self, error):
+        self.error = error
+
+    def get_capabilities(self):
+        return {
+            "available": False,
+            "error": str(self.error),
+        }
+
+    def __getattr__(self, name):
+        if isinstance(self.error, BaseException):
+            raise RuntimeError(f"La cámara no está disponible: {self.error}") from self.error
+        raise RuntimeError(f"La cámara no está disponible: {self.error}")
+
+
+def _create_camera_controller():
+    if CAMERA_IMPORT_ERROR is not None:
+        return _unavailable_camera(CAMERA_IMPORT_ERROR)
+
+    try:
+        return rpicam_z()
+    except Exception as error:
+        return _unavailable_camera(error)
+
+
+rpicamz = _create_camera_controller()
 
 
 def _camera_unavailable_response(error):
     return jsonify({
         "status": "error",
+        "available": False,
+        "stream_enabled": False,
         "message": str(error),
     }), 503
 
@@ -96,6 +132,19 @@ def _camera_properties():
     picam2 = getattr(rpicamz, 'picam2', None)
     properties = getattr(picam2, 'camera_properties', None)
     return properties if isinstance(properties, dict) else {}
+
+
+def _is_camera_available():
+    try:
+        capabilities = rpicamz.get_capabilities()
+    except Exception:
+        return False
+    return capabilities.get("available") is not False
+
+
+def _camera_unavailable_from_capabilities(capabilities):
+    message = capabilities.get("error", "cámara no disponible")
+    return _camera_unavailable_response(message)
 
 
 def _camera_model():
@@ -280,6 +329,9 @@ def _database_ready():
 
 def apply_saved_camera_settings(logger=None):
     logger = logger or current_app.logger
+    if not _is_camera_available():
+        logger.warning("No se aplicó configuración persistida: cámara no disponible")
+        return False
     if not callable(getattr(rpicamz, 'get_capabilities', None)):
         logger.warning("No se aplicó configuración persistida: controlador de cámara incompleto")
         return False
@@ -308,7 +360,7 @@ def apply_saved_camera_settings(logger=None):
 
         logger.info("Configuración de cámara persistida aplicada: %s", saved.camera_key)
         return True
-    except RuntimeError as error:
+    except Exception as error:
         logger.warning("No se aplicó configuración persistida de cámara: %s", error)
         return False
 
@@ -435,7 +487,7 @@ def generate_frames():
     Returns:
         An iterator of multipart JPEG byte chunks.
     """
-    while True:
+    while stream_enabled:
         try:
             packet = rpicamz.get_frame_packet()
         except RuntimeError as error:
@@ -464,7 +516,7 @@ def generate_frames_sync():
     Returns:
         An iterator of multipart JPEG byte chunks with metadata headers.
     """
-    while True:
+    while stream_enabled:
         try:
             packet = rpicamz.get_frame_packet()
         except RuntimeError as error:
@@ -509,6 +561,8 @@ def video_feed():
     Example:
         curl http://localhost:5000/api/camera/video_feed
     """
+    if not stream_enabled:
+        return _error_response("Streaming de cámara apagado", 409)
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @camera_bp.route('/video_feed_sync')
@@ -527,7 +581,53 @@ def video_feed_sync():
     Example:
         curl http://localhost:5000/api/camera/video_feed_sync
     """
+    if not stream_enabled:
+        return _error_response("Streaming de cámara apagado", 409)
     return Response(generate_frames_sync(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+@camera_bp.route('/stream/start', methods=['POST'])
+def start_stream():
+    """
+    Enable MJPEG streaming and retry camera initialization if it was unavailable.
+    """
+    global rpicamz, stream_enabled, camera_closed_by_user
+
+    if camera_closed_by_user or not _is_camera_available():
+        rpicamz = _create_camera_controller()
+        camera_closed_by_user = False
+
+    if not _is_camera_available():
+        stream_enabled = False
+        try:
+            capabilities = rpicamz.get_capabilities()
+            error = capabilities.get("error", "cámara no disponible")
+        except Exception as runtime_error:
+            error = runtime_error
+        return _camera_unavailable_response(error)
+
+    stream_enabled = True
+    apply_saved_camera_settings(current_app.logger)
+    return jsonify({"status": "success", "stream_enabled": True})
+
+
+@camera_bp.route('/stream/stop', methods=['POST'])
+def stop_stream():
+    """
+    Disable MJPEG streaming and release the camera controller when possible.
+    """
+    global stream_enabled, camera_closed_by_user
+
+    stream_enabled = False
+    close_camera = getattr(rpicamz, 'close', None)
+    if callable(close_camera):
+        try:
+            close_camera()
+            camera_closed_by_user = True
+        except Exception as error:
+            current_app.logger.warning("No se pudo cerrar la cámara al detener stream: %s", error)
+
+    return jsonify({"status": "success", "stream_enabled": False})
 
 
 @camera_bp.route('/camera_status')
@@ -547,8 +647,12 @@ def camera_status():
     """
     try:
         capabilities = rpicamz.get_capabilities()
+        if capabilities.get("available") is False:
+            return _camera_unavailable_from_capabilities(capabilities)
         state = _current_camera_state(capabilities)
         capabilities.update({
+            "available": True,
+            "stream_enabled": stream_enabled,
             "camera_key": state['camera_key'],
             "camera_model": state['camera_model'],
             "current_rotation": state['rotation'],
@@ -558,7 +662,7 @@ def camera_status():
             "supported_controls": sorted(_supported_camera_controls()),
         })
         return jsonify(capabilities)
-    except RuntimeError as error:
+    except Exception as error:
         return _camera_unavailable_response(error)
 
 

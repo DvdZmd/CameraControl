@@ -40,6 +40,7 @@ class FakeCamera:
             "Saturation": 1.0,
             "AeEnable": True,
         }
+        self.closed = False
 
     def apply_preset(self, preset):
         self.calls.append(("preset", preset))
@@ -86,6 +87,13 @@ class FakeCamera:
         self.calls.append(("control", name, value))
         return True
 
+    def get_frame_packet(self):
+        return {"jpeg_bytes": b"jpeg"}
+
+    def close(self):
+        self.closed = True
+        self.calls.append(("close",))
+
 
 class FakeBleController:
     def __init__(self):
@@ -113,7 +121,11 @@ class ApiValidationTests(unittest.TestCase):
     def setUp(self):
         self.camera = FakeCamera()
         self.previous_camera = camera_routes.rpicamz
+        self.previous_stream_enabled = camera_routes.stream_enabled
+        self.previous_camera_closed_by_user = camera_routes.camera_closed_by_user
         camera_routes.rpicamz = self.camera
+        camera_routes.stream_enabled = False
+        camera_routes.camera_closed_by_user = False
 
         app = Flask(__name__)
         app.config["TESTING"] = True
@@ -125,6 +137,8 @@ class ApiValidationTests(unittest.TestCase):
 
     def tearDown(self):
         camera_routes.rpicamz = self.previous_camera
+        camera_routes.stream_enabled = self.previous_stream_enabled
+        camera_routes.camera_closed_by_user = self.previous_camera_closed_by_user
 
     def test_camera_rejects_non_object_json(self):
         response = self.client.post("/api/camera/update_settings", json=[])
@@ -161,6 +175,46 @@ class ApiValidationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(("resolution", 1280, 720), self.camera.calls)
         self.assertIn(("control", "Brightness", 0.2), self.camera.calls)
+
+    def test_camera_status_reports_stream_disabled_by_default(self):
+        response = self.client.get("/api/camera/camera_status")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.get_json()["stream_enabled"])
+
+    def test_video_feed_requires_stream_enabled(self):
+        response = self.client.get("/api/camera/video_feed")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.get_json()["message"], "Streaming de cámara apagado")
+
+    def test_camera_stream_start_and_stop_toggle_backend_state(self):
+        start_response = self.client.post("/api/camera/stream/start")
+        self.assertEqual(start_response.status_code, 200)
+        self.assertTrue(start_response.get_json()["stream_enabled"])
+        self.assertTrue(camera_routes.stream_enabled)
+
+        stop_response = self.client.post("/api/camera/stream/stop")
+        self.assertEqual(stop_response.status_code, 200)
+        self.assertFalse(stop_response.get_json()["stream_enabled"])
+        self.assertFalse(camera_routes.stream_enabled)
+        self.assertIn(("close",), self.camera.calls)
+
+    def test_camera_stream_start_returns_503_when_camera_is_unavailable(self):
+        previous_factory = camera_routes.rpicam_z
+
+        class FailingCamera:
+            def __init__(self):
+                raise RuntimeError("no camera")
+
+        camera_routes.rpicam_z = FailingCamera
+        camera_routes.rpicamz = camera_routes._LocalUnavailableCamera(RuntimeError("no camera"))
+        try:
+            response = self.client.post("/api/camera/stream/start")
+        finally:
+            camera_routes.rpicam_z = previous_factory
+
+        self.assertEqual(response.status_code, 503)
+        self.assertFalse(response.get_json()["stream_enabled"])
+        self.assertFalse(camera_routes.stream_enabled)
 
     def test_camera_persists_applied_settings_when_database_is_available(self):
         app = Flask(__name__)
