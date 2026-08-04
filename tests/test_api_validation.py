@@ -335,7 +335,9 @@ class ApiValidationTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["saved_speed_mode"], 4)
+        self.assertEqual(response.get_json()["current_speed_mode"], 4)
         self.assertEqual(ble.commands, ["SET_SPEED:4"])
+        self.assertEqual(ble.last_state["S"], "4")
         with app.app_context():
             saved = db.session.get(Esp32Settings, 1)
             self.assertEqual(saved.speed_mode, 4)
@@ -363,6 +365,48 @@ class ApiValidationTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["saved_speed_mode"], 3)
+        self.assertEqual(
+            response.get_json()["current_position"],
+            {
+                "pan": {"pulse_us": 1450, "angle_deg": 90.0},
+                "tilt": {"pulse_us": 1500, "angle_deg": 94.7},
+            },
+        )
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
+
+    def test_esp32_status_includes_saved_position_details(self):
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        ble = FakeBleController()
+        app.config["BLE_CAMERA_CONTROLLER"] = ble
+        db.init_app(app)
+        app.register_blueprint(esp32_bp)
+
+        with app.app_context():
+            db.create_all()
+            db.session.add(Esp32Settings(
+                id=1,
+                custom_pan_pulse=1450,
+                custom_tilt_pulse=1500,
+            ))
+            db.session.commit()
+
+        client = app.test_client()
+        response = client.get("/api/esp32/status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json()["saved_position_details"],
+            {
+                "pan": {"pulse_us": 1450, "angle_deg": 90.0},
+                "tilt": {"pulse_us": 1500, "angle_deg": 94.7},
+            },
+        )
         with app.app_context():
             db.session.remove()
             db.drop_all()

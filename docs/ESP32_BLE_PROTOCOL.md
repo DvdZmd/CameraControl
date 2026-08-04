@@ -217,12 +217,9 @@ Datos candidatos:
 
 - Configuración del dashboard en SQLite: posición custom `pan`/`tilt` y perfil
   de velocidad.
-- En firmware futuro: pan, tilt y velocidad.
+- En `FungiESP.ino`: pan, tilt y velocidad se restauran desde NVS al iniciar.
 
 Preferir `Preferences`/NVS.
-
-La persistencia aún no está implementada en `FungiESP.ino`; esta sección
-describe el criterio para una tarea futura.
 
 Evitar escrituras por cada paso.
 
@@ -232,6 +229,11 @@ Estrategias:
 - Guardar tras inactividad.
 - Guardar sólo si cambió.
 - Validar al iniciar.
+
+El firmware vigente guarda pan/tilt con persistencia diferida para no escribir
+flash por cada paso. Los cambios de perfil de velocidad se guardan de inmediato
+porque son infrecuentes y deben sobrevivir reinicios aunque el ESP32 se apague
+poco después del cambio.
 
 No mover inmediatamente a una posición inválida.
 

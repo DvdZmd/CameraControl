@@ -51,6 +51,31 @@ function formatSavedPosition(savedPosition) {
     return `P ${savedPosition.pan} / T ${savedPosition.tilt}`;
 }
 
+function formatAxisPosition(position) {
+    if (!position) {
+        return '--';
+    }
+
+    const pulse = position.pulse_us ?? position.pulse;
+    const angle = position.angle_deg ?? position.angle;
+    if (pulse === null || pulse === undefined) {
+        return '--';
+    }
+    if (angle === null || angle === undefined) {
+        return `${pulse} us`;
+    }
+
+    return `${pulse} us / ${Number(angle).toFixed(1)}°`;
+}
+
+function formatPositionDetails(positionDetails, fallbackPosition = null) {
+    if (positionDetails && positionDetails.pan && positionDetails.tilt) {
+        return `P ${formatAxisPosition(positionDetails.pan)} / T ${formatAxisPosition(positionDetails.tilt)}`;
+    }
+
+    return formatSavedPosition(fallbackPosition);
+}
+
 function normalizeSpeedMode(value) {
     if (value === null || value === undefined || value === '') {
         return null;
@@ -69,6 +94,7 @@ async function refreshEsp32Status() {
         const address = document.getElementById('esp32-address');
         const lastStateEl = document.getElementById('esp32-last-state');
         const savedPositionEl = document.getElementById('esp32-saved-position');
+        const currentPositionEl = document.getElementById('esp32-current-position');
         const speedSelect = document.getElementById('esp32-speed-select');
 
         if (badge) {
@@ -83,7 +109,7 @@ async function refreshEsp32Status() {
         const lastState = data.last_state || {};
         if (lastStateEl) {
             // La clave para velocidad es 'S'
-            const speedMode = stateValue(lastState, 'S');
+            const speedMode = stateValue(lastState, 'S') ?? data.current_speed_mode ?? data.saved_speed_mode;
             lastStateEl.textContent = speedMode !== null ? `Perfil Vel. ${speedMode}` : 'N/A';
         }
         if (speedSelect) {
@@ -110,10 +136,18 @@ async function refreshEsp32Status() {
         // Estado de Movimiento (Servos)
         const panPulse = stateValue(lastState, 'P');
         const tiltPulse = stateValue(lastState, 'T');
-        document.getElementById('servo-pan-pulse').textContent = panPulse !== null ? panPulse : '--';
-        document.getElementById('servo-tilt-pulse').textContent = tiltPulse !== null ? tiltPulse : '--';
+        const currentPosition = data.current_position || {};
+        document.getElementById('servo-pan-pulse').textContent = formatAxisPosition(
+            currentPosition.pan || (panPulse !== null ? { pulse_us: panPulse, angle_deg: null } : null)
+        );
+        document.getElementById('servo-tilt-pulse').textContent = formatAxisPosition(
+            currentPosition.tilt || (tiltPulse !== null ? { pulse_us: tiltPulse, angle_deg: null } : null)
+        );
+        if (currentPositionEl) {
+            currentPositionEl.textContent = formatPositionDetails(data.current_position);
+        }
         if (savedPositionEl) {
-            savedPositionEl.textContent = formatSavedPosition(data.saved_position);
+            savedPositionEl.textContent = formatPositionDetails(data.saved_position_details, data.saved_position);
         }
 
     } catch (error) {
@@ -194,7 +228,7 @@ async function saveEsp32CurrentPosition() {
         }
         const savedPositionEl = document.getElementById('esp32-saved-position');
         if (savedPositionEl) {
-            savedPositionEl.textContent = formatSavedPosition(data.saved_position);
+            savedPositionEl.textContent = formatPositionDetails(data.saved_position_details, data.saved_position);
         }
         showEsp32Feedback('Posición actual configurada');
         await refreshEsp32Status();

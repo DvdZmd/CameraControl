@@ -35,6 +35,7 @@ bool consumeAbsolutePosition(int& newPan, int& newTilt);
 
 void loadPersistentState();
 void markPersistentStateDirty();
+void savePersistentStateNow();
 void savePersistentStateIfNeeded(uint32_t now);
 
 // =====================================================
@@ -264,15 +265,7 @@ void markPersistentStateDirty() {
   persistentStateChangedAt = millis();
 }
 
-void savePersistentStateIfNeeded(uint32_t now) {
-  if (!persistentStateDirty) {
-    return;
-  }
-
-  if (now - persistentStateChangedAt < PERSIST_SAVE_DELAY_MS) {
-    return;
-  }
-
+void savePersistentStateNow() {
   preferences.begin(PREF_NAMESPACE, false);
 
   preferences.putInt(PREF_KEY_PAN, panPulse);
@@ -289,6 +282,18 @@ void savePersistentStateIfNeeded(uint32_t now) {
       tiltPulse,
       speedMode
   );
+}
+
+void savePersistentStateIfNeeded(uint32_t now) {
+  if (!persistentStateDirty) {
+    return;
+  }
+
+  if (now - persistentStateChangedAt < PERSIST_SAVE_DELAY_MS) {
+    return;
+  }
+
+  savePersistentStateNow();
 }
 
 void applySpeedMode() {
@@ -828,9 +833,13 @@ void processConfigurationCommands() {
   int newSpeedMode = -1;
 
   if (consumeSpeedMode(newSpeedMode)) {
-    speedMode = newSpeedMode;
-    applySpeedMode();
-    markPersistentStateDirty();
+    if (speedMode != newSpeedMode) {
+      speedMode = newSpeedMode;
+      applySpeedMode();
+      savePersistentStateNow();
+    }
+
+    notifyState();
   }
 
   int newPan = 0;

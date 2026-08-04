@@ -37,7 +37,32 @@ SET_SPEED_PATTERN = re.compile(r"SET_SPEED:([0-4])")
 SET_ABS_PATTERN = re.compile(r"SET_ABS:(\d+),(\d+)")
 SERVO_PULSE_MIN_US = 500
 SERVO_PULSE_MAX_US = 2400
+SERVO_ANGLE_MIN_DEG = 0
+SERVO_ANGLE_MAX_DEG = 180
 DEFAULT_SETTINGS_ID = 1
+
+
+def _pulse_to_angle_deg(pulse):
+    pulse_range = SERVO_PULSE_MAX_US - SERVO_PULSE_MIN_US
+    angle_range = SERVO_ANGLE_MAX_DEG - SERVO_ANGLE_MIN_DEG
+    return round(
+        SERVO_ANGLE_MIN_DEG
+        + ((pulse - SERVO_PULSE_MIN_US) * angle_range / pulse_range),
+        1,
+    )
+
+
+def _servo_position_payload(pan, tilt):
+    return {
+        "pan": {
+            "pulse_us": pan,
+            "angle_deg": _pulse_to_angle_deg(pan),
+        },
+        "tilt": {
+            "pulse_us": tilt,
+            "angle_deg": _pulse_to_angle_deg(tilt),
+        },
+    }
 
 
 def _json_object():
@@ -95,6 +120,13 @@ def _saved_position_payload(settings=None):
     }
 
 
+def _saved_position_details_payload(settings=None):
+    saved_position = _saved_position_payload(settings)
+    if saved_position is None:
+        return None
+    return _servo_position_payload(saved_position["pan"], saved_position["tilt"])
+
+
 def _saved_speed_mode(settings=None):
     settings = settings or _saved_esp32_settings()
     if settings is None or settings.speed_mode is None:
@@ -140,6 +172,22 @@ def _current_servo_position(controller):
     return pan, tilt
 
 
+def _current_position_payload_from_status(status):
+    last_state = status.get("last_state") or {}
+    try:
+        pan = _parse_servo_pulse(last_state.get("P"), "pan")
+        tilt = _parse_servo_pulse(last_state.get("T"), "tilt")
+    except ValueError:
+        return None
+    return _servo_position_payload(pan, tilt)
+
+
+def _cache_speed_mode(controller, mode):
+    last_state = getattr(controller, "last_state", None)
+    if isinstance(last_state, dict):
+        last_state["S"] = str(mode)
+
+
 @esp32_bp.route("/status", methods=["GET"])
 def esp32_status():
     """
@@ -159,7 +207,9 @@ def esp32_status():
     status = controller.get_status_sync()
     settings = _saved_esp32_settings()
     status["saved_position"] = _saved_position_payload(settings)
+    status["saved_position_details"] = _saved_position_details_payload(settings)
     status["saved_speed_mode"] = _saved_speed_mode(settings)
+    status["current_position"] = _current_position_payload_from_status(status)
     return jsonify(status), 200
 
 
@@ -288,7 +338,11 @@ def esp32_save_current_position():
         settings.custom_pan_pulse = pan
         settings.custom_tilt_pulse = tilt
         db.session.commit()
-        return jsonify({"ok": True, "saved_position": _saved_position_payload(settings)}), 200
+        return jsonify({
+            "ok": True,
+            "saved_position": _saved_position_payload(settings),
+            "saved_position_details": _saved_position_details_payload(settings),
+        }), 200
     except ValueError as ex:
         return jsonify({"ok": False, "error": str(ex)}), 400
     except Exception as ex:
@@ -321,6 +375,7 @@ def esp32_return_to_saved_position():
         command = f"SET_ABS:{pan},{tilt}"
         result = controller.send_command_sync(command)
         result["saved_position"] = saved_position
+        result["saved_position_details"] = _servo_position_payload(pan, tilt)
         return jsonify(result), 200
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 500
@@ -360,6 +415,7 @@ def esp32_speed():
         if str(mode) != str(data.get("mode")).strip() or not 0 <= mode <= 4:
             raise ValueError("mode debe ser un entero entre 0 y 4")
         result = controller.set_speed_sync(mode)
+        _cache_speed_mode(controller, mode)
         if _database_ready():
             settings = db.session.get(Esp32Settings, DEFAULT_SETTINGS_ID)
             if settings is None:
@@ -368,6 +424,7 @@ def esp32_speed():
             settings.speed_mode = mode
             db.session.commit()
             result["saved_speed_mode"] = mode
+        result["current_speed_mode"] = mode
         return jsonify(result), 200
     except ValueError as ex:
         return jsonify({"ok": False, "error": str(ex)}), 400

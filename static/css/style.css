@@ -270,6 +270,11 @@ button:disabled {
     font-size: 0.9rem;
 }
 
+.esp32-status-row span:last-child {
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
 .tuya-devices-list {
     display: grid;
     gap: 10px;
