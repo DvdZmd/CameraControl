@@ -4,6 +4,7 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <DHT.h>
+#include <Preferences.h>
 
 // =====================================================
 // TIPOS Y PROTOTIPOS
@@ -32,6 +33,10 @@ bool consumeSpeedMode(int& newMode);
 void queueAbsolutePosition(int newPan, int newTilt);
 bool consumeAbsolutePosition(int& newPan, int& newTilt);
 
+void loadPersistentState();
+void markPersistentStateDirty();
+void savePersistentStateIfNeeded(uint32_t now);
+
 // =====================================================
 // CONFIGURACIÓN GENERAL
 // =====================================================
@@ -41,6 +46,10 @@ static constexpr uint32_t SERVO_UPDATE_INTERVAL_MS = 20;
 static constexpr uint32_t SENSOR_READ_INTERVAL_MS = 2000;
 static constexpr uint32_t STATE_NOTIFY_INTERVAL_MS = 250;
 static constexpr uint32_t DS18B20_CONVERSION_MS = 200;
+
+// Espera después del último cambio antes de escribir en flash.
+// Evita una escritura NVS por cada click o comando BLE.
+static constexpr uint32_t PERSIST_SAVE_DELAY_MS = 1500;
 
 // =====================================================
 // PINES
@@ -197,6 +206,91 @@ static constexpr int SPEED_PROFILE_COUNT =
 int speedMode = 2;
 int currentServoStep = 10;
 
+// =====================================================
+// PERSISTENCIA EN NVS
+// =====================================================
+
+Preferences preferences;
+
+static constexpr const char* PREF_NAMESPACE = "cameraHead";
+static constexpr const char* PREF_KEY_PAN = "pan";
+static constexpr const char* PREF_KEY_TILT = "tilt";
+static constexpr const char* PREF_KEY_SPEED = "speed";
+
+bool persistentStateDirty = false;
+uint32_t persistentStateChangedAt = 0;
+
+void loadPersistentState() {
+  preferences.begin(PREF_NAMESPACE, true);
+
+  int storedPan = preferences.getInt(
+      PREF_KEY_PAN,
+      SERVO_CENTER_PULSE_US
+  );
+
+  int storedTilt = preferences.getInt(
+      PREF_KEY_TILT,
+      SERVO_CENTER_PULSE_US
+  );
+
+  int storedSpeed = preferences.getInt(
+      PREF_KEY_SPEED,
+      2
+  );
+
+  preferences.end();
+
+  panPulse = constrain(
+      storedPan,
+      SERVO_MIN_PULSE_US,
+      SERVO_MAX_PULSE_US
+  );
+
+  tiltPulse = constrain(
+      storedTilt,
+      SERVO_MIN_PULSE_US,
+      SERVO_MAX_PULSE_US
+  );
+
+  speedMode = constrain(
+      storedSpeed,
+      0,
+      SPEED_PROFILE_COUNT - 1
+  );
+}
+
+void markPersistentStateDirty() {
+  persistentStateDirty = true;
+  persistentStateChangedAt = millis();
+}
+
+void savePersistentStateIfNeeded(uint32_t now) {
+  if (!persistentStateDirty) {
+    return;
+  }
+
+  if (now - persistentStateChangedAt < PERSIST_SAVE_DELAY_MS) {
+    return;
+  }
+
+  preferences.begin(PREF_NAMESPACE, false);
+
+  preferences.putInt(PREF_KEY_PAN, panPulse);
+  preferences.putInt(PREF_KEY_TILT, tiltPulse);
+  preferences.putInt(PREF_KEY_SPEED, speedMode);
+
+  preferences.end();
+
+  persistentStateDirty = false;
+
+  Serial.printf(
+      "Estado guardado: pan=%d tilt=%d speed=%d\n",
+      panPulse,
+      tiltPulse,
+      speedMode
+  );
+}
+
 void applySpeedMode() {
   speedMode = constrain(
       speedMode,
@@ -308,6 +402,7 @@ void writePanPulse(int newPulse) {
 
   panPulse = newPulse;
   servoPan.writeMicroseconds(panPulse);
+  markPersistentStateDirty();
 }
 
 void writeTiltPulse(int newPulse) {
@@ -323,6 +418,7 @@ void writeTiltPulse(int newPulse) {
 
   tiltPulse = newPulse;
   servoTilt.writeMicroseconds(tiltPulse);
+  markPersistentStateDirty();
 }
 
 void centerServos() {
@@ -331,6 +427,7 @@ void centerServos() {
 
   servoPan.writeMicroseconds(panPulse);
   servoTilt.writeMicroseconds(tiltPulse);
+  markPersistentStateDirty();
 }
 
 void applyPanStep(int stepUs) {
@@ -733,6 +830,7 @@ void processConfigurationCommands() {
   if (consumeSpeedMode(newSpeedMode)) {
     speedMode = newSpeedMode;
     applySpeedMode();
+    markPersistentStateDirty();
   }
 
   int newPan = 0;
@@ -793,10 +891,12 @@ void setup() {
 
   Serial.begin(115200);
 
+  loadPersistentState();
   applySpeedMode();
 
   attachServos();
-  centerServos();
+  servoPan.writeMicroseconds(panPulse);
+  servoTilt.writeMicroseconds(tiltPulse);
 
   setupSoilSensor();
 
@@ -813,6 +913,12 @@ void setup() {
 
   setupBLE();
 
+  Serial.printf(
+      "Estado restaurado: pan=%d tilt=%d speed=%d\n",
+      panPulse,
+      tiltPulse,
+      speedMode
+  );
   Serial.println("ESP32-CameraHead listo");
 }
 
@@ -827,6 +933,9 @@ void loop() {
   static uint32_t lastNotify = 0;
 
   uint32_t now = millis();
+
+  // Persistencia diferida en NVS.
+  savePersistentStateIfNeeded(now);
 
   // DS18B20 asíncrono.
   updateDs18b20(now);
