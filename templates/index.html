@@ -31,9 +31,11 @@
             <div class="panel-header">
                 <h1>Cámara IoT Pro</h1>
                 <div class="tab-switcher" role="tablist" aria-label="Secciones de control">
-                    <button type="button" class="tab-btn active" data-tab="camera-tab" role="tab" aria-controls="camera-tab" aria-selected="true">Cámara</button>                    
-                    <button type="button" class="tab-btn" data-tab="devices-tab" role="tab" aria-controls="devices-tab" aria-selected="false">Dispositivos</button>
+                    <button type="button" class="tab-btn active" data-tab="camera-tab" role="tab" aria-controls="camera-tab" aria-selected="true">Cámara</button>
+                    <button type="button" class="tab-btn" data-tab="timelapse-tab" role="tab" aria-controls="timelapse-tab" aria-selected="false">Timelapse</button>
                     <button type="button" class="tab-btn" data-tab="esp32-tab" role="tab" aria-controls="esp32-tab" aria-selected="false">ESP32</button>
+                    <button type="button" class="tab-btn" data-tab="sensors-tab" role="tab" aria-controls="sensors-tab" aria-selected="false">Sensores</button>
+                    <button type="button" class="tab-btn" data-tab="devices-tab" role="tab" aria-controls="devices-tab" aria-selected="false">Dispositivos</button>
                 </div>
             </div>
 
@@ -172,31 +174,7 @@
                         class="camera-slider">
                     <span>Cerca</span>
                 </div>
-            </div>      
-            <section class="control-group">
-                <h3>Configuración Timelapse</h3>
-                <div class="slider-item">
-                    <label>Intervalo (segundos)</label>
-                    <input type="number" id="tl-interval" value="10" min="2" style="width: 100%;">
-                </div>
-                <div class="slider-item">
-                    <label>Resolución de Captura</label>
-                    <div style="display: flex; gap: 5px;">
-                        <input type="number" id="tl-w" placeholder="Ancho" value="3840" style="width: 80px;">
-                        <span>x</span>
-                        <input type="number" id="tl-h" placeholder="Alto" value="2160" style="width: 80px;">
-                    </div>
-                    <p style="font-size: 0.7em; color: #888; margin-top: 5px;">
-                        Sugerencia 4K: 3840x2160 | Máx V3: 4608x2592
-                    </p>
-                </div>
-                <button id="btn-timelapse" class="btn-primary" data-action="toggle-timelapse">
-                    Iniciar Timelapse
-                </button>
-                <div id="timelapse-status" class="hidden" style="color: #00ff88; font-weight: bold; margin-top: 10px;">
-                    ● Capturando en Alta Resolución...
-                </div>
-            </section>
+            </div>
             </div>
 
             <div id="devices-tab" class="tab-panel">
@@ -222,6 +200,34 @@
                     <button class="btn-primary" data-action="add-tuya-device" type="button">Agregar dispositivo</button>
                 </section>
             </div>
+
+            <div id="timelapse-tab" class="tab-panel">
+                <section class="control-group">
+                    <h3>Configuración Timelapse</h3>
+                    <div class="slider-item">
+                        <label>Intervalo (segundos)</label>
+                        <input type="number" id="tl-interval" value="10" min="2" style="width: 100%;">
+                    </div>
+                    <div class="slider-item">
+                        <label>Resolución de Captura</label>
+                        <div style="display: flex; gap: 5px;">
+                            <input type="number" id="tl-w" placeholder="Ancho" value="3840" style="width: 80px;">
+                            <span>x</span>
+                            <input type="number" id="tl-h" placeholder="Alto" value="2160" style="width: 80px;">
+                        </div>
+                        <p style="font-size: 0.7em; color: #888; margin-top: 5px;">
+                            Sugerencia 4K: 3840x2160 | Máx V3: 4608x2592
+                        </p>
+                    </div>
+                    <button id="btn-timelapse" class="btn-primary" data-action="toggle-timelapse">
+                        Iniciar Timelapse
+                    </button>
+                    <div id="timelapse-status" class="hidden" style="color: #00ff88; font-weight: bold; margin-top: 10px;">
+                        ● Capturando en Alta Resolución...
+                    </div>
+                </section>
+            </div>
+
 
             <div id="esp32-tab" class="tab-panel">
                 <section class="control-group" aria-labelledby="esp32-status-heading">
@@ -300,8 +306,25 @@
                     </div>
                 </section>
 
+                <section class="control-group" aria-labelledby="esp32-servos-heading">
+                    <h3 id="esp32-servos-heading">Estado de Movimiento</h3>
+                    <div class="esp32-status-card">
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">Posición Pan</span>
+                            <span id="servo-pan-pulse">--</span>
+                        </div>
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">Posición Tilt</span>
+                            <span id="servo-tilt-pulse">--</span>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+
+            <div id="sensors-tab" class="tab-panel">
                 <section class="control-group" aria-labelledby="esp32-sensors-heading">
-                    <h3 id="esp32-sensors-heading">Sensores Ambientales</h3>
+                    <h3 id="esp32-sensors-heading">Sensores Ambientales (ESP32)</h3>
                     <div class="esp32-status-card">
                         <div class="esp32-status-row">
                             <span class="esp32-label">🌡️ Temp. Ambiente (DHT)</span>
@@ -325,22 +348,8 @@
                         </div>
                     </div>
                 </section>
-
-                <section class="control-group" aria-labelledby="esp32-servos-heading">
-                    <h3 id="esp32-servos-heading">Estado de Movimiento</h3>
-                    <div class="esp32-status-card">
-                        <div class="esp32-status-row">
-                            <span class="esp32-label">Posición Pan</span>
-                            <span id="servo-pan-pulse">--</span>
-                        </div>
-                        <div class="esp32-status-row">
-                            <span class="esp32-label">Posición Tilt</span>
-                            <span id="servo-tilt-pulse">--</span>
-                        </div>
-                    </div>
-                </section>
-
             </div>
+
         </div>
     </div>
     <script src="{{ url_for('static', filename='js/camera.js') }}"></script>
