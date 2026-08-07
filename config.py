@@ -174,6 +174,11 @@ class SensorLoggingConfig:
 # Combined AppConfig
 @dataclass
 class AppConfig:
+    timezone_name: str = field(
+        default_factory=lambda: os.environ.get(
+            "APP_TIMEZONE", "America/Argentina/Buenos_Aires"
+        )
+    )
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     camera: CameraConfig = field(default_factory=CameraConfig)
     timelapse: TimelapseConfig = field(default_factory=TimelapseConfig)

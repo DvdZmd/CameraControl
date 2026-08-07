@@ -133,6 +133,11 @@ LOW como primera acción de `setup()`, pero no puede garantizar el nivel antes
 de que comience a ejecutarse; por eso el pull-down físico es necesario para un
 arranque siempre apagado.
 
+`ESP32Servo` y el control de intensidad de la luz comparten el periférico LEDC
+del ESP32. El firmware adjunta primero los servos de GPIO22/GPIO23 y después el
+PWM de GPIO21 para evitar que la asignación dinámica de canales deje sin señal
+al servo pan en algunas versiones del core Arduino-ESP32.
+
 El modelo exacto y la placa seleccionada afectan:
 
 - Pines.

@@ -95,6 +95,7 @@ class SensorHistoryTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload["total"], 1)
         self.assertEqual(payload["readings"][0]["pan_pulse_us"], 1500)
+        self.assertEqual(payload["readings"][0]["timestamp"], "2026-08-06T18:30:00Z")
 
     def test_history_rejects_invalid_ranges(self):
         response = self.client.get(

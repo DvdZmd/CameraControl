@@ -76,6 +76,9 @@ def create_app():
     # Cargar configuración desde el objeto AppConfig
     # (En un futuro, esto podría venir de un archivo YAML o similar)
     app_config = AppConfig()
+    app.config["APP_TIMEZONE"] = getattr(
+        app_config, "timezone_name", "America/Argentina/Buenos_Aires"
+    )
     configure_logging(app, app_config.logging)
 
     # Database config

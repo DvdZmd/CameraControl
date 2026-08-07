@@ -1033,17 +1033,27 @@ void setup() {
 
   Serial.begin(115200);
 
-  // Low-side switching: duty 0 mantiene el transistor y la tira apagados.
-  setupLightPwm();
-
   delay(500);
 
   loadPersistentState();
   applySpeedMode();
 
+  // ESP32Servo también utiliza LEDC. Los servos deben reservar primero sus
+  // recursos para que el PWM auxiliar de la luz no interfiera con GPIO22/23.
   attachServos();
   servoPan.writeMicroseconds(panPulse);
   servoTilt.writeMicroseconds(tiltPulse);
+  Serial.printf(
+      "Servos adjuntos: pan(GPIO%d)=%s tilt(GPIO%d)=%s\n",
+      SERVO_PAN_PIN,
+      servoPan.attached() ? "si" : "no",
+      SERVO_TILT_PIN,
+      servoTilt.attached() ? "si" : "no"
+  );
+
+  // GPIO21 se mantuvo en LOW desde la primera instrucción de setup(). Ahora se
+  // adjunta su PWM usando los recursos LEDC restantes.
+  setupLightPwm();
 
   setupSoilSensor();
 

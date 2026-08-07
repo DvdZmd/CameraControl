@@ -1,6 +1,7 @@
-from datetime import datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 from database.models import SensorReading
 
@@ -43,7 +44,7 @@ def _optional_date(name):
 def _serialize(reading):
     return {
         "id": reading.id,
-        "timestamp": reading.timestamp.isoformat(),
+        "timestamp": _utc_isoformat(reading.timestamp),
         "temperature_air": reading.temperature_air,
         "humidity_air": reading.humidity_air,
         "temperature_soil": reading.temperature_soil,
@@ -51,6 +52,27 @@ def _serialize(reading):
         "pan_pulse_us": reading.pan_pulse_us,
         "tilt_pulse_us": reading.tilt_pulse_us,
     }
+
+
+def _utc_isoformat(value):
+    """Serialize SQLite's naive UTC datetimes with an explicit UTC marker."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    else:
+        value = value.astimezone(UTC)
+    return value.isoformat().replace("+00:00", "Z")
+
+
+def _local_midnight_as_utc(value):
+    timezone_name = current_app.config.get(
+        "APP_TIMEZONE", "America/Argentina/Buenos_Aires"
+    )
+    try:
+        local_timezone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError as error:
+        raise ValueError(f"Zona horaria no válida: {timezone_name}") from error
+    local_midnight = datetime.combine(value, time.min, tzinfo=local_timezone)
+    return local_midnight.astimezone(UTC).replace(tzinfo=None)
 
 
 @sensor_bp.route("/readings", methods=["GET"])
@@ -89,10 +111,10 @@ def readings_history():
 
     query = SensorReading.query
     if start_date:
-        query = query.filter(SensorReading.timestamp >= datetime.combine(start_date, time.min))
+        query = query.filter(SensorReading.timestamp >= _local_midnight_as_utc(start_date))
     if end_date:
         query = query.filter(
-            SensorReading.timestamp < datetime.combine(end_date + timedelta(days=1), time.min)
+            SensorReading.timestamp < _local_midnight_as_utc(end_date + timedelta(days=1))
         )
     for field, (minimum, maximum) in ranges.items():
         column = getattr(SensorReading, field)

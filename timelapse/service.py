@@ -31,6 +31,16 @@ def _optional_int(value):
         return None
 
 
+def _utc_isoformat(value):
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    else:
+        value = value.astimezone(UTC)
+    return value.isoformat().replace("+00:00", "Z")
+
+
 class TimelapseService:
     """Persist application policy while rpicam-z owns capture execution."""
 
@@ -223,13 +233,13 @@ class TimelapseService:
             "light_intensity": config.light_intensity,
             "save_path": config.save_path,
             "capture_count": config.capture_count,
-            "started_at": config.started_at.isoformat() if config.started_at else None,
-            "stopped_at": config.stopped_at.isoformat() if config.stopped_at else None,
-            "last_capture_at": config.last_capture_at.isoformat() if config.last_capture_at else None,
+            "started_at": _utc_isoformat(config.started_at),
+            "stopped_at": _utc_isoformat(config.stopped_at),
+            "last_capture_at": _utc_isoformat(config.last_capture_at),
             "last_capture_path": config.last_capture_path,
             "last_error": config.last_error or runtime.get("last_error"),
             "runtime": runtime,
-            "updated_at": config.updated_at.isoformat() if config.updated_at else None,
+            "updated_at": _utc_isoformat(config.updated_at),
         }
 
     def _runtime_status(self, camera=None):
