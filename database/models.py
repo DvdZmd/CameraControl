@@ -65,6 +65,15 @@ class TimelapseConfig(db.Model):
     height = db.Column(db.Integer, nullable=False)
     is_running = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    interval_seconds = db.Column(db.Integer, nullable=False, default=10)
+    auto_resume = db.Column(db.Boolean, nullable=False, default=True)
+    save_path = db.Column(db.String(2048), nullable=True)
+    started_at = db.Column(db.DateTime, nullable=True)
+    stopped_at = db.Column(db.DateTime, nullable=True)
+    last_capture_at = db.Column(db.DateTime, nullable=True)
+    last_capture_path = db.Column(db.String(4096), nullable=True)
+    capture_count = db.Column(db.Integer, nullable=False, default=0)
+    last_error = db.Column(db.Text, nullable=True)
 
 
 class SensorReading(db.Model):

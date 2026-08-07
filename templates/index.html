@@ -205,8 +205,14 @@
                 <section class="control-group">
                     <h3>Configuración Timelapse</h3>
                     <div class="slider-item">
-                        <label>Intervalo (segundos)</label>
-                        <input type="number" id="tl-interval" value="10" min="2" style="width: 100%;">
+                        <label for="tl-interval">Intervalo</label>
+                        <div class="timelapse-inline-fields">
+                            <input type="number" id="tl-interval" value="10" min="1">
+                            <select id="tl-interval-unit">
+                                <option value="seconds">Segundos</option>
+                                <option value="minutes">Minutos</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="slider-item">
                         <label>Resolución de Captura</label>
@@ -219,11 +225,22 @@
                             Sugerencia 4K: 3840x2160 | Máx V3: 4608x2592
                         </p>
                     </div>
+                    <label class="timelapse-checkbox">
+                        <input type="checkbox" id="tl-auto-resume" checked>
+                        Reanudar automáticamente después de reiniciar
+                    </label>
+                    <button class="btn-primary" data-action="save-timelapse-config" type="button">
+                        Guardar configuración
+                    </button>
                     <button id="btn-timelapse" class="btn-primary" data-action="toggle-timelapse">
                         Iniciar Timelapse
                     </button>
-                    <div id="timelapse-status" class="hidden" style="color: #00ff88; font-weight: bold; margin-top: 10px;">
-                        ● Capturando en Alta Resolución...
+                    <div id="timelapse-status" class="status-message hidden"></div>
+                    <div class="esp32-status-card timelapse-details">
+                        <div class="esp32-status-row"><span>Estado persistido</span><span id="tl-desired-state">--</span></div>
+                        <div class="esp32-status-row"><span>Capturas</span><span id="tl-capture-count">0</span></div>
+                        <div class="esp32-status-row"><span>Última captura</span><span id="tl-last-capture">--</span></div>
+                        <div class="esp32-status-row"><span>Directorio</span><span id="tl-save-path">--</span></div>
                     </div>
                 </section>
             </div>

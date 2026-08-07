@@ -185,6 +185,17 @@ La interfaz queda disponible en `http://<ip-de-la-pi>:5000`.
 - `GET /readings` con paginación y filtros opcionales por fecha y rangos de
   temperatura/humedad de ambiente y suelo.
 
+### Timelapse — `/api/timelapse`
+
+- `GET /status`
+- `PUT /config`
+- `POST /start`
+- `POST /stop`
+
+La configuración, intención de ejecución y progreso se guardan en SQLite. Con
+`auto_resume` activo, un timelapse que estaba ejecutándose se reanuda después de
+reiniciar la aplicación o cuando la cámara vuelve a estar disponible.
+
 ### Tuya — `/api/tuya`
 
 - `GET /status`

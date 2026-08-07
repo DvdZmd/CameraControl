@@ -734,3 +734,31 @@ button:disabled {
     margin-top: 12px;
     font-size: 0.8rem;
 }
+
+.timelapse-inline-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+}
+
+.timelapse-inline-fields input,
+.timelapse-inline-fields select {
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #1b1b1b;
+    color: white;
+}
+
+.timelapse-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0;
+    font-size: 0.85rem;
+}
+
+.timelapse-details {
+    margin-top: 12px;
+}

@@ -267,6 +267,26 @@ Usar `threading.Event` o mecanismo equivalente para detener de forma limpia.
 
 No iniciar múltiples timelapses simultáneos.
 
+### Implementación vigente
+
+`rpicam-z` conserva la propiedad del thread y expone cancelación con
+`threading.Event`, estado de runtime y callbacks. CameraControl no crea un
+segundo worker: persiste política y progreso mediante `TimelapseService`.
+
+Se distinguen dos estados:
+
+- `running`: el thread existe y está activo en este proceso.
+- `desired_running`: el usuario dejó el timelapse activado y debe reanudarse si
+  la cámara o el proceso vuelven a estar disponibles.
+
+Cada callback de captura actualiza contador, timestamp y ruta. Si la telemetría
+BLE contiene las cuatro lecturas válidas, también crea un `SensorReading` con
+los pulsos `P` y `T`. El directorio se organiza como
+`<TIMELAPSE_DIR>/YYYY-MM-DD/HH-MM-SS/`.
+
+La configuración se expone mediante `/api/timelapse`, se migra desde el antiguo
+campo `interval_minutes` y utiliza segundos como unidad canónica.
+
 ## Errores
 
 La cámara ausente debería generar una respuesta clara, por ejemplo HTTP 503.

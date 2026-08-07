@@ -1195,6 +1195,100 @@ async function setRotation(angle) {
 
 let timelapseRunning = false;
 
+function timelapseIntervalSeconds() {
+    const value = parseInt(document.getElementById('tl-interval').value, 10);
+    const unit = document.getElementById('tl-interval-unit').value;
+    return unit === 'minutes' ? value * 60 : value;
+}
+
+function setTimelapseControlsDisabled(disabled) {
+    ['tl-interval', 'tl-interval-unit', 'tl-w', 'tl-h', 'tl-auto-resume'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.disabled = disabled;
+    });
+    const saveButton = document.querySelector('[data-action="save-timelapse-config"]');
+    if (saveButton) saveButton.disabled = disabled;
+}
+
+function renderTimelapseStatus(data) {
+    timelapseRunning = Boolean(data.running);
+    const button = document.getElementById('btn-timelapse');
+    const feedback = document.getElementById('timelapse-status');
+    if (button) {
+        button.textContent = timelapseRunning ? 'Detener Timelapse' : 'Iniciar Timelapse';
+        button.classList.toggle('btn-danger', timelapseRunning);
+    }
+    setTimelapseControlsDisabled(timelapseRunning);
+
+    if (feedback) {
+        feedback.classList.remove('hidden', 'status-error');
+        if (data.last_error) {
+            feedback.textContent = data.last_error;
+            feedback.classList.add('status-error');
+        } else if (timelapseRunning) {
+            feedback.textContent = `Capturando cada ${data.interval_seconds} segundos a ${data.width}x${data.height}`;
+        } else if (data.desired_running) {
+            feedback.textContent = 'Pendiente de reanudación automática cuando la cámara esté disponible';
+        } else {
+            feedback.textContent = 'Timelapse detenido';
+        }
+    }
+
+    document.getElementById('tl-desired-state').textContent = data.desired_running ? 'Activo' : 'Detenido';
+    document.getElementById('tl-capture-count').textContent = data.capture_count ?? 0;
+    document.getElementById('tl-last-capture').textContent = data.last_capture_at
+        ? new Date(data.last_capture_at).toLocaleString()
+        : '--';
+    document.getElementById('tl-save-path').textContent = data.save_path || '--';
+}
+
+function hydrateTimelapseConfig(data) {
+    const seconds = Number(data.interval_seconds || 10);
+    const useMinutes = seconds >= 60 && seconds % 60 === 0;
+    document.getElementById('tl-interval-unit').value = useMinutes ? 'minutes' : 'seconds';
+    document.getElementById('tl-interval').value = useMinutes ? seconds / 60 : seconds;
+    document.getElementById('tl-w').value = data.width;
+    document.getElementById('tl-h').value = data.height;
+    document.getElementById('tl-auto-resume').checked = Boolean(data.auto_resume);
+}
+
+async function refreshTimelapseStatus({ hydrate = false } = {}) {
+    try {
+        const response = await fetch('/api/timelapse/status');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'No se pudo consultar el timelapse');
+        if (hydrate) hydrateTimelapseConfig(data);
+        renderTimelapseStatus(data);
+        return data;
+    } catch (error) {
+        const feedback = document.getElementById('timelapse-status');
+        if (feedback) {
+            feedback.classList.remove('hidden');
+            feedback.classList.add('status-error');
+            feedback.textContent = error.message;
+        }
+        return null;
+    }
+}
+
+async function saveTimelapseConfig() {
+    const payload = {
+        interval_seconds: timelapseIntervalSeconds(),
+        width: parseInt(document.getElementById('tl-w').value, 10),
+        height: parseInt(document.getElementById('tl-h').value, 10),
+        auto_resume: document.getElementById('tl-auto-resume').checked
+    };
+    const response = await fetch('/api/timelapse/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'No se pudo guardar la configuración');
+    renderTimelapseStatus(data);
+    return data;
+}
+
 let sensorHistoryPage = 1;
 
 function sensorHistoryParams(page) {
@@ -1281,29 +1375,27 @@ async function loadSensorHistory(page = 1) {
 
 async function toggleTimelapse() {
     const btn = document.getElementById('btn-timelapse');
-    const interval = document.getElementById('tl-interval').value;
-    const tw = document.getElementById('tl-w').value;
-    const th = document.getElementById('tl-h').value;
     const statusDiv = document.getElementById('timelapse-status');
-
-    timelapseRunning = !timelapseRunning;
-
-    if (timelapseRunning) {
-        btn.textContent = "Detener Timelapse";
-        btn.style.background = "#ff4444";
+    if (btn) btn.disabled = true;
+    try {
+        let endpoint;
+        if (timelapseRunning) {
+            endpoint = '/api/timelapse/stop';
+        } else {
+            await saveTimelapseConfig();
+            endpoint = '/api/timelapse/start';
+        }
+        const response = await fetch(endpoint, { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'No se pudo cambiar el timelapse');
+        renderTimelapseStatus(data);
+    } catch (error) {
         statusDiv.classList.remove('hidden');
-        
-        await updateCameraSettings({ 
-            'timelapse': 'start', 
-            'interval': parseInt(interval),
-            't_width': parseInt(tw),
-            't_height': parseInt(th)
-        });
-    } else {
-        btn.textContent = "Iniciar Timelapse";
-        btn.style.background = "#00ff88";
-        statusDiv.classList.add('hidden');
-        await updateCameraSettings({ 'timelapse': 'stop' });
+        statusDiv.classList.add('status-error');
+        statusDiv.textContent = error.message;
+        await refreshTimelapseStatus();
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -1338,6 +1430,14 @@ function setupEventListeners() {
             case 'update-software': triggerSoftwareUpdate(); break;
             case 'reboot-system': triggerSystemReboot(); break;
             case 'toggle-timelapse': toggleTimelapse(); break;
+            case 'save-timelapse-config':
+                saveTimelapseConfig().catch(error => {
+                    const feedback = document.getElementById('timelapse-status');
+                    feedback.classList.remove('hidden');
+                    feedback.classList.add('status-error');
+                    feedback.textContent = error.message;
+                });
+                break;
             case 'load-sensor-history': loadSensorHistory(1); break;
             case 'esp32-connect': connectEsp32(); break;
             case 'esp32-disconnect': disconnectEsp32(); break;
@@ -1409,8 +1509,10 @@ async function initializeDashboard() {
     }
     await refreshEsp32Status();
     await refreshTuyaStatus();
+    await refreshTimelapseStatus({ hydrate: true });
 
     setInterval(refreshEsp32Status, 3000);
+    setInterval(refreshTimelapseStatus, 5000);
 }
 
 window.addEventListener('load', initializeDashboard);

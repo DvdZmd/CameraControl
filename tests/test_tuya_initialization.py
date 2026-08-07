@@ -31,6 +31,9 @@ def _import_app_factory_without_hardware():
         "routes.sensor_routes": SimpleNamespace(
             sensor_bp=Blueprint("test-sensors", __name__)
         ),
+        "routes.timelapse_routes": SimpleNamespace(
+            timelapse_bp=Blueprint("test-timelapse", __name__)
+        ),
         "esp32.esp32": SimpleNamespace(
             Esp32Controller=lambda: SimpleNamespace(client=None)
         ),
@@ -42,10 +45,18 @@ def _import_app_factory_without_hardware():
             configure_logging=Mock(),
             enable_database_logging=Mock(return_value=None),
         ),
+        "timelapse.service": SimpleNamespace(
+            TimelapseService=Mock(return_value=SimpleNamespace(
+                ensure_schema=Mock(),
+                ensure_default_config=Mock(),
+                resume_if_needed=Mock(return_value=False),
+            ))
+        ),
         "config": SimpleNamespace(
             AppConfig=lambda: SimpleNamespace(
                 tuya=SimpleNamespace(),
                 logging=SimpleNamespace(),
+                timelapse=SimpleNamespace(),
                 sensor_logging=SimpleNamespace(enabled=False, interval_seconds=60),
             )
         ),

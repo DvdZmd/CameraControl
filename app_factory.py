@@ -9,10 +9,12 @@ from routes.camera_routes import camera_bp
 from routes.esp32_routes import esp32_bp
 from routes.tuya_routes import tuya_bp
 from routes.sensor_routes import sensor_bp
+from routes.timelapse_routes import timelapse_bp
 from esp32.esp32 import Esp32Controller
 from tuya.tuya_controller import TuyaController
 from logs.sensor_logger import start_sensor_logger
 from logs.logging_config import configure_logging, enable_database_logging
+from timelapse.service import TimelapseService
 from config import AppConfig
 import atexit
 import logging
@@ -117,6 +119,7 @@ def create_app():
     app.register_blueprint(esp32_bp)
     app.register_blueprint(tuya_bp)
     app.register_blueprint(sensor_bp)
+    app.register_blueprint(timelapse_bp)
 
     # Secret key for session management. An ephemeral fallback keeps local
     # development usable without embedding a shared secret in source control.
@@ -144,8 +147,16 @@ def create_app():
         apply_saved_settings = getattr(camera_routes, "apply_saved_camera_settings", None)
         if callable(apply_saved_settings):
             apply_saved_settings(logger)
-        #TODO: Load saved timelapse configuration
-        #load_timelapse_config()
+        timelapse_service = TimelapseService(
+            app,
+            lambda: camera_routes.rpicamz,
+            ble_controller,
+            app_config.timelapse,
+        )
+        timelapse_service.ensure_schema()
+        timelapse_service.ensure_default_config()
+        app.config["TIMELAPSE_SERVICE"] = timelapse_service
+        timelapse_service.resume_if_needed()
 
     database_log_handler = enable_database_logging(app, app_config.logging)
     app.config["DATABASE_LOG_HANDLER"] = database_log_handler

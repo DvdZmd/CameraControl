@@ -152,7 +152,17 @@ class CameraConfig:
 
 @dataclass
 class TimelapseConfig:
-    timelapse_dir: str = os.path.abspath("./timelapse")
+    timelapse_dir: str = field(
+        default_factory=lambda: os.path.abspath(
+            os.environ.get("TIMELAPSE_DIR", "./timelapse")
+        )
+    )
+    default_interval_seconds: int = field(
+        default_factory=lambda: _env_positive_int("TIMELAPSE_INTERVAL_SECONDS", 10)
+    )
+    auto_resume: bool = field(
+        default_factory=lambda: _env_bool("TIMELAPSE_AUTO_RESUME", True)
+    )
 
 @dataclass
 class SensorLoggingConfig:

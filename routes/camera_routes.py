@@ -610,6 +610,9 @@ def start_stream():
 
     stream_enabled = True
     apply_saved_camera_settings(module_logger)
+    timelapse_service = current_app.config.get("TIMELAPSE_SERVICE")
+    if timelapse_service is not None:
+        timelapse_service.resume_if_needed()
     return jsonify({"status": "success", "stream_enabled": True})
 
 
@@ -753,7 +756,19 @@ def update_settings():
 
         if 'timelapse' in validated:
             timelapse = validated['timelapse']
-            if timelapse[0] == 'start':
+            timelapse_service = current_app.config.get("TIMELAPSE_SERVICE")
+            if timelapse_service is not None and timelapse[0] == 'start':
+                current_status = timelapse_service.status()
+                timelapse_service.configure(
+                    interval_seconds=timelapse[1],
+                    width=timelapse[2] or current_status['width'],
+                    height=timelapse[3] or current_status['height'],
+                    auto_resume=current_status['auto_resume'],
+                )
+                timelapse_service.start()
+            elif timelapse_service is not None:
+                timelapse_service.stop()
+            elif timelapse[0] == 'start':
                 rpicamz.start_timelapse(*timelapse[1:])
             else:
                 rpicamz.stop_timelapse()
