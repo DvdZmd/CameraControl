@@ -5,6 +5,7 @@
 #include <DallasTemperature.h>
 #include <DHT.h>
 #include <Preferences.h>
+#include <esp_arduino_version.h>
 
 // =====================================================
 // TIPOS Y PROTOTIPOS
@@ -35,6 +36,11 @@ bool consumeSpeedMode(int& newMode);
 void queueAbsolutePosition(int newPan, int newTilt);
 bool consumeAbsolutePosition(int& newPan, int& newTilt);
 
+void queueLightIntensity(int newIntensity);
+bool consumeLightIntensity(int& newIntensity);
+void setupLightPwm();
+void writeLightIntensity(int intensityPercent);
+
 void loadPersistentState();
 void markPersistentStateDirty();
 void savePersistentStateNow();
@@ -61,6 +67,9 @@ static constexpr uint32_t PERSIST_SAVE_DELAY_MS = 1500;
 static constexpr int SERVO_PAN_PIN = 22;
 static constexpr int SERVO_TILT_PIN = 23;
 static constexpr int LED_STRIP_PIN = 21;
+static constexpr uint32_t LIGHT_PWM_FREQUENCY_HZ = 20000;
+static constexpr uint8_t LIGHT_PWM_RESOLUTION_BITS = 8;
+static constexpr uint8_t LIGHT_PWM_CHANNEL = 4;
 
 static constexpr int DS18B20_PIN = 13;
 static constexpr int DHT22_PIN = 32;
@@ -80,7 +89,7 @@ static constexpr int SOIL_SAMPLE_DELAY_US = 200;
 int soilRaw = 0;
 int soilMillivolts = 0;
 int soilPercent = -1;
-bool lightOn = false;
+int lightIntensityPercent = 0;
 
 void setupSoilSensor() {
   pinMode(SOIL_SENSOR_PIN, INPUT);
@@ -348,6 +357,9 @@ volatile bool pendingAbsAvailable = false;
 volatile int pendingAbsPan = SERVO_CENTER_PULSE_US;
 volatile int pendingAbsTilt = SERVO_CENTER_PULSE_US;
 
+volatile bool pendingLightAvailable = false;
+volatile int pendingLightIntensity = 0;
+
 // =====================================================
 // UTILIDADES
 // =====================================================
@@ -375,6 +387,44 @@ bool parseIntegerStrict(const String& text, int& outValue) {
 
   outValue = text.toInt();
   return true;
+}
+
+void setupLightPwm() {
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcAttach(
+      LED_STRIP_PIN,
+      LIGHT_PWM_FREQUENCY_HZ,
+      LIGHT_PWM_RESOLUTION_BITS
+  );
+#else
+  ledcSetup(
+      LIGHT_PWM_CHANNEL,
+      LIGHT_PWM_FREQUENCY_HZ,
+      LIGHT_PWM_RESOLUTION_BITS
+  );
+  ledcAttachPin(LED_STRIP_PIN, LIGHT_PWM_CHANNEL);
+#endif
+
+  writeLightIntensity(0);
+}
+
+void writeLightIntensity(int intensityPercent) {
+  lightIntensityPercent = constrain(intensityPercent, 0, 100);
+  const uint32_t maxDuty =
+      (1UL << LIGHT_PWM_RESOLUTION_BITS) - 1UL;
+  const uint32_t duty = map(
+      lightIntensityPercent,
+      0,
+      100,
+      0,
+      maxDuty
+  );
+
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcWrite(LED_STRIP_PIN, duty);
+#else
+  ledcWrite(LIGHT_PWM_CHANNEL, duty);
+#endif
 }
 
 // =====================================================
@@ -522,7 +572,7 @@ void notifyState() {
       dhtHumidity,
       soilRaw,
       soilPercent,
-      lightOn ? 1 : 0
+      lightIntensityPercent
   );
 
   pTxCharacteristic->setValue(payload);
@@ -557,6 +607,15 @@ void queueAbsolutePosition(int newPan, int newTilt) {
   pendingAbsPan = newPan;
   pendingAbsTilt = newTilt;
   pendingAbsAvailable = true;
+
+  portEXIT_CRITICAL(&commandMux);
+}
+
+void queueLightIntensity(int newIntensity) {
+  portENTER_CRITICAL(&commandMux);
+
+  pendingLightIntensity = newIntensity;
+  pendingLightAvailable = true;
 
   portEXIT_CRITICAL(&commandMux);
 }
@@ -610,6 +669,22 @@ bool consumeAbsolutePosition(int& newPan, int& newTilt) {
 
     pendingAbsAvailable = false;
 
+    available = true;
+  }
+
+  portEXIT_CRITICAL(&commandMux);
+
+  return available;
+}
+
+bool consumeLightIntensity(int& newIntensity) {
+  bool available = false;
+
+  portENTER_CRITICAL(&commandMux);
+
+  if (pendingLightAvailable) {
+    newIntensity = pendingLightIntensity;
+    pendingLightAvailable = false;
     available = true;
   }
 
@@ -707,6 +782,24 @@ class RxCallbacks : public NimBLECharacteristicCallbacks {
 
     if (cmd == "LIGHT_OFF") {
       queueCommand(CommandType::LIGHT_OFF);
+      return;
+    }
+
+    if (cmd.startsWith("SET_LIGHT:")) {
+      String intensityText = cmd.substring(
+          strlen("SET_LIGHT:")
+      );
+      intensityText.trim();
+
+      int newIntensity = -1;
+      if (
+          parseIntegerStrict(intensityText, newIntensity) &&
+          newIntensity >= 0 &&
+          newIntensity <= 100
+      ) {
+        queueLightIntensity(newIntensity);
+      }
+
       return;
     }
 
@@ -863,6 +956,13 @@ void processConfigurationCommands() {
   if (consumeAbsolutePosition(newPan, newTilt)) {
     setAbsoluteServoPositions(newPan, newTilt);
   }
+
+  int newLightIntensity = -1;
+
+  if (consumeLightIntensity(newLightIntensity)) {
+    writeLightIntensity(newLightIntensity);
+    notifyState();
+  }
 }
 
 void processSingleServoCommand() {
@@ -901,14 +1001,12 @@ void processSingleServoCommand() {
       break;
 
     case CommandType::LIGHT_ON:
-      digitalWrite(LED_STRIP_PIN, HIGH);
-      lightOn = true;
+      writeLightIntensity(100);
       notifyState();
       break;
 
     case CommandType::LIGHT_OFF:
-      digitalWrite(LED_STRIP_PIN, LOW);
-      lightOn = false;
+      writeLightIntensity(0);
       notifyState();
       break;
 
@@ -927,10 +1025,8 @@ void setup() {
 
   Serial.begin(115200);
 
-  // Low-side switching: LOW mantiene el transistor y la tira apagados.
-  digitalWrite(LED_STRIP_PIN, LOW);
-  pinMode(LED_STRIP_PIN, OUTPUT);
-  lightOn = false;
+  // Low-side switching: duty 0 mantiene el transistor y la tira apagados.
+  setupLightPwm();
 
   loadPersistentState();
   applySpeedMode();

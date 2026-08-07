@@ -39,6 +39,7 @@ SIMPLE_COMMANDS = {
 }
 SET_SPEED_PATTERN = re.compile(r"SET_SPEED:([0-4])")
 SET_ABS_PATTERN = re.compile(r"SET_ABS:(\d+),(\d+)")
+SET_LIGHT_PATTERN = re.compile(r"SET_LIGHT:(\d{1,3})")
 SERVO_PULSE_MIN_US = 500
 SERVO_PULSE_MAX_US = 2400
 SERVO_ANGLE_MIN_DEG = 0
@@ -86,6 +87,13 @@ def _validate_command(raw_command):
 
     if SET_SPEED_PATTERN.fullmatch(command):
         return command, None
+
+    light_match = SET_LIGHT_PATTERN.fullmatch(command)
+    if light_match:
+        intensity = int(light_match.group(1))
+        if 0 <= intensity <= 100:
+            return command, None
+        return None, "la intensidad de luz debe estar entre 0 y 100"
 
     absolute_match = SET_ABS_PATTERN.fullmatch(command)
     if absolute_match:
@@ -321,23 +329,44 @@ def esp32_center():
 
 @esp32_bp.route("/light", methods=["POST"])
 def esp32_light():
-    """Set the GPIO21 LED strip output through the ESP32 BLE connection."""
+    """Set GPIO21 LED-strip intensity through ESP32 PWM."""
     data, error_response = _json_object()
     if error_response:
         return error_response
 
-    light_on = data.get("on")
-    if not isinstance(light_on, bool):
-        return jsonify({"ok": False, "error": "on debe ser booleano"}), 400
+    has_intensity = "intensity" in data
+    has_on = "on" in data
+    if has_intensity == has_on:
+        return jsonify({
+            "ok": False,
+            "error": "Debe enviarse intensity o on, pero no ambos",
+        }), 400
+
+    if has_intensity:
+        intensity = data.get("intensity")
+        if isinstance(intensity, bool) or not isinstance(intensity, int):
+            return jsonify({"ok": False, "error": "intensity debe ser un entero"}), 400
+        if intensity < 0 or intensity > 100:
+            return jsonify({
+                "ok": False,
+                "error": "intensity debe estar entre 0 y 100",
+            }), 400
+        command = f"SET_LIGHT:{intensity}"
+    else:
+        light_on = data.get("on")
+        if not isinstance(light_on, bool):
+            return jsonify({"ok": False, "error": "on debe ser booleano"}), 400
+        intensity = 100 if light_on else 0
+        command = "LIGHT_ON" if light_on else "LIGHT_OFF"
 
     controller = get_ble_controller()
-    command = "LIGHT_ON" if light_on else "LIGHT_OFF"
     try:
         result = controller.send_command_sync(command)
-        result["light_on"] = light_on
+        result["light_on"] = intensity > 0
+        result["intensity"] = intensity
         last_state = getattr(controller, "last_state", None)
         if isinstance(last_state, dict):
-            last_state["L"] = "1" if light_on else "0"
+            last_state["L"] = str(intensity)
         return jsonify(result), 200
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 500

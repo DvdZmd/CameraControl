@@ -12,15 +12,38 @@ body {
     color: var(--text);
     height: 100vh;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.global-light-bar {
+    flex: 0 0 auto;
+    min-height: 58px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 18px;
+    padding: 9px 16px;
+    border-bottom: 1px solid #383838;
+    background: #181818;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
+    z-index: 10;
+}
+
+.light-control-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-right: auto;
+    color: #d8d8d8;
+    font-weight: 700;
 }
 
 .light-toggle-btn {
-    position: fixed;
-    top: 14px;
-    right: 14px;
-    z-index: 1000;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     min-width: 132px;
     padding: 10px 14px;
@@ -41,9 +64,29 @@ body {
 
 .light-icon { font-size: 1.1rem; }
 
+.light-intensity-control {
+    width: min(240px, 32vw);
+    min-width: 150px;
+}
+
+.light-intensity-control label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    color: #f3f3f3;
+    font-size: 0.78rem;
+}
+
+.light-intensity-control input {
+    width: 100%;
+    accent-color: #ffd54f;
+}
+
 .dashboard {
     display: flex;
-    height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
 }
 
 /* Panel del Stream */
@@ -53,6 +96,7 @@ body {
     flex-direction: column;
     background-color: #000;
     padding: 10px;
+    min-width: 0;
 }
 
 .video-wrapper {
@@ -123,6 +167,7 @@ body {
     padding: 20px;
     overflow-y: auto;
     border-left: 1px solid #333;
+    min-width: 0;
 }
 
 .panel-header {
@@ -131,7 +176,7 @@ body {
     align-items: center;
     gap: 12px;
     margin-bottom: 20px;
-    padding-top: 38px;
+    flex-wrap: wrap;
 }
 
 .panel-header h1 {
@@ -142,6 +187,29 @@ body {
 .tab-switcher {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 680px) {
+    .global-light-bar {
+        gap: 10px;
+        padding: 8px 10px;
+    }
+
+    .light-control-title span:last-child {
+        display: none;
+    }
+
+    .light-intensity-control {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 100px;
+    }
+
+    .light-toggle-btn {
+        min-width: 108px;
+        padding-inline: 10px;
+    }
 }
 
 .tab-btn {

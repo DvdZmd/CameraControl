@@ -1,5 +1,7 @@
 const CAMERA_API_BASE = '/api/camera';
 let esp32LightOn = false;
+let esp32LightIntensity = 0;
+let lastNonZeroLightIntensity = 100;
 
 function cameraApiUrl(path) {
     return `${CAMERA_API_BASE}${path}`;
@@ -85,29 +87,58 @@ function normalizeSpeedMode(value) {
     return Number.isInteger(mode) && mode >= 0 && mode <= 4 ? String(mode) : null;
 }
 
-function renderEsp32Light(isOn) {
-    esp32LightOn = isOn;
+function renderEsp32Light(intensity) {
+    const normalizedIntensity = Math.max(0, Math.min(100, Number(intensity) || 0));
+    esp32LightIntensity = normalizedIntensity;
+    esp32LightOn = normalizedIntensity > 0;
+    if (esp32LightOn) lastNonZeroLightIntensity = normalizedIntensity;
     const button = document.getElementById('light-toggle-btn');
     const label = document.getElementById('light-toggle-label');
+    const slider = document.getElementById('light-intensity-slider');
+    const valueLabel = document.getElementById('light-intensity-value');
     if (!button || !label) return;
-    button.classList.toggle('active', isOn);
-    button.setAttribute('aria-pressed', String(isOn));
-    label.textContent = isOn ? 'Apagar luz' : 'Prender luz';
+    button.classList.toggle('active', esp32LightOn);
+    button.setAttribute('aria-pressed', String(esp32LightOn));
+    label.textContent = esp32LightOn ? 'Apagar luz' : 'Prender luz';
+    if (slider && document.activeElement !== slider) slider.value = String(normalizedIntensity);
+    if (valueLabel) valueLabel.textContent = `${normalizedIntensity}%`;
+}
+
+async function setEsp32LightIntensity(intensity) {
+    const normalizedIntensity = Math.max(0, Math.min(100, parseInt(intensity, 10) || 0));
+    const slider = document.getElementById('light-intensity-slider');
+    if (slider) slider.disabled = true;
+    try {
+        const response = await fetch('/api/esp32/light', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ intensity: normalizedIntensity })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'No se pudo cambiar la intensidad');
+        renderEsp32Light(data.intensity);
+        showEsp32Feedback(`Intensidad de luz: ${data.intensity}%`);
+    } catch (error) {
+        showEsp32Feedback(error.message || 'No se pudo cambiar la intensidad', true);
+        await refreshEsp32Status();
+    } finally {
+        if (slider) slider.disabled = false;
+    }
 }
 
 async function toggleEsp32Light() {
     const button = document.getElementById('light-toggle-btn');
-    const requestedState = !esp32LightOn;
+    const requestedIntensity = esp32LightOn ? 0 : lastNonZeroLightIntensity;
     if (button) button.disabled = true;
     try {
         const response = await fetch('/api/esp32/light', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ on: requestedState })
+            body: JSON.stringify({ intensity: requestedIntensity })
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'No se pudo cambiar la luz');
-        renderEsp32Light(data.light_on === true);
+        renderEsp32Light(data.intensity);
         showEsp32Feedback(data.light_on ? 'Luz prendida' : 'Luz apagada');
     } catch (error) {
         showEsp32Feedback(error.message || 'No se pudo cambiar la luz', true);
@@ -140,8 +171,9 @@ async function refreshEsp32Status() {
         // Actualizar estado y sensores
         const lastState = data.last_state || {};
         const lightState = stateValue(lastState, 'L');
-        if (lightState === '0' || lightState === '1' || lightState === 0 || lightState === 1) {
-            renderEsp32Light(String(lightState) === '1');
+        const lightIntensity = Number(lightState);
+        if (Number.isInteger(lightIntensity) && lightIntensity >= 0 && lightIntensity <= 100) {
+            renderEsp32Light(lightIntensity);
         }
         if (lastStateEl) {
             // La clave para velocidad es 'S'
@@ -1501,10 +1533,19 @@ function setupEventListeners() {
             applyPreset(e.target.value);
         } else if (action === 'esp32-set-speed') {
             setEsp32Speed(e.target.value);
+        } else if (action === 'set-light-intensity') {
+            setEsp32LightIntensity(e.target.value);
         } else if (control) {
             const valueType = e.target.dataset.type || (e.target.step ? 'float' : 'string');
             const value = parseValue(e.target.value, valueType);
             updateCameraSettings({ [control]: value });
+        }
+    });
+
+    document.body.addEventListener('input', (e) => {
+        if (e.target.dataset.action === 'set-light-intensity') {
+            const valueLabel = document.getElementById('light-intensity-value');
+            if (valueLabel) valueLabel.textContent = `${e.target.value}%`;
         }
     });
 

@@ -317,8 +317,9 @@ class ApiValidationTests(unittest.TestCase):
         response = self.client.post("/api/esp32/light", json={"on": True})
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.get_json()["light_on"])
+        self.assertEqual(response.get_json()["intensity"], 100)
         self.assertEqual(self.ble.commands, ["LIGHT_ON"])
-        self.assertEqual(self.ble.last_state["L"], "1")
+        self.assertEqual(self.ble.last_state["L"], "100")
 
     def test_esp32_light_turns_off(self):
         response = self.client.post("/api/esp32/light", json={"on": False})
@@ -329,6 +330,31 @@ class ApiValidationTests(unittest.TestCase):
     def test_esp32_light_rejects_non_boolean_state(self):
         response = self.client.post("/api/esp32/light", json={"on": 1})
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.ble.commands, [])
+
+    def test_esp32_sets_light_pwm_intensity(self):
+        response = self.client.post("/api/esp32/light", json={"intensity": 37})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["intensity"], 37)
+        self.assertTrue(response.get_json()["light_on"])
+        self.assertEqual(self.ble.commands, ["SET_LIGHT:37"])
+        self.assertEqual(self.ble.last_state["L"], "37")
+
+    def test_esp32_accepts_valid_manual_light_pwm_command(self):
+        response = self.client.post(
+            "/api/esp32/command",
+            json={"command": "SET_LIGHT:75"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.ble.commands, ["SET_LIGHT:75"])
+
+    def test_esp32_rejects_invalid_light_pwm_intensity(self):
+        for intensity in (-1, 101, True, 12.5):
+            response = self.client.post(
+                "/api/esp32/light",
+                json={"intensity": intensity},
+            )
+            self.assertEqual(response.status_code, 400)
         self.assertEqual(self.ble.commands, [])
 
     def test_esp32_rejects_boolean_speed(self):

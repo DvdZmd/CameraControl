@@ -179,6 +179,7 @@ La interfaz queda disponible en `http://<ip-de-la-pi>:5000`.
 - `POST /move`
 - `POST /center`
 - `POST /speed`
+- `POST /light` con `intensity` entre 0 y 100 para PWM en GPIO21.
 
 ### Sensores — `/api/sensors`
 

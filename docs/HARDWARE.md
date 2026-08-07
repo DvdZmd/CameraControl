@@ -118,7 +118,12 @@ Funciones:
 - Telemetría.
 - Persistencia.
 - Conmutación low-side de una tira LED de 5 V mediante GPIO21 y transistor
-  NPN S8050 (salida HIGH = encendida, LOW = apagada).
+  NPN S8050. El firmware usa PWM a 20 kHz y resolución de 8 bits; `0%` mantiene
+  el transistor apagado y `100%` aplica duty máximo.
+
+La tira debe alimentarse desde su fuente de 5 V, compartir GND con el ESP32 y
+respetar la corriente admisible del transistor y del cableado. GPIO21 controla
+la base del driver; no alimenta directamente la tira.
 
 El modelo exacto y la placa seleccionada afectan:
 
