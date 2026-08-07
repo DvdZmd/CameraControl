@@ -246,6 +246,16 @@
                         <input type="checkbox" id="tl-auto-resume" checked>
                         Reanudar automáticamente después de reiniciar
                     </label>
+                    <label class="timelapse-checkbox">
+                        <input type="checkbox" id="tl-light-enabled">
+                        Prender la luz para cada foto
+                    </label>
+                    <div class="slider-item">
+                        <label for="tl-light-intensity">
+                            Intensidad de cada foto <span id="tl-light-intensity-value">100%</span>
+                        </label>
+                        <input id="tl-light-intensity" type="range" min="1" max="100" value="100">
+                    </div>
                     <button class="btn-primary" data-action="save-timelapse-config" type="button">
                         Guardar configuración
                     </button>

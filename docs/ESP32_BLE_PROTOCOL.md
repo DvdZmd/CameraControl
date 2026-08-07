@@ -130,6 +130,15 @@ La telemetría vigente incluye `L:<0..100>` con la intensidad PWM porcentual de
 la tira. `LIGHT_ON` equivale a `SET_LIGHT:100` y `LIGHT_OFF` a
 `SET_LIGHT:0`. El firmware inicia GPIO21 con duty cero y no persiste el estado
 de la luz, por lo que cada reinicio deja la tira apagada de forma segura.
+CameraControl persiste en SQLite el estado manual deseado y la última
+intensidad seleccionada. Al conectar nuevamente por `/api/esp32/connect`, el
+backend reaplica ese estado mediante BLE; no se escribe esta preferencia en la
+flash del ESP32.
+
+GPIO21 se fuerza a LOW antes de inicializar PWM y antes de la espera de arranque
+del firmware. Para cubrir también el intervalo anterior a `setup()` (reset y
+bootloader), el driver NPN requiere un pull-down físico en la base; la conexión
+BLE no forma parte del mecanismo de apagado seguro.
 
 Documentar el formato real cuando se confirme.
 
@@ -192,6 +201,8 @@ Endpoints específicos del dashboard:
 - `POST /api/esp32/light`: acepta `intensity` entero entre 0 y 100. Por
   compatibilidad también acepta `on` booleano y envía `LIGHT_ON` o
   `LIGHT_OFF`. Controla por PWM la tira LED conectada a GPIO21.
+  Un comando exitoso persiste el estado y la intensidad para restaurarlos tras
+  reinicios de la aplicación, Raspberry Pi o ESP32.
 - `POST /api/esp32/speed`: acepta `mode` entre 0 y 4, envía `SET_SPEED` y
   persiste el perfil seleccionado para rehidratar el dashboard.
 - `POST /api/esp32/position/current`: guarda en SQLite la posición `P`/`T`

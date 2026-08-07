@@ -287,6 +287,14 @@ los pulsos `P` y `T`. El directorio se organiza como
 La configuración se expone mediante `/api/timelapse`, se migra desde el antiguo
 campo `interval_minutes` y utiliza segundos como unidad canónica.
 
+Cada configuración también persiste su propia política de iluminación:
+`light_enabled` y `light_intensity` (1..100). El worker de `rpicam-z` llama a
+`on_before_capture` inmediatamente antes de tomar cada foto; CameraControl
+aplica allí la intensidad configurada. Los callbacks de captura, error y fin
+restauran el estado manual persistido, por lo que el timelapse no modifica la
+preferencia global. La versión instalada de `rpicam-z` debe soportar los
+callbacks `on_before_capture`, `on_capture`, `on_error` y `on_complete`.
+
 ## Errores
 
 La cámara ausente debería generar una respuesta clara, por ejemplo HTTP 503.

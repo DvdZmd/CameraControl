@@ -74,6 +74,8 @@ class TimelapseConfig(db.Model):
     last_capture_path = db.Column(db.String(4096), nullable=True)
     capture_count = db.Column(db.Integer, nullable=False, default=0)
     last_error = db.Column(db.Text, nullable=True)
+    light_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    light_intensity = db.Column(db.Integer, nullable=False, default=100)
 
 
 class SensorReading(db.Model):
@@ -110,6 +112,8 @@ class Esp32Settings(db.Model):
     custom_pan_pulse = db.Column(db.Integer, nullable=True)
     custom_tilt_pulse = db.Column(db.Integer, nullable=True)
     speed_mode = db.Column(db.Integer, nullable=True)
+    light_on = db.Column(db.Boolean, nullable=False, default=False)
+    light_intensity = db.Column(db.Integer, nullable=False, default=100)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

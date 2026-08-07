@@ -35,7 +35,10 @@ def update_timelapse_config():
     if not isinstance(data, dict):
         return jsonify({"error": "Se requiere un objeto JSON"}), 400
     try:
-        allowed = {"interval_seconds", "width", "height", "auto_resume"}
+        allowed = {
+            "interval_seconds", "width", "height", "auto_resume",
+            "light_enabled", "light_intensity",
+        }
         unknown = sorted(set(data) - allowed)
         if unknown:
             raise ValueError(f"Campos no soportados: {', '.join(unknown)}")
@@ -45,11 +48,27 @@ def update_timelapse_config():
         auto_resume = data.get("auto_resume")
         if not isinstance(auto_resume, bool):
             raise ValueError("auto_resume debe ser booleano")
+        light_enabled = data.get("light_enabled", False)
+        if not isinstance(light_enabled, bool):
+            raise ValueError("light_enabled debe ser booleano")
+        light_intensity = data.get("light_intensity", 100)
+        if isinstance(light_intensity, bool):
+            raise ValueError("light_intensity debe ser un entero")
+        try:
+            light_intensity = int(light_intensity)
+        except (TypeError, ValueError) as error:
+            raise ValueError("light_intensity debe ser un entero") from error
+        if light_intensity < 1:
+            raise ValueError("light_intensity debe estar entre 1 y 100")
+        if light_intensity > 100:
+            raise ValueError("light_intensity debe estar entre 1 y 100")
         status = get_timelapse_service().configure(
             interval_seconds=interval,
             width=width,
             height=height,
             auto_resume=auto_resume,
+            light_enabled=light_enabled,
+            light_intensity=light_intensity,
         )
         return jsonify(status)
     except ValueError as error:

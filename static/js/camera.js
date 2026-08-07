@@ -171,7 +171,11 @@ async function refreshEsp32Status() {
         // Actualizar estado y sensores
         const lastState = data.last_state || {};
         const lightState = stateValue(lastState, 'L');
-        const lightIntensity = Number(lightState);
+        const savedLight = data.saved_light || {};
+        const displayedLight = lightState !== null
+            ? lightState
+            : (savedLight.light_on ? savedLight.intensity : 0);
+        const lightIntensity = Number(displayedLight);
         if (Number.isInteger(lightIntensity) && lightIntensity >= 0 && lightIntensity <= 100) {
             renderEsp32Light(lightIntensity);
         }
@@ -1270,7 +1274,8 @@ function timelapseIntervalSeconds() {
 }
 
 function setTimelapseControlsDisabled(disabled) {
-    ['tl-interval', 'tl-interval-unit', 'tl-w', 'tl-h', 'tl-auto-resume'].forEach(id => {
+    ['tl-interval', 'tl-interval-unit', 'tl-w', 'tl-h', 'tl-auto-resume',
+        'tl-light-enabled', 'tl-light-intensity'].forEach(id => {
         const element = document.getElementById(id);
         if (element) element.disabled = disabled;
     });
@@ -1318,6 +1323,9 @@ function hydrateTimelapseConfig(data) {
     document.getElementById('tl-w').value = data.width;
     document.getElementById('tl-h').value = data.height;
     document.getElementById('tl-auto-resume').checked = Boolean(data.auto_resume);
+    document.getElementById('tl-light-enabled').checked = Boolean(data.light_enabled);
+    document.getElementById('tl-light-intensity').value = data.light_intensity || 100;
+    document.getElementById('tl-light-intensity-value').textContent = `${data.light_intensity || 100}%`;
 }
 
 async function refreshTimelapseStatus({ hydrate = false } = {}) {
@@ -1344,7 +1352,9 @@ async function saveTimelapseConfig() {
         interval_seconds: timelapseIntervalSeconds(),
         width: parseInt(document.getElementById('tl-w').value, 10),
         height: parseInt(document.getElementById('tl-h').value, 10),
-        auto_resume: document.getElementById('tl-auto-resume').checked
+        auto_resume: document.getElementById('tl-auto-resume').checked,
+        light_enabled: document.getElementById('tl-light-enabled').checked,
+        light_intensity: parseInt(document.getElementById('tl-light-intensity').value, 10)
     };
     const response = await fetch('/api/timelapse/config', {
         method: 'PUT',
@@ -1546,6 +1556,9 @@ function setupEventListeners() {
         if (e.target.dataset.action === 'set-light-intensity') {
             const valueLabel = document.getElementById('light-intensity-value');
             if (valueLabel) valueLabel.textContent = `${e.target.value}%`;
+        }
+        if (e.target.id === 'tl-light-intensity') {
+            document.getElementById('tl-light-intensity-value').textContent = `${e.target.value}%`;
         }
     });
 

@@ -764,6 +764,8 @@ def update_settings():
                     width=timelapse[2] or current_status['width'],
                     height=timelapse[3] or current_status['height'],
                     auto_resume=current_status['auto_resume'],
+                    light_enabled=current_status['light_enabled'],
+                    light_intensity=current_status['light_intensity'],
                 )
                 timelapse_service.start()
             elif timelapse_service is not None:

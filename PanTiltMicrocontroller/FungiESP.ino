@@ -390,6 +390,11 @@ bool parseIntegerStrict(const String& text, int& outValue) {
 }
 
 void setupLightPwm() {
+  // Fija un estado seguro antes de conectar el periférico LEDC. Esto evita que
+  // la base del transistor quede flotante durante la inicialización Arduino.
+  pinMode(LED_STRIP_PIN, OUTPUT);
+  digitalWrite(LED_STRIP_PIN, LOW);
+
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   ledcAttach(
       LED_STRIP_PIN,
@@ -1021,12 +1026,17 @@ void processSingleServoCommand() {
 // =====================================================
 
 void setup() {
-  delay(500);
+  // Debe ser la primera acción de la aplicación. GPIO21 controla un transistor
+  // low-side: LOW mantiene apagada la tira mientras inicializa el resto.
+  pinMode(LED_STRIP_PIN, OUTPUT);
+  digitalWrite(LED_STRIP_PIN, LOW);
 
   Serial.begin(115200);
 
   // Low-side switching: duty 0 mantiene el transistor y la tira apagados.
   setupLightPwm();
+
+  delay(500);
 
   loadPersistentState();
   applySpeedMode();

@@ -59,7 +59,8 @@ class TimelapseRoutesTests(unittest.TestCase):
         self.ble = SimpleNamespace(last_state={
             "DT": "22.5", "DH": "81", "DS": "19.2", "SP": "64",
             "P": "1450", "T": "1520",
-        })
+        }, commands=[])
+        self.ble.send_command_sync = lambda command: self.ble.commands.append(command) or {"ok": True}
         defaults = SimpleNamespace(
             default_interval_seconds=10,
             auto_resume=True,
@@ -88,6 +89,8 @@ class TimelapseRoutesTests(unittest.TestCase):
             "width": 1920,
             "height": 1080,
             "auto_resume": True,
+            "light_enabled": True,
+            "light_intensity": 42,
         })
         self.assertEqual(response.status_code, 200)
 
@@ -97,6 +100,9 @@ class TimelapseRoutesTests(unittest.TestCase):
         self.assertEqual(self.camera.start_calls, [(30, 1920, 1080)])
         self.assertTrue(self.camera.timelapse_organize_by_date)
 
+        self.camera.callbacks["on_before_capture"]({"capture_count": 1})
+        self.assertEqual(self.ble.commands, ["SET_LIGHT:42"])
+
         self.camera.callbacks["on_capture"]({
             "captured_at": "2026-08-06T21:00:00",
             "path": "/captures/shot.jpg",
@@ -104,6 +110,7 @@ class TimelapseRoutesTests(unittest.TestCase):
             "width": 1920,
             "height": 1080,
         })
+        self.assertEqual(self.ble.commands[-1], "SET_LIGHT:0")
         with self.app.app_context():
             config = db.session.get(TimelapseConfig, 1)
             reading = SensorReading.query.one()

@@ -146,6 +146,36 @@ def _saved_speed_mode(settings=None):
     return settings.speed_mode
 
 
+def _saved_light_payload(settings=None):
+    settings = settings or _saved_esp32_settings()
+    if settings is None:
+        return {"light_on": False, "intensity": 100}
+    return {
+        "light_on": bool(settings.light_on),
+        "intensity": settings.light_intensity if settings.light_intensity is not None else 100,
+    }
+
+
+def _persist_light_settings(*, light_on, intensity):
+    settings = db.session.get(Esp32Settings, DEFAULT_SETTINGS_ID)
+    if settings is None:
+        settings = Esp32Settings(id=DEFAULT_SETTINGS_ID)
+        db.session.add(settings)
+    settings.light_on = light_on
+    settings.light_intensity = intensity
+    db.session.commit()
+
+
+def _apply_saved_light(controller):
+    saved = _saved_light_payload()
+    applied_intensity = saved["intensity"] if saved["light_on"] else 0
+    controller.send_command_sync(f"SET_LIGHT:{applied_intensity}")
+    last_state = getattr(controller, "last_state", None)
+    if isinstance(last_state, dict):
+        last_state["L"] = str(applied_intensity)
+    return saved
+
+
 def ensure_esp32_settings_schema(logger=None):
     if not _database_ready():
         return
@@ -158,6 +188,14 @@ def ensure_esp32_settings_schema(logger=None):
             }
             if "speed_mode" not in columns:
                 connection.exec_driver_sql("ALTER TABLE esp32_settings ADD COLUMN speed_mode INTEGER")
+            if "light_on" not in columns:
+                connection.exec_driver_sql(
+                    "ALTER TABLE esp32_settings ADD COLUMN light_on BOOLEAN NOT NULL DEFAULT 0"
+                )
+            if "light_intensity" not in columns:
+                connection.exec_driver_sql(
+                    "ALTER TABLE esp32_settings ADD COLUMN light_intensity INTEGER NOT NULL DEFAULT 100"
+                )
     except Exception:
         active_logger = logger or module_logger
         active_logger.exception("No se pudo actualizar el esquema de configuración ESP32")
@@ -221,6 +259,7 @@ def esp32_status():
     status["saved_position"] = _saved_position_payload(settings)
     status["saved_position_details"] = _saved_position_details_payload(settings)
     status["saved_speed_mode"] = _saved_speed_mode(settings)
+    status["saved_light"] = _saved_light_payload(settings)
     status["current_position"] = _current_position_payload_from_status(status)
     return jsonify(status), 200
 
@@ -243,6 +282,8 @@ def esp32_connect():
     controller = get_ble_controller()
     try:
         result = controller.connect_sync()
+        saved_light = _apply_saved_light(controller)
+        result["saved_light"] = saved_light
         return jsonify(result), 200
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 500
@@ -351,13 +392,22 @@ def esp32_light():
                 "ok": False,
                 "error": "intensity debe estar entre 0 y 100",
             }), 400
+        light_on = intensity > 0
+        saved_intensity = intensity if light_on else _saved_light_payload()["intensity"]
         command = f"SET_LIGHT:{intensity}"
     else:
         light_on = data.get("on")
         if not isinstance(light_on, bool):
             return jsonify({"ok": False, "error": "on debe ser booleano"}), 400
-        intensity = 100 if light_on else 0
-        command = "LIGHT_ON" if light_on else "LIGHT_OFF"
+        saved = _saved_light_payload()
+        saved_intensity = saved["intensity"]
+        intensity = saved_intensity if light_on else 0
+        if not light_on:
+            command = "LIGHT_OFF"
+        elif intensity == 100:
+            command = "LIGHT_ON"
+        else:
+            command = f"SET_LIGHT:{intensity}"
 
     controller = get_ble_controller()
     try:
@@ -367,8 +417,15 @@ def esp32_light():
         last_state = getattr(controller, "last_state", None)
         if isinstance(last_state, dict):
             last_state["L"] = str(intensity)
+        if _database_ready():
+            _persist_light_settings(light_on=light_on, intensity=saved_intensity)
+        result["saved_intensity"] = saved_intensity
         return jsonify(result), 200
     except Exception as ex:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         return jsonify({"ok": False, "error": str(ex)}), 500
 
 

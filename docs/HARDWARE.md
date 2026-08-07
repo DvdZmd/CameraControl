@@ -125,6 +125,14 @@ La tira debe alimentarse desde su fuente de 5 V, compartir GND con el ESP32 y
 respetar la corriente admisible del transistor y del cableado. GPIO21 controla
 la base del driver; no alimenta directamente la tira.
 
+La base del S8050 debe tener un resistor pull-down hacia GND (típicamente entre
+10 kΩ y 47 kΩ), además del resistor limitador en serie desde GPIO21. El
+pull-down mantiene el transistor apagado mientras GPIO21 está en alta
+impedancia durante encendido, reset y bootloader. El firmware fuerza GPIO21 a
+LOW como primera acción de `setup()`, pero no puede garantizar el nivel antes
+de que comience a ejecutarse; por eso el pull-down físico es necesario para un
+arranque siempre apagado.
+
 El modelo exacto y la placa seleccionada afectan:
 
 - Pines.

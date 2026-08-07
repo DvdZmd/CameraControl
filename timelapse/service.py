@@ -2,12 +2,13 @@ import logging
 import math
 from datetime import UTC, datetime
 
-from database.models import SensorReading, TimelapseConfig, db
+from database.models import Esp32Settings, SensorReading, TimelapseConfig, db
 from logs.sensor_logger import reading_from_ble_state
 
 
 logger = logging.getLogger(__name__)
 CONFIG_ID = 1
+ESP32_SETTINGS_ID = 1
 
 
 def _utc_now():
@@ -55,6 +56,8 @@ class TimelapseService:
                 "last_capture_path": "ALTER TABLE timelapse_config ADD COLUMN last_capture_path VARCHAR(4096)",
                 "capture_count": "ALTER TABLE timelapse_config ADD COLUMN capture_count INTEGER NOT NULL DEFAULT 0",
                 "last_error": "ALTER TABLE timelapse_config ADD COLUMN last_error TEXT",
+                "light_enabled": "ALTER TABLE timelapse_config ADD COLUMN light_enabled BOOLEAN NOT NULL DEFAULT 0",
+                "light_intensity": "ALTER TABLE timelapse_config ADD COLUMN light_intensity INTEGER NOT NULL DEFAULT 100",
             }
             added_interval_seconds = "interval_seconds" not in columns
             for column, statement in migrations.items():
@@ -87,7 +90,10 @@ class TimelapseService:
             db.session.commit()
         return config
 
-    def configure(self, *, interval_seconds, width, height, auto_resume):
+    def configure(
+        self, *, interval_seconds, width, height, auto_resume,
+        light_enabled=False, light_intensity=100,
+    ):
         config = self.ensure_default_config()
         if self._runtime_status().get("running"):
             raise RuntimeError("No se puede cambiar la configuración con el timelapse activo")
@@ -96,14 +102,18 @@ class TimelapseService:
         config.width = width
         config.height = height
         config.auto_resume = auto_resume
+        config.light_enabled = light_enabled
+        config.light_intensity = light_intensity
         config.updated_at = _utc_now()
         db.session.commit()
         logger.info(
-            "Configuración de timelapse guardada: intervalo=%ss resolución=%sx%s auto_resume=%s",
+            "Configuración de timelapse guardada: intervalo=%ss resolución=%sx%s auto_resume=%s luz=%s intensidad=%s%%",
             interval_seconds,
             width,
             height,
             auto_resume,
+            light_enabled,
+            light_intensity,
         )
         return self.status()
 
@@ -139,6 +149,7 @@ class TimelapseService:
                 on_capture=self._on_capture,
                 on_error=self._on_error,
                 on_complete=self._on_complete,
+                on_before_capture=self._on_before_capture,
             )
         except Exception as error:
             config.last_error = str(error)
@@ -208,6 +219,8 @@ class TimelapseService:
             "interval_seconds": config.interval_seconds,
             "width": config.width,
             "height": config.height,
+            "light_enabled": bool(config.light_enabled),
+            "light_intensity": config.light_intensity,
             "save_path": config.save_path,
             "capture_count": config.capture_count,
             "started_at": config.started_at.isoformat() if config.started_at else None,
@@ -231,6 +244,7 @@ class TimelapseService:
 
     def _on_capture(self, metadata):
         with self.app.app_context():
+            self._restore_manual_light()
             config = self.ensure_default_config()
             config.capture_count = (config.capture_count or 0) + 1
             config.last_capture_at = _parse_datetime(metadata.get("captured_at")) or _utc_now()
@@ -250,6 +264,7 @@ class TimelapseService:
 
     def _on_error(self, metadata):
         with self.app.app_context():
+            self._restore_manual_light()
             config = self.ensure_default_config()
             config.last_error = metadata.get("error", "Error de captura no especificado")
             config.updated_at = _utc_now()
@@ -257,4 +272,38 @@ class TimelapseService:
             logger.error("Error de captura de timelapse: %s", config.last_error)
 
     def _on_complete(self, metadata):
+        with self.app.app_context():
+            self._restore_manual_light()
         logger.info("Thread de timelapse finalizado: %s", metadata.get("reason", "unknown"))
+
+    def _set_light(self, intensity):
+        self.ble_controller.send_command_sync(f"SET_LIGHT:{intensity}")
+        state = getattr(self.ble_controller, "last_state", None)
+        if isinstance(state, dict):
+            state["L"] = str(intensity)
+
+    def _on_before_capture(self, metadata):
+        """Apply this timelapse's light policy in the capture worker."""
+        with self.app.app_context():
+            config = self.ensure_default_config()
+            intensity = config.light_intensity if config.light_enabled else 0
+            try:
+                self._set_light(intensity)
+                logger.debug("Luz de timelapse aplicada antes de captura: %s%%", intensity)
+            except Exception as error:
+                # El ESP32 es hardware opcional: su ausencia no debe cancelar
+                # una captura que la cámara todavía puede realizar.
+                logger.warning(
+                    "No se pudo aplicar la luz de timelapse antes de la captura: %s",
+                    error,
+                )
+
+    def _restore_manual_light(self):
+        settings = db.session.get(Esp32Settings, ESP32_SETTINGS_ID)
+        intensity = 0
+        if settings is not None and settings.light_on:
+            intensity = settings.light_intensity if settings.light_intensity is not None else 100
+        try:
+            self._set_light(intensity)
+        except Exception as error:
+            logger.warning("No se pudo restaurar la luz manual después de la captura: %s", error)
