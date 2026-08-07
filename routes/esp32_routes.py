@@ -34,6 +34,8 @@ SIMPLE_COMMANDS = {
     "TILT_DOWN",
     "CENTER",
     "STOP",
+    "LIGHT_ON",
+    "LIGHT_OFF",
 }
 SET_SPEED_PATTERN = re.compile(r"SET_SPEED:([0-4])")
 SET_ABS_PATTERN = re.compile(r"SET_ABS:(\d+),(\d+)")
@@ -312,6 +314,30 @@ def esp32_center():
     controller = get_ble_controller()
     try:
         result = controller.center_sync()
+        return jsonify(result), 200
+    except Exception as ex:
+        return jsonify({"ok": False, "error": str(ex)}), 500
+
+
+@esp32_bp.route("/light", methods=["POST"])
+def esp32_light():
+    """Set the GPIO21 LED strip output through the ESP32 BLE connection."""
+    data, error_response = _json_object()
+    if error_response:
+        return error_response
+
+    light_on = data.get("on")
+    if not isinstance(light_on, bool):
+        return jsonify({"ok": False, "error": "on debe ser booleano"}), 400
+
+    controller = get_ble_controller()
+    command = "LIGHT_ON" if light_on else "LIGHT_OFF"
+    try:
+        result = controller.send_command_sync(command)
+        result["light_on"] = light_on
+        last_state = getattr(controller, "last_state", None)
+        if isinstance(last_state, dict):
+            last_state["L"] = "1" if light_on else "0"
         return jsonify(result), 200
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 500

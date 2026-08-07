@@ -7,6 +7,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <button id="light-toggle-btn" class="light-toggle-btn" data-action="toggle-esp32-light"
+            type="button" aria-pressed="false" title="Controlar tira LED mediante ESP32">
+        <span class="light-icon" aria-hidden="true">💡</span>
+        <span id="light-toggle-label">Prender luz</span>
+    </button>
     <div class="dashboard">
         <div class="stream-panel">
             <div class="status-bar">

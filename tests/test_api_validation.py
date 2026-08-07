@@ -313,6 +313,24 @@ class ApiValidationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.ble.commands, ["SET_ABS:1450,1500"])
 
+    def test_esp32_light_turns_on(self):
+        response = self.client.post("/api/esp32/light", json={"on": True})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["light_on"])
+        self.assertEqual(self.ble.commands, ["LIGHT_ON"])
+        self.assertEqual(self.ble.last_state["L"], "1")
+
+    def test_esp32_light_turns_off(self):
+        response = self.client.post("/api/esp32/light", json={"on": False})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.get_json()["light_on"])
+        self.assertEqual(self.ble.commands, ["LIGHT_OFF"])
+
+    def test_esp32_light_rejects_non_boolean_state(self):
+        response = self.client.post("/api/esp32/light", json={"on": 1})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.ble.commands, [])
+
     def test_esp32_rejects_boolean_speed(self):
         response = self.client.post("/api/esp32/speed", json={"mode": True})
         self.assertEqual(response.status_code, 400)

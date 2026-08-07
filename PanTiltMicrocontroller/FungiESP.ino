@@ -18,7 +18,9 @@ enum class CommandType : uint8_t {
   TILT_UP,
   TILT_DOWN,
   CENTER,
-  STOP
+  STOP,
+  LIGHT_ON,
+  LIGHT_OFF
 };
 
 // Prototipos explícitos para evitar problemas con el
@@ -58,6 +60,7 @@ static constexpr uint32_t PERSIST_SAVE_DELAY_MS = 1500;
 
 static constexpr int SERVO_PAN_PIN = 22;
 static constexpr int SERVO_TILT_PIN = 23;
+static constexpr int LED_STRIP_PIN = 21;
 
 static constexpr int DS18B20_PIN = 13;
 static constexpr int DHT22_PIN = 32;
@@ -77,6 +80,7 @@ static constexpr int SOIL_SAMPLE_DELAY_US = 200;
 int soilRaw = 0;
 int soilMillivolts = 0;
 int soilPercent = -1;
+bool lightOn = false;
 
 void setupSoilSensor() {
   pinMode(SOIL_SENSOR_PIN, INPUT);
@@ -509,7 +513,7 @@ void notifyState() {
   snprintf(
       payload,
       sizeof(payload),
-      "P:%d,T:%d,S:%d,DS:%.2f,DT:%.2f,DH:%.2f,SR:%d,SP:%d",
+      "P:%d,T:%d,S:%d,DS:%.2f,DT:%.2f,DH:%.2f,SR:%d,SP:%d,L:%d",
       panPulse,
       tiltPulse,
       speedMode,
@@ -517,7 +521,8 @@ void notifyState() {
       dhtTempC,
       dhtHumidity,
       soilRaw,
-      soilPercent
+      soilPercent,
+      lightOn ? 1 : 0
   );
 
   pTxCharacteristic->setValue(payload);
@@ -692,6 +697,16 @@ class RxCallbacks : public NimBLECharacteristicCallbacks {
 
     if (cmd == "STOP") {
       queueCommand(CommandType::STOP);
+      return;
+    }
+
+    if (cmd == "LIGHT_ON") {
+      queueCommand(CommandType::LIGHT_ON);
+      return;
+    }
+
+    if (cmd == "LIGHT_OFF") {
+      queueCommand(CommandType::LIGHT_OFF);
       return;
     }
 
@@ -885,6 +900,18 @@ void processSingleServoCommand() {
       clearPendingMovementCommands();
       break;
 
+    case CommandType::LIGHT_ON:
+      digitalWrite(LED_STRIP_PIN, HIGH);
+      lightOn = true;
+      notifyState();
+      break;
+
+    case CommandType::LIGHT_OFF:
+      digitalWrite(LED_STRIP_PIN, LOW);
+      lightOn = false;
+      notifyState();
+      break;
+
     case CommandType::NONE:
     default:
       break;
@@ -899,6 +926,11 @@ void setup() {
   delay(500);
 
   Serial.begin(115200);
+
+  // Low-side switching: LOW mantiene el transistor y la tira apagados.
+  digitalWrite(LED_STRIP_PIN, LOW);
+  pinMode(LED_STRIP_PIN, OUTPUT);
+  lightOn = false;
 
   loadPersistentState();
   applySpeedMode();

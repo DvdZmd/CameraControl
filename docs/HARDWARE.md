@@ -117,6 +117,8 @@ Funciones:
 - Sensores.
 - Telemetría.
 - Persistencia.
+- Conmutación low-side de una tira LED de 5 V mediante GPIO21 y transistor
+  NPN S8050 (salida HIGH = encendida, LOW = apagada).
 
 El modelo exacto y la placa seleccionada afectan:
 

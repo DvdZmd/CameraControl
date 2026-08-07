@@ -1,4 +1,5 @@
 const CAMERA_API_BASE = '/api/camera';
+let esp32LightOn = false;
 
 function cameraApiUrl(path) {
     return `${CAMERA_API_BASE}${path}`;
@@ -84,6 +85,37 @@ function normalizeSpeedMode(value) {
     return Number.isInteger(mode) && mode >= 0 && mode <= 4 ? String(mode) : null;
 }
 
+function renderEsp32Light(isOn) {
+    esp32LightOn = isOn;
+    const button = document.getElementById('light-toggle-btn');
+    const label = document.getElementById('light-toggle-label');
+    if (!button || !label) return;
+    button.classList.toggle('active', isOn);
+    button.setAttribute('aria-pressed', String(isOn));
+    label.textContent = isOn ? 'Apagar luz' : 'Prender luz';
+}
+
+async function toggleEsp32Light() {
+    const button = document.getElementById('light-toggle-btn');
+    const requestedState = !esp32LightOn;
+    if (button) button.disabled = true;
+    try {
+        const response = await fetch('/api/esp32/light', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ on: requestedState })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'No se pudo cambiar la luz');
+        renderEsp32Light(data.light_on === true);
+        showEsp32Feedback(data.light_on ? 'Luz prendida' : 'Luz apagada');
+    } catch (error) {
+        showEsp32Feedback(error.message || 'No se pudo cambiar la luz', true);
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
 async function refreshEsp32Status() {
     try {
         const response = await fetch('/api/esp32/status');
@@ -107,6 +139,10 @@ async function refreshEsp32Status() {
         
         // Actualizar estado y sensores
         const lastState = data.last_state || {};
+        const lightState = stateValue(lastState, 'L');
+        if (lightState === '0' || lightState === '1' || lightState === 0 || lightState === 1) {
+            renderEsp32Light(String(lightState) === '1');
+        }
         if (lastStateEl) {
             // La clave para velocidad es 'S'
             const speedMode = stateValue(lastState, 'S') ?? data.current_speed_mode ?? data.saved_speed_mode;
@@ -1424,6 +1460,7 @@ function setupEventListeners() {
         switch (action) {
             case 'toggle-controls': toggleControlPanel(); break;
             case 'toggle-camera-stream': toggleCameraStream(); break;
+            case 'toggle-esp32-light': toggleEsp32Light(); break;
             case 'apply-custom-resolution': applyCustomResolution(); break;
             case 'capture-custom-photo': captureCustomPhoto(); break;
             case 'reset-camera': resetCamera(); break;

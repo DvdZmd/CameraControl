@@ -38,7 +38,9 @@ Comandos históricos o actuales:
 - `CENTER`
 - `STOP`
 - `SET_SPEED:<valor>`
-- `SET_ABS:<pan>:<tilt>`
+- `SET_ABS:<pan>,<tilt>`
+- `LIGHT_ON`
+- `LIGHT_OFF`
 
 No asumir el formato exacto de `SET_ABS` sin revisar el firmware.
 
@@ -123,6 +125,10 @@ Puede incluir:
 - Soil.
 - Estado.
 
+La telemetría vigente incluye `L:0` para la tira apagada y `L:1` para la tira
+encendida. El firmware inicia GPIO21 en LOW y no persiste el estado de la luz,
+por lo que cada reinicio deja la tira apagada de forma segura.
+
 Documentar el formato real cuando se confirme.
 
 ### 8. Reconexión
@@ -181,6 +187,8 @@ Endpoints específicos del dashboard:
 - `POST /api/esp32/move`: acepta `direction` con `left`, `right`, `up` o
   `down`; cada request envía un único paso.
 - `POST /api/esp32/center`: envía `CENTER`.
+- `POST /api/esp32/light`: acepta `on` booleano y envía `LIGHT_ON` o
+  `LIGHT_OFF` para controlar la tira LED conectada a GPIO21.
 - `POST /api/esp32/speed`: acepta `mode` entre 0 y 4, envía `SET_SPEED` y
   persiste el perfil seleccionado para rehidratar el dashboard.
 - `POST /api/esp32/position/current`: guarda en SQLite la posición `P`/`T`

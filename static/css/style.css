@@ -14,6 +14,33 @@ body {
     overflow: hidden;
 }
 
+.light-toggle-btn {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 1000;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 132px;
+    padding: 10px 14px;
+    border: 1px solid #666;
+    border-radius: 999px;
+    background: #292929;
+    color: #f3f3f3;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    font-weight: 700;
+}
+
+.light-toggle-btn.active {
+    border-color: #ffd54f;
+    background: #ffd54f;
+    color: #151515;
+    box-shadow: 0 0 18px rgba(255, 213, 79, 0.4);
+}
+
+.light-icon { font-size: 1.1rem; }
+
 .dashboard {
     display: flex;
     height: 100%;
@@ -104,6 +131,7 @@ body {
     align-items: center;
     gap: 12px;
     margin-bottom: 20px;
+    padding-top: 38px;
 }
 
 .panel-header h1 {
