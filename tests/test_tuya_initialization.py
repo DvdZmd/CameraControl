@@ -28,12 +28,26 @@ def _import_app_factory_without_hardware():
         "routes.tuya_routes": SimpleNamespace(
             tuya_bp=Blueprint("test-tuya", __name__)
         ),
+        "routes.sensor_routes": SimpleNamespace(
+            sensor_bp=Blueprint("test-sensors", __name__)
+        ),
         "esp32.esp32": SimpleNamespace(
             Esp32Controller=lambda: SimpleNamespace(client=None)
         ),
         "tuya.tuya_controller": SimpleNamespace(TuyaController=Mock),
+        "logs.sensor_logger": SimpleNamespace(
+            start_sensor_logger=Mock(return_value=(None, None))
+        ),
+        "logs.logging_config": SimpleNamespace(
+            configure_logging=Mock(),
+            enable_database_logging=Mock(return_value=None),
+        ),
         "config": SimpleNamespace(
-            AppConfig=lambda: SimpleNamespace(tuya=SimpleNamespace())
+            AppConfig=lambda: SimpleNamespace(
+                tuya=SimpleNamespace(),
+                logging=SimpleNamespace(),
+                sensor_logging=SimpleNamespace(enabled=False, interval_seconds=60),
+            )
         ),
     }
     sys.modules.pop("app_factory", None)

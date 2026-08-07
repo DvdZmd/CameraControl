@@ -175,7 +175,49 @@ Usos posibles:
 - Errores.
 - Historial de eventos.
 
+### Historial de telemetría BLE
+
+El logger de sensores toma snapshots del último payload ya recibido por el
+controlador BLE compartido. No inicia escaneos, conexiones ni lecturas GATT.
+Solo persiste una muestra cuando el ESP32 está conectado y existen valores
+numéricos válidos para `DT`, `DH`, `DS` y `SP`.
+
+`SensorReading` guarda las cuatro métricas ambientales. Sus columnas nullable
+`pan_pulse_us` y `tilt_pulse_us` están reservadas para asociar una posición de
+cámara a una captura de timelapse; el logger ambiental periódico no las llena.
+
+La frecuencia se configura mediante `SENSOR_LOG_ENABLED` y
+`SENSOR_LOG_INTERVAL_SECONDS`. La consulta se expone bajo
+`GET /api/sensors/readings` y nunca provoca tráfico BLE.
+
 La inicialización puede crear tablas, pero no debe ocultar errores críticos.
+
+## Logging centralizado
+
+`logs/logging_config.py` configura el logger raíz y conecta `app.logger` por
+propagación. Los módulos deben declarar únicamente
+`logging.getLogger(__name__)`; no deben crear handlers ni escribir logs de
+aplicación con `print()`.
+
+Los destinos son independientes:
+
+- Consola mediante `StreamHandler`.
+- Archivo mediante `RotatingFileHandler`.
+- SQLite mediante `DatabaseLogHandler` y una cola acotada.
+
+El handler SQLite se habilita después de `db.create_all()`. Su worker utiliza
+un contexto y una sesión separados del request original, hace rollback ante
+fallos y escribe sus propios errores directamente a `stderr` para evitar
+recursión. `ErrorLog` se conserva como tabla legacy; los eventos nuevos usan
+`ApplicationLog`.
+
+Los niveles de los destinos son umbrales estándar. `LOG_LEVEL` actúa como
+umbral global, por lo que no debe configurarse por encima de un destino que
+necesite recibir eventos más detallados.
+
+El contexto HTTP se incorpora mediante un filtro: request ID, método y path.
+Las excepciones Flask no controladas se registran en un error handler global;
+las `HTTPException` esperadas conservan su comportamiento normal.
 
 ## Degradación controlada
 

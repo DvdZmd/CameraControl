@@ -1,4 +1,5 @@
 from flask import Blueprint, Response, current_app, request, jsonify, render_template, send_file
+import logging
 from database.models import CameraSettings, db
 from rpicam_z.rpicam_z import CAMERA_IMPORT_ERROR, UnavailableCamera, rpicam_z
 import time
@@ -39,6 +40,7 @@ camera_bp = Blueprint(
 
 stream_enabled = False
 camera_closed_by_user = False
+module_logger = logging.getLogger(__name__)
 
 
 def _unavailable_camera(error):
@@ -269,7 +271,7 @@ def ensure_camera_settings_schema(logger=None):
                 if column not in columns:
                     connection.exec_driver_sql(statement)
     except Exception:
-        active_logger = logger or current_app.logger
+        active_logger = logger or module_logger
         active_logger.exception("No se pudo actualizar el esquema de configuración de cámara")
 
 
@@ -300,7 +302,7 @@ def _save_current_camera_settings(overrides=None):
             db.session.rollback()
         except Exception:
             pass
-        current_app.logger.exception("No se pudo persistir la configuración de cámara")
+        module_logger.exception("No se pudo persistir la configuración de cámara")
 
 
 def _saved_camera_settings(capabilities=None):
@@ -315,7 +317,7 @@ def _saved_camera_settings(capabilities=None):
 def _apply_control(name, value):
     result = rpicamz.update_control(name, value)
     if result is False:
-        current_app.logger.warning("Control de cámara no aplicado: %s=%r", name, value)
+        module_logger.warning("Control de cámara no aplicado: %s=%r", name, value)
     return result
 
 
@@ -328,7 +330,7 @@ def _database_ready():
 
 
 def apply_saved_camera_settings(logger=None):
-    logger = logger or current_app.logger
+    logger = logger or module_logger
     if not _is_camera_available():
         logger.warning("No se aplicó configuración persistida: cámara no disponible")
         return False
@@ -491,7 +493,7 @@ def generate_frames():
         try:
             packet = rpicamz.get_frame_packet()
         except RuntimeError as error:
-            print(f"Error occurred while generating frames: {error}")
+            module_logger.error("Error generando frames: %s", error)
             return
 
         if packet:
@@ -520,7 +522,7 @@ def generate_frames_sync():
         try:
             packet = rpicamz.get_frame_packet()
         except RuntimeError as error:
-            print(f"Error occurred while generating sync frames: {error}")
+            module_logger.error("Error generando frames sincronizados: %s", error)
             return
 
         if packet:
@@ -607,7 +609,7 @@ def start_stream():
         return _camera_unavailable_response(error)
 
     stream_enabled = True
-    apply_saved_camera_settings(current_app.logger)
+    apply_saved_camera_settings(module_logger)
     return jsonify({"status": "success", "stream_enabled": True})
 
 
@@ -625,7 +627,7 @@ def stop_stream():
             close_camera()
             camera_closed_by_user = True
         except Exception as error:
-            current_app.logger.warning("No se pudo cerrar la cámara al detener stream: %s", error)
+            module_logger.warning("No se pudo cerrar la cámara al detener stream: %s", error)
 
     return jsonify({"status": "success", "stream_enabled": False})
 

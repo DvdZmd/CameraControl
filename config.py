@@ -31,11 +31,36 @@ def _load_env_file() -> None:
 
 _load_env_file()
 
-# === GLOBAL CONSTANTS (used by imports) ===
-# Logging
-LOG_FILE_PATH = os.path.abspath("./logs/server.log")
-LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_positive_float(name: str, default: float) -> float:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        parsed = float(value)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _env_positive_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        parsed = int(value)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+# === GLOBAL CONSTANTS (used by imports) ===
 # Camera settings 
 CAMERA_WIDTH = 1640
 CAMERA_HEIGHT = 1232
@@ -76,8 +101,25 @@ AVAILABLE_RESOLUTIONS = [
 
 @dataclass
 class LoggingConfig:
-    log_file_path: str = os.path.abspath("./logs/server.log")
-    log_level: str = "INFO"
+    level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL", "INFO"))
+    console_enabled: bool = field(default_factory=lambda: _env_bool("LOG_CONSOLE_ENABLED", True))
+    console_level: str = field(default_factory=lambda: os.environ.get("LOG_CONSOLE_LEVEL", "INFO"))
+    file_enabled: bool = field(default_factory=lambda: _env_bool("LOG_FILE_ENABLED", True))
+    file_level: str = field(default_factory=lambda: os.environ.get("LOG_FILE_LEVEL", "ERROR"))
+    file_path: str = field(
+        default_factory=lambda: os.path.abspath(os.environ.get("LOG_FILE_PATH", "./logs/server.log"))
+    )
+    file_max_bytes: int = field(default_factory=lambda: _env_positive_int("LOG_FILE_MAX_BYTES", 10 * 1024 * 1024))
+    file_backup_count: int = field(default_factory=lambda: _env_positive_int("LOG_FILE_BACKUP_COUNT", 5))
+    database_enabled: bool = field(default_factory=lambda: _env_bool("LOG_DB_ENABLED", False))
+    database_level: str = field(default_factory=lambda: os.environ.get("LOG_DB_LEVEL", "ERROR"))
+    database_queue_size: int = field(default_factory=lambda: _env_positive_int("LOG_DB_QUEUE_SIZE", 1000))
+    database_retention_days: int = field(default_factory=lambda: _env_positive_int("LOG_DB_RETENTION_DAYS", 30))
+    database_max_rows: int = field(default_factory=lambda: _env_positive_int("LOG_DB_MAX_ROWS", 50000))
+    werkzeug_level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL_WERKZEUG", "INFO"))
+    sqlalchemy_level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL_SQLALCHEMY", "WARNING"))
+    bleak_level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL_BLEAK", "WARNING"))
+    tuya_level: str = field(default_factory=lambda: os.environ.get("LOG_LEVEL_TUYA", "WARNING"))
 
 @dataclass
 class CameraConfig:
@@ -112,12 +154,20 @@ class CameraConfig:
 class TimelapseConfig:
     timelapse_dir: str = os.path.abspath("./timelapse")
 
+@dataclass
+class SensorLoggingConfig:
+    enabled: bool = field(default_factory=lambda: _env_bool("SENSOR_LOG_ENABLED", True))
+    interval_seconds: float = field(
+        default_factory=lambda: _env_positive_float("SENSOR_LOG_INTERVAL_SECONDS", 60.0)
+    )
+
 # Combined AppConfig
 @dataclass
 class AppConfig:
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     camera: CameraConfig = field(default_factory=CameraConfig)
     timelapse: TimelapseConfig = field(default_factory=TimelapseConfig)
+    sensor_logging: SensorLoggingConfig = field(default_factory=SensorLoggingConfig)
     tuya: 'TuyaConfig' = field(default_factory=lambda: TuyaConfig())
 
 @dataclass

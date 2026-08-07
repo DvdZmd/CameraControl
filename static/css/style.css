@@ -684,3 +684,53 @@ button:disabled {
 }
 
 .hidden { display: none; }
+
+.sensor-history-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.sensor-history-filters label {
+    color: #b7b7b7;
+    font-size: 0.75rem;
+}
+
+.sensor-history-filters input {
+    width: 100%;
+    margin-top: 4px;
+    padding: 7px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    box-sizing: border-box;
+    background: #1b1b1b;
+    color: white;
+}
+
+.sensor-history-table-wrapper {
+    margin-top: 12px;
+    overflow-x: auto;
+}
+
+.sensor-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+
+.sensor-history-table th,
+.sensor-history-table td {
+    padding: 7px;
+    border-bottom: 1px solid #3a3a3a;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.sensor-history-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 12px;
+    font-size: 0.8rem;
+}

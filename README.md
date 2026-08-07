@@ -62,6 +62,7 @@ CameraControl/
 │   ├── admin_routes.py
 │   ├── camera_routes.py
 │   ├── esp32_routes.py
+│   ├── sensor_routes.py
 │   └── tuya_routes.py
 ├── esp32/
 │   └── esp32.py
@@ -116,6 +117,38 @@ FLASK_SECRET_KEY=
 Las variables Tuya disponibles están documentadas en `.env.example`. El archivo
 `.env` está excluido por Git y no debe contenerse en commits.
 
+La persistencia de telemetría BLE se configura también desde `.env`:
+
+```dotenv
+SENSOR_LOG_ENABLED=true
+SENSOR_LOG_INTERVAL_SECONDS=60
+```
+
+Solo se guardan muestras cuando el ESP32 está conectado y la notificación
+cacheada contiene las cuatro lecturas ambientales válidas.
+
+### Logging centralizado
+
+Todo el backend utiliza `logging` estándar de Python. Flask y los módulos
+internos propagan al mismo pipeline, con destinos y umbrales independientes:
+
+- Consola habilitada en `INFO` por defecto.
+- Archivo rotativo habilitado en `ERROR` por defecto.
+- SQLite deshabilitado por defecto.
+
+Los niveles válidos son `DEBUG`, `INFO`, `WARNING`, `ERROR` y `CRITICAL`, y se
+interpretan como umbral mínimo. Por ejemplo, `WARNING` incluye también `ERROR`
+y `CRITICAL`. La configuración completa está en `.env.example`.
+
+Cuando `LOG_DB_ENABLED=true`, los eventos se escriben de forma asíncrona en
+`ApplicationLog`. La cola evita bloquear requests, streaming o comandos BLE.
+La retención se aplica al iniciar el writer mediante `LOG_DB_RETENTION_DAYS` y
+`LOG_DB_MAX_ROWS`.
+
+Cada request recibe un `X-Request-ID`, aceptando uno enviado por el cliente o
+generando uno nuevo. El identificador se incluye en los logs y en la respuesta.
+Los valores conocidos de credenciales y cabeceras `Authorization` se redactan.
+
 Para iniciar manualmente:
 
 ```bash
@@ -146,6 +179,11 @@ La interfaz queda disponible en `http://<ip-de-la-pi>:5000`.
 - `POST /move`
 - `POST /center`
 - `POST /speed`
+
+### Sensores — `/api/sensors`
+
+- `GET /readings` con paginación y filtros opcionales por fecha y rangos de
+  temperatura/humedad de ambiente y suelo.
 
 ### Tuya — `/api/tuya`
 

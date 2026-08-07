@@ -1,4 +1,5 @@
 from flask import Blueprint, current_app, jsonify, request
+import logging
 from database.models import Esp32Settings, db
 import re
 
@@ -7,6 +8,7 @@ esp32_bp = Blueprint(
     __name__,
     url_prefix="/api/esp32"
 )
+module_logger = logging.getLogger(__name__)
 
 def get_ble_controller():
     """
@@ -147,7 +149,7 @@ def ensure_esp32_settings_schema(logger=None):
             if "speed_mode" not in columns:
                 connection.exec_driver_sql("ALTER TABLE esp32_settings ADD COLUMN speed_mode INTEGER")
     except Exception:
-        active_logger = logger or current_app.logger
+        active_logger = logger or module_logger
         active_logger.exception("No se pudo actualizar el esquema de configuración ESP32")
 
 

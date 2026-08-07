@@ -348,6 +348,38 @@
                         </div>
                     </div>
                 </section>
+                <section class="control-group" aria-labelledby="sensor-history-heading">
+                    <h3 id="sensor-history-heading">Historial de lecturas</h3>
+                    <div class="sensor-history-filters">
+                        <label>Desde<input type="date" id="history-start-date"></label>
+                        <label>Hasta<input type="date" id="history-end-date"></label>
+                        <label>Temp. ambiente mín.<input type="number" step="0.1" id="history-min-temperature-air"></label>
+                        <label>Temp. ambiente máx.<input type="number" step="0.1" id="history-max-temperature-air"></label>
+                        <label>Humedad ambiente mín.<input type="number" step="0.1" id="history-min-humidity-air"></label>
+                        <label>Humedad ambiente máx.<input type="number" step="0.1" id="history-max-humidity-air"></label>
+                        <label>Temp. suelo mín.<input type="number" step="0.1" id="history-min-temperature-soil"></label>
+                        <label>Temp. suelo máx.<input type="number" step="0.1" id="history-max-temperature-soil"></label>
+                        <label>Humedad suelo mín.<input type="number" step="0.1" id="history-min-humidity-soil"></label>
+                        <label>Humedad suelo máx.<input type="number" step="0.1" id="history-max-humidity-soil"></label>
+                    </div>
+                    <button class="btn-primary" data-action="load-sensor-history" type="button">Consultar historial</button>
+                    <p id="sensor-history-feedback" class="status-message hidden"></p>
+                    <div class="sensor-history-table-wrapper">
+                        <table class="sensor-history-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Temp. amb.</th>
+                                    <th>Hum. amb.</th>
+                                    <th>Temp. suelo</th>
+                                    <th>Hum. suelo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sensor-history-body"></tbody>
+                        </table>
+                    </div>
+                    <div id="sensor-history-pagination" class="sensor-history-pagination"></div>
+                </section>
             </div>
 
         </div>

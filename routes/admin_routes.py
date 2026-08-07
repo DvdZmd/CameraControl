@@ -1,4 +1,5 @@
 import os
+import logging
 import shutil
 import subprocess
 import threading
@@ -12,6 +13,7 @@ admin_bp = Blueprint(
     __name__,
     url_prefix="/api/admin"
 )
+logger = logging.getLogger(__name__)
 
 
 def _project_root():
@@ -33,8 +35,8 @@ def _run_update_script(script_path, project_root):
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
             )
-    except OSError as ex:
-        print(f"Error al disparar update.sh: {ex}")
+    except OSError:
+        logger.exception("Error al disparar update.sh")
 
 
 def _reboot_command():
@@ -62,8 +64,8 @@ def _run_reboot_command(command):
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
-    except OSError as ex:
-        print(f"Error al disparar reboot: {ex}")
+    except OSError:
+        logger.exception("Error al disparar reboot")
 
 
 @admin_bp.route("/update", methods=["POST"])

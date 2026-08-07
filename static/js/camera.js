@@ -1195,6 +1195,90 @@ async function setRotation(angle) {
 
 let timelapseRunning = false;
 
+let sensorHistoryPage = 1;
+
+function sensorHistoryParams(page) {
+    const params = new URLSearchParams({ page: String(page), per_page: '20' });
+    const fields = [
+        'start-date', 'end-date',
+        'min-temperature-air', 'max-temperature-air',
+        'min-humidity-air', 'max-humidity-air',
+        'min-temperature-soil', 'max-temperature-soil',
+        'min-humidity-soil', 'max-humidity-soil'
+    ];
+    fields.forEach(field => {
+        const value = document.getElementById(`history-${field}`)?.value;
+        if (value) params.set(field.replaceAll('-', '_'), value);
+    });
+    return params;
+}
+
+function renderSensorHistory(data) {
+    const body = document.getElementById('sensor-history-body');
+    const pagination = document.getElementById('sensor-history-pagination');
+    if (!body || !pagination) return;
+
+    body.replaceChildren();
+    data.readings.forEach(reading => {
+        const row = document.createElement('tr');
+        const values = [
+            new Date(reading.timestamp).toLocaleString(),
+            `${Number(reading.temperature_air).toFixed(1)} °C`,
+            `${Number(reading.humidity_air).toFixed(1)} %`,
+            `${Number(reading.temperature_soil).toFixed(1)} °C`,
+            `${Number(reading.humidity_soil).toFixed(1)} %`
+        ];
+        values.forEach(value => {
+            const cell = document.createElement('td');
+            cell.textContent = value;
+            row.appendChild(cell);
+        });
+        body.appendChild(row);
+    });
+
+    pagination.replaceChildren();
+    if (data.pages > 1) {
+        const previous = document.createElement('button');
+        previous.type = 'button';
+        previous.textContent = 'Anterior';
+        previous.disabled = data.page <= 1;
+        previous.addEventListener('click', () => loadSensorHistory(data.page - 1));
+
+        const label = document.createElement('span');
+        label.textContent = `Página ${data.page} de ${data.pages}`;
+
+        const next = document.createElement('button');
+        next.type = 'button';
+        next.textContent = 'Siguiente';
+        next.disabled = data.page >= data.pages;
+        next.addEventListener('click', () => loadSensorHistory(data.page + 1));
+        pagination.append(previous, label, next);
+    }
+}
+
+async function loadSensorHistory(page = 1) {
+    const feedback = document.getElementById('sensor-history-feedback');
+    try {
+        const response = await fetch(`/api/sensors/readings?${sensorHistoryParams(page)}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'No se pudo consultar el historial');
+        sensorHistoryPage = data.page;
+        renderSensorHistory(data);
+        if (feedback) {
+            feedback.classList.remove('hidden', 'status-error');
+            feedback.textContent = data.total
+                ? `${data.total} lecturas encontradas`
+                : 'No se encontraron lecturas';
+        }
+    } catch (error) {
+        if (feedback) {
+            feedback.classList.remove('hidden');
+            feedback.classList.add('status-error');
+            feedback.textContent = error.message;
+        }
+    }
+}
+
 async function toggleTimelapse() {
     const btn = document.getElementById('btn-timelapse');
     const interval = document.getElementById('tl-interval').value;
@@ -1254,6 +1338,7 @@ function setupEventListeners() {
             case 'update-software': triggerSoftwareUpdate(); break;
             case 'reboot-system': triggerSystemReboot(); break;
             case 'toggle-timelapse': toggleTimelapse(); break;
+            case 'load-sensor-history': loadSensorHistory(1); break;
             case 'esp32-connect': connectEsp32(); break;
             case 'esp32-disconnect': disconnectEsp32(); break;
             case 'esp32-center': sendEsp32Center(); break;

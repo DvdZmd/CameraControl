@@ -5,13 +5,29 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
-#TODO create SystemLog model to log system events
+# Tabla legacy conservada para no perder registros de instalaciones existentes.
 class ErrorLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     module = db.Column(db.String(100), nullable=False)
     message = db.Column(db.Text, nullable=False)
     traceback = db.Column(db.Text, nullable=False)
+
+
+class ApplicationLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    level = db.Column(db.String(10), nullable=False, index=True)
+    logger_name = db.Column(db.String(255), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    module = db.Column(db.String(255), nullable=True)
+    function = db.Column(db.String(255), nullable=True)
+    line_number = db.Column(db.Integer, nullable=True)
+    exception_type = db.Column(db.String(255), nullable=True)
+    traceback = db.Column(db.Text, nullable=True)
+    request_id = db.Column(db.String(64), nullable=True, index=True)
+    http_method = db.Column(db.String(10), nullable=True)
+    request_path = db.Column(db.String(2048), nullable=True)
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -49,6 +65,19 @@ class TimelapseConfig(db.Model):
     height = db.Column(db.Integer, nullable=False)
     is_running = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class SensorReading(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    temperature_air = db.Column(db.Float, nullable=False)
+    humidity_air = db.Column(db.Float, nullable=False)
+    temperature_soil = db.Column(db.Float, nullable=False)
+    humidity_soil = db.Column(db.Float, nullable=False)
+    # Reservados para capturas asociadas a timelapse. La telemetría periódica
+    # ambiental no completa estas columnas.
+    pan_pulse_us = db.Column(db.Integer, nullable=True)
+    tilt_pulse_us = db.Column(db.Integer, nullable=True)
 
 
 class CameraSettings(db.Model):

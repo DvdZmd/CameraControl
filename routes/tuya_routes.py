@@ -1,4 +1,5 @@
 from flask import Blueprint, current_app, jsonify, request
+import logging
 from sqlalchemy.exc import IntegrityError
 
 from database.models import TuyaDevice, db
@@ -9,6 +10,7 @@ tuya_bp = Blueprint(
     __name__,
     url_prefix="/api/tuya"
 )
+module_logger = logging.getLogger(__name__)
 
 def get_tuya_controller():
     """
@@ -175,7 +177,7 @@ def ensure_tuya_legacy_device(config, logger=None):
             db.session.rollback()
         except Exception:
             pass
-        active_logger = logger or current_app.logger
+        active_logger = logger or module_logger
         active_logger.exception("No se pudo inicializar el dispositivo Tuya legado")
 
 
@@ -192,7 +194,7 @@ def ensure_tuya_devices_schema(logger=None):
             if "tuya_name" not in columns:
                 connection.exec_driver_sql("ALTER TABLE tuya_device ADD COLUMN tuya_name VARCHAR(255)")
     except Exception:
-        active_logger = logger or current_app.logger
+        active_logger = logger or module_logger
         active_logger.exception("No se pudo actualizar el esquema de dispositivos Tuya")
 
 
@@ -205,7 +207,7 @@ def get_tuya_status():
     try:
         return _tuya_response(controller.get_status())
     except Exception as error:
-        current_app.logger.exception("Error consultando estado Tuya")
+        module_logger.exception("Error consultando estado Tuya")
         return jsonify({"ok": False, "error": str(error)}), 503
 
 @tuya_bp.route("/on", methods=["POST"])
@@ -217,7 +219,7 @@ def turn_on_plug():
     try:
         return _tuya_response(controller.set_status(True))
     except Exception as error:
-        current_app.logger.exception("Error encendiendo dispositivo Tuya")
+        module_logger.exception("Error encendiendo dispositivo Tuya")
         return jsonify({"ok": False, "error": str(error)}), 503
 
 @tuya_bp.route("/off", methods=["POST"])
@@ -229,7 +231,7 @@ def turn_off_plug():
     try:
         return _tuya_response(controller.set_status(False))
     except Exception as error:
-        current_app.logger.exception("Error apagando dispositivo Tuya")
+        module_logger.exception("Error apagando dispositivo Tuya")
         return jsonify({"ok": False, "error": str(error)}), 503
 
 
@@ -272,7 +274,7 @@ def add_tuya_device():
         return jsonify({"ok": False, "error": "El device_id ya está configurado"}), 409
     except Exception as error:
         db.session.rollback()
-        current_app.logger.exception("Error agregando dispositivo Tuya")
+        module_logger.exception("Error agregando dispositivo Tuya")
         return jsonify({"ok": False, "error": str(error)}), 500
 
     return jsonify({"ok": True, "device": _serialize_device(device)}), 201
@@ -298,7 +300,7 @@ def update_tuya_device(device_pk):
         return jsonify({"ok": True, "device": _serialize_device(device)}), 200
     except Exception as error:
         db.session.rollback()
-        current_app.logger.exception("Error actualizando dispositivo Tuya")
+        module_logger.exception("Error actualizando dispositivo Tuya")
         return jsonify({"ok": False, "error": str(error)}), 500
 
 
@@ -321,7 +323,7 @@ def refresh_tuya_device_details(device_pk):
         return jsonify({"ok": True, "device": _serialize_device(device)}), 200
     except Exception as error:
         db.session.rollback()
-        current_app.logger.exception("Error refrescando detalle Tuya")
+        module_logger.exception("Error refrescando detalle Tuya")
         return jsonify({"ok": False, "error": str(error)}), 503
 
 
@@ -347,7 +349,7 @@ def set_tuya_device_status(device_pk):
         )
         return _tuya_response(result)
     except Exception as error:
-        current_app.logger.exception("Error modificando dispositivo Tuya")
+        module_logger.exception("Error modificando dispositivo Tuya")
         return jsonify({"ok": False, "error": str(error)}), 503
 
 
@@ -371,5 +373,5 @@ def refresh_tuya_device_status(device_pk):
             return _tuya_response(result)
         return jsonify({"ok": True, "device": _serialize_device(device, result)}), 200
     except Exception as error:
-        current_app.logger.exception("Error consultando estado Tuya")
+        module_logger.exception("Error consultando estado Tuya")
         return jsonify({"ok": False, "error": str(error)}), 503
