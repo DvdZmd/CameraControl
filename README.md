@@ -131,6 +131,8 @@ reinicios.
 
 Al desactivar la escritura no se generan muestras periódicas ni lecturas
 asociadas a nuevas capturas de timelapse. Los registros existentes se conservan.
+El historial permite borrar filas seleccionadas o vaciar solamente la tabla de
+lecturas; esta operación no elimina el archivo SQLite ni otras configuraciones.
 
 Solo se guardan muestras cuando el ESP32 está conectado y la notificación
 cacheada contiene las cuatro lecturas ambientales válidas.

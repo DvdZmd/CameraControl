@@ -149,6 +149,14 @@ class ApiValidationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(self.camera.calls, [])
 
+    def test_custom_photo_download_uses_identifiable_timestamp_name(self):
+        response = self.client.get("/api/camera/take_photo_custom?w=1920&h=1080")
+        self.assertEqual(response.status_code, 200)
+        self.assertRegex(
+            response.headers["Content-Disposition"],
+            r'filename="?\d{4}_\d{2}_\d{2}_\d{2}-\d{2}-\d{2}\.jpg"?',
+        )
+
     def test_camera_rejects_out_of_range_control(self):
         response = self.client.post("/api/camera/update_settings", json={"Brightness": 2})
         self.assertEqual(response.status_code, 400)
@@ -196,7 +204,14 @@ class ApiValidationTests(unittest.TestCase):
         self.assertEqual(stop_response.status_code, 200)
         self.assertFalse(stop_response.get_json()["stream_enabled"])
         self.assertFalse(camera_routes.stream_enabled)
-        self.assertIn(("close",), self.camera.calls)
+        self.assertNotIn(("close",), self.camera.calls)
+        self.assertNotIn(("stop_timelapse",), self.camera.calls)
+
+        photo_response = self.client.get(
+            "/api/camera/take_photo_custom?w=1280&h=720"
+        )
+        self.assertEqual(photo_response.status_code, 200)
+        self.assertIn(("photo", 1280, 720), self.camera.calls)
 
     def test_camera_stream_start_returns_503_when_camera_is_unavailable(self):
         previous_factory = camera_routes.rpicam_z

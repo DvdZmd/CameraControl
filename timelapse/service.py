@@ -1,6 +1,13 @@
 import logging
 import math
+import re
+import shutil
+import inspect
+import threading
+import time
 from datetime import UTC, datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from database.models import (
     Esp32Settings,
@@ -16,6 +23,11 @@ logger = logging.getLogger(__name__)
 CONFIG_ID = 1
 ESP32_SETTINGS_ID = 1
 SENSOR_LOGGING_SETTINGS_ID = 1
+DEFAULT_FOLDER_NAME = "default"
+FOLDER_NAME_PATTERN = re.compile(r"^[\w .-]{1,100}$", re.UNICODE)
+CAPTURE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+FOLDER_MARKER = ".cameracontrol-timelapse"
+LIGHT_WARMUP_SECONDS = 3
 
 
 def _utc_now():
@@ -48,6 +60,19 @@ def _utc_isoformat(value):
     return value.isoformat().replace("+00:00", "Z")
 
 
+def _capture_filename(captured_at):
+    return f"{captured_at.strftime('%Y_%m_%d_%H-%M-%S')}.jpg"
+
+
+def _unique_capture_path(directory, filename, *, current_path=None):
+    candidate = directory / filename
+    counter = 2
+    while candidate.exists() and candidate != current_path:
+        candidate = directory / f"{Path(filename).stem}_{counter}.jpg"
+        counter += 1
+    return candidate
+
+
 class TimelapseService:
     """Persist application policy while rpicam-z owns capture execution."""
 
@@ -56,6 +81,10 @@ class TimelapseService:
         self.camera_getter = camera_getter
         self.ble_controller = ble_controller
         self.defaults = defaults
+        self._compat_stop_event = threading.Event()
+        self._compat_thread = None
+        self._compat_last_error = None
+        self.light_warmup_seconds = LIGHT_WARMUP_SECONDS
 
     def ensure_schema(self):
         with db.engine.begin() as connection:
@@ -75,6 +104,7 @@ class TimelapseService:
                 "last_error": "ALTER TABLE timelapse_config ADD COLUMN last_error TEXT",
                 "light_enabled": "ALTER TABLE timelapse_config ADD COLUMN light_enabled BOOLEAN NOT NULL DEFAULT 0",
                 "light_intensity": "ALTER TABLE timelapse_config ADD COLUMN light_intensity INTEGER NOT NULL DEFAULT 100",
+                "folder_name": "ALTER TABLE timelapse_config ADD COLUMN folder_name VARCHAR(120) NOT NULL DEFAULT 'default'",
             }
             added_interval_seconds = "interval_seconds" not in columns
             for column, statement in migrations.items():
@@ -90,6 +120,7 @@ class TimelapseService:
         config = db.session.get(TimelapseConfig, CONFIG_ID)
         if config is None:
             seconds = self.defaults.default_interval_seconds
+            default_path = self.folder_path(DEFAULT_FOLDER_NAME, create=True)
             config = TimelapseConfig(
                 id=CONFIG_ID,
                 interval_minutes=max(1, math.ceil(seconds / 60)),
@@ -98,7 +129,8 @@ class TimelapseService:
                 height=2160,
                 is_running=False,
                 auto_resume=self.defaults.auto_resume,
-                save_path=self.defaults.timelapse_dir,
+                save_path=str(default_path),
+                folder_name=DEFAULT_FOLDER_NAME,
             )
             db.session.add(config)
             db.session.commit()
@@ -107,10 +139,130 @@ class TimelapseService:
             db.session.commit()
         return config
 
+    @property
+    def root_path(self):
+        root = Path(self.defaults.timelapse_dir).expanduser().resolve()
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+
+    def validate_folder_name(self, folder_name):
+        if not isinstance(folder_name, str):
+            raise ValueError("folder_name debe ser texto")
+        normalized = folder_name.strip()
+        if (
+            not normalized
+            or normalized in {".", ".."}
+            or normalized.startswith(".")
+            or not FOLDER_NAME_PATTERN.fullmatch(normalized)
+        ):
+            raise ValueError(
+                "folder_name admite letras, números, espacios, guion, punto y guion bajo"
+            )
+        return normalized
+
+    def folder_path(self, folder_name, *, create=False):
+        normalized = self.validate_folder_name(folder_name)
+        path = (self.root_path / normalized).resolve()
+        if path.parent != self.root_path:
+            raise ValueError("La carpeta debe estar dentro del directorio de timelapse")
+        if create:
+            path.mkdir(parents=False, exist_ok=True)
+            (path / FOLDER_MARKER).touch(exist_ok=True)
+        if not path.is_dir():
+            raise FileNotFoundError(f"No existe la carpeta de timelapse: {normalized}")
+        return path
+
+    def list_folders(self):
+        folders = []
+        for path in self.root_path.iterdir():
+            if not path.is_dir() or path.is_symlink() or path.name.startswith("."):
+                continue
+            marked = (path / FOLDER_MARKER).is_file()
+            has_captures = any(
+                candidate.is_file()
+                and not candidate.is_symlink()
+                and candidate.suffix.lower() in CAPTURE_EXTENSIONS
+                for candidate in path.rglob("*")
+            )
+            if marked or has_captures:
+                folders.append(path.name)
+        return sorted(folders, key=str.casefold)
+
+    def list_captures(self, folder_name):
+        folder = self.folder_path(folder_name)
+        captures = []
+        for path in folder.rglob("*"):
+            if not path.is_file() or path.is_symlink():
+                continue
+            if path.suffix.lower() not in CAPTURE_EXTENSIONS:
+                continue
+            resolved = path.resolve()
+            if folder not in resolved.parents:
+                continue
+            stat = resolved.stat()
+            captures.append({
+                "path": resolved.relative_to(folder).as_posix(),
+                "name": resolved.name,
+                "size_bytes": stat.st_size,
+                "modified_at": _utc_isoformat(
+                    datetime.fromtimestamp(stat.st_mtime, UTC)
+                ),
+            })
+        captures.sort(key=lambda item: item["modified_at"], reverse=True)
+        return captures
+
+    def capture_path(self, folder_name, relative_path):
+        folder = self.folder_path(folder_name)
+        if not isinstance(relative_path, str) or not relative_path:
+            raise ValueError("La ruta de captura es requerida")
+        path = (folder / relative_path).resolve()
+        if folder not in path.parents or path.suffix.lower() not in CAPTURE_EXTENSIONS:
+            raise ValueError("Ruta de captura inválida")
+        if not path.is_file() or path.is_symlink():
+            raise FileNotFoundError("La captura no existe")
+        return path
+
+    def delete_captures(self, folder_name, relative_paths):
+        folder = self.folder_path(folder_name)
+        self._assert_folder_not_active(folder_name)
+        paths = [self.capture_path(folder_name, value) for value in relative_paths]
+        for path in paths:
+            path.unlink()
+        # rpicam-z crea subdirectorios por fecha/sesión. Se podan solamente los
+        # que quedaron vacíos, sin eliminar la carpeta seleccionable ni marker.
+        for directory in sorted(
+            (path for path in folder.rglob("*") if path.is_dir()),
+            key=lambda path: len(path.parts),
+            reverse=True,
+        ):
+            try:
+                directory.rmdir()
+            except OSError:
+                pass
+        return len(paths)
+
+    def delete_folder(self, folder_name):
+        folder = self.folder_path(folder_name)
+        self._assert_folder_not_active(folder_name)
+        shutil.rmtree(folder)
+        logger.info("Carpeta de timelapse eliminada: %s", folder)
+
+    def _assert_folder_not_active(self, folder_name):
+        config = self.ensure_default_config()
+        if (
+            self._runtime_status().get("running")
+            and config.folder_name == self.validate_folder_name(folder_name)
+        ):
+            raise RuntimeError("No se pueden borrar archivos del timelapse activo")
+
     def configure(
         self, *, interval_seconds, width, height, auto_resume,
-        light_enabled=False, light_intensity=100,
+        light_enabled=False, light_intensity=100, folder_name=DEFAULT_FOLDER_NAME,
     ):
+        if light_enabled and interval_seconds < LIGHT_WARMUP_SECONDS:
+            raise ValueError(
+                f"El intervalo debe ser de al menos {LIGHT_WARMUP_SECONDS} segundos cuando la luz está activa"
+            )
         config = self.ensure_default_config()
         if self._runtime_status().get("running"):
             raise RuntimeError("No se puede cambiar la configuración con el timelapse activo")
@@ -121,6 +273,8 @@ class TimelapseService:
         config.auto_resume = auto_resume
         config.light_enabled = light_enabled
         config.light_intensity = light_intensity
+        config.folder_name = self.validate_folder_name(folder_name)
+        config.save_path = str(self.folder_path(config.folder_name, create=True))
         config.updated_at = _utc_now()
         db.session.commit()
         logger.info(
@@ -136,6 +290,10 @@ class TimelapseService:
 
     def start(self, *, resuming=False):
         config = self.ensure_default_config()
+        if config.light_enabled and config.interval_seconds < LIGHT_WARMUP_SECONDS:
+            raise ValueError(
+                f"El intervalo persistido debe ser de al menos {LIGHT_WARMUP_SECONDS} segundos cuando la luz está activa"
+            )
         camera = self.camera_getter()
         runtime = self._runtime_status(camera)
         if runtime.get("running"):
@@ -143,7 +301,9 @@ class TimelapseService:
             db.session.commit()
             return self.status()
 
-        camera.save_path = config.save_path or self.defaults.timelapse_dir
+        selected_path = self.folder_path(config.folder_name, create=True)
+        camera.save_path = str(selected_path)
+        config.save_path = str(selected_path)
         camera.timelapse_organize_by_date = True
         config.is_running = True
         config.last_error = None
@@ -159,15 +319,18 @@ class TimelapseService:
         db.session.commit()
 
         try:
-            started = camera.start_timelapse(
-                config.interval_seconds,
-                config.width,
-                config.height,
-                on_capture=self._on_capture,
-                on_error=self._on_error,
-                on_complete=self._on_complete,
-                on_before_capture=self._on_before_capture,
-            )
+            if self._supports_native_callbacks(camera):
+                started = camera.start_timelapse(
+                    config.interval_seconds,
+                    config.width,
+                    config.height,
+                    on_capture=self._on_capture,
+                    on_error=self._on_error,
+                    on_complete=self._on_complete,
+                    on_before_capture=self._on_before_capture,
+                )
+            else:
+                started = self._start_compat_timelapse(camera, config)
         except Exception as error:
             config.last_error = str(error)
             if not resuming:
@@ -196,7 +359,10 @@ class TimelapseService:
         camera = self.camera_getter()
         stop_error = None
         try:
-            stopped = camera.stop_timelapse()
+            if self._compat_thread and self._compat_thread.is_alive():
+                stopped = self._stop_compat_timelapse()
+            else:
+                stopped = camera.stop_timelapse()
         except Exception as error:
             stopped = False
             stop_error = str(error)
@@ -238,6 +404,9 @@ class TimelapseService:
             "height": config.height,
             "light_enabled": bool(config.light_enabled),
             "light_intensity": config.light_intensity,
+            "light_warmup_seconds": LIGHT_WARMUP_SECONDS,
+            "folder_name": config.folder_name or DEFAULT_FOLDER_NAME,
+            "root_path": str(self.root_path),
             "save_path": config.save_path,
             "capture_count": config.capture_count,
             "started_at": _utc_isoformat(config.started_at),
@@ -250,6 +419,13 @@ class TimelapseService:
         }
 
     def _runtime_status(self, camera=None):
+        compat_thread = self._compat_thread
+        if compat_thread is not None and compat_thread.is_alive():
+            return {
+                "running": True,
+                "mode": "compatibility",
+                "last_error": self._compat_last_error,
+            }
         camera = camera or self.camera_getter()
         try:
             status_getter = getattr(camera, "get_timelapse_status", None)
@@ -259,13 +435,136 @@ class TimelapseService:
         except Exception as error:
             return {"running": False, "last_error": str(error)}
 
+    @staticmethod
+    def _supports_native_callbacks(camera):
+        try:
+            parameters = inspect.signature(camera.start_timelapse).parameters
+        except (TypeError, ValueError):
+            return False
+        if any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters.values()
+        ):
+            return True
+        required_callbacks = {
+            "on_before_capture",
+            "on_capture",
+            "on_error",
+            "on_complete",
+        }
+        return required_callbacks.issubset(parameters)
+
+    def _start_compat_timelapse(self, camera, config):
+        if self._compat_thread and self._compat_thread.is_alive():
+            return False
+        self._compat_stop_event.clear()
+        self._compat_last_error = None
+        self._compat_thread = threading.Thread(
+            target=self._compat_timelapse_worker,
+            args=(
+                camera,
+                config.interval_seconds,
+                config.width,
+                config.height,
+                Path(config.save_path),
+            ),
+            name="timelapse-compatibility-worker",
+            daemon=True,
+        )
+        self._compat_thread.start()
+        logger.warning(
+            "rpicam-z no soporta el ciclo completo de callbacks (incluido "
+            "on_before_capture); se usa el worker compatible de CameraControl"
+        )
+        return True
+
+    def _stop_compat_timelapse(self):
+        self._compat_stop_event.set()
+        thread = self._compat_thread
+        if thread and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=5)
+        stopped = not (thread and thread.is_alive())
+        if stopped:
+            self._compat_thread = None
+        return stopped
+
+    def _capture_local_now(self):
+        timezone_name = self.app.config.get(
+            "APP_TIMEZONE", "America/Argentina/Buenos_Aires"
+        )
+        try:
+            return datetime.now(ZoneInfo(timezone_name))
+        except ZoneInfoNotFoundError:
+            return datetime.now(UTC)
+
+    def _compat_timelapse_worker(self, camera, interval, width, height, save_path):
+        started_at = self._capture_local_now()
+        session_path = save_path / started_at.strftime("%Y-%m-%d") / started_at.strftime("%H-%M-%S")
+        session_path.mkdir(parents=True, exist_ok=True)
+        capture_count = 0
+        reason = "stopped"
+        try:
+            while not self._compat_stop_event.is_set():
+                cycle_started = time.monotonic()
+                metadata = {"capture_count": capture_count + 1}
+                try:
+                    self._on_before_capture(metadata)
+                    if self._compat_stop_event.is_set():
+                        break
+                    frame = camera.take_custom_photo(width, height)
+                    if not frame:
+                        raise RuntimeError("La cámara no devolvió bytes JPEG")
+                    captured_at = self._capture_local_now()
+                    capture_path = _unique_capture_path(
+                        session_path,
+                        _capture_filename(captured_at),
+                    )
+                    capture_path.write_bytes(frame)
+                    capture_count += 1
+                    self._compat_last_error = None
+                    self._on_capture({
+                        "captured_at": captured_at.astimezone(UTC).isoformat(),
+                        "path": str(capture_path),
+                        "capture_count": capture_count,
+                        "width": width,
+                        "height": height,
+                    })
+                except Exception as error:
+                    self._compat_last_error = str(error)
+                    self._on_error({"error": str(error), "capture_count": capture_count})
+                    logger.exception("Error en captura del worker compatible de timelapse")
+                elapsed = time.monotonic() - cycle_started
+                if self._compat_stop_event.wait(max(0, interval - elapsed)):
+                    break
+        except Exception as error:
+            reason = "error"
+            self._compat_last_error = str(error)
+            logger.exception("El worker compatible de timelapse finalizó inesperadamente")
+        finally:
+            self._on_complete({"reason": reason, "capture_count": capture_count})
+
     def _on_capture(self, metadata):
         with self.app.app_context():
             self._restore_manual_light()
             config = self.ensure_default_config()
+            captured_at = _parse_datetime(metadata.get("captured_at")) or _utc_now()
+            capture_path = metadata.get("path")
+            if capture_path:
+                source = Path(capture_path).resolve()
+                folder = self.folder_path(config.folder_name)
+                if source.is_file() and folder in source.parents:
+                    destination = _unique_capture_path(
+                        source.parent,
+                        _capture_filename(captured_at),
+                        current_path=source,
+                    )
+                    if destination != source:
+                        source.rename(destination)
+                    capture_path = str(destination)
+                    metadata["path"] = capture_path
             config.capture_count = (config.capture_count or 0) + 1
-            config.last_capture_at = _parse_datetime(metadata.get("captured_at")) or _utc_now()
-            config.last_capture_path = metadata.get("path")
+            config.last_capture_at = captured_at
+            config.last_capture_path = capture_path
             config.last_error = None
             config.updated_at = _utc_now()
 
@@ -307,17 +606,27 @@ class TimelapseService:
         """Apply this timelapse's light policy in the capture worker."""
         with self.app.app_context():
             config = self.ensure_default_config()
-            intensity = config.light_intensity if config.light_enabled else 0
-            try:
-                self._set_light(intensity)
-                logger.debug("Luz de timelapse aplicada antes de captura: %s%%", intensity)
-            except Exception as error:
-                # El ESP32 es hardware opcional: su ausencia no debe cancelar
-                # una captura que la cámara todavía puede realizar.
-                logger.warning(
-                    "No se pudo aplicar la luz de timelapse antes de la captura: %s",
-                    error,
-                )
+            light_enabled = bool(config.light_enabled)
+            intensity = config.light_intensity if light_enabled else 0
+        try:
+            self._set_light(intensity)
+            if light_enabled:
+                if threading.current_thread() is self._compat_thread:
+                    self._compat_stop_event.wait(self.light_warmup_seconds)
+                else:
+                    time.sleep(self.light_warmup_seconds)
+            logger.debug(
+                "Luz de timelapse aplicada antes de captura: %s%%; estabilización=%ss",
+                intensity,
+                self.light_warmup_seconds if light_enabled else 0,
+            )
+        except Exception as error:
+            # El ESP32 es hardware opcional: su ausencia no debe cancelar una
+            # captura que la cámara todavía puede realizar.
+            logger.warning(
+                "No se pudo aplicar la luz de timelapse antes de la captura: %s",
+                error,
+            )
 
     def _restore_manual_light(self):
         settings = db.session.get(Esp32Settings, ESP32_SETTINGS_ID)

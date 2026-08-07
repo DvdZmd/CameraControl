@@ -1,5 +1,7 @@
 from flask import Blueprint, Response, current_app, request, jsonify, render_template, send_file
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from database.models import CameraSettings, db
 from rpicam_z.rpicam_z import CAMERA_IMPORT_ERROR, UnavailableCamera, rpicam_z
 import time
@@ -31,6 +33,17 @@ SETTINGS_FIELDS = {
     *CONTROL_RANGES,
     *BOOLEAN_CONTROLS,
 }
+
+
+def _photo_download_name():
+    timezone_name = current_app.config.get(
+        "APP_TIMEZONE", "America/Argentina/Buenos_Aires"
+    )
+    try:
+        captured_at = datetime.now(ZoneInfo(timezone_name))
+    except ZoneInfoNotFoundError:
+        captured_at = datetime.now().astimezone()
+    return f"{captured_at.strftime('%Y_%m_%d_%H-%M-%S')}.jpg"
 
 camera_bp = Blueprint(
     'camera_controller', 
@@ -450,7 +463,7 @@ def take_photo_custom():
     and may block for the duration of the capture.
 
     Returns:
-        A JPEG file response named ``custom_snap_<width>x<height>.jpg``.
+        A JPEG response named with its local capture timestamp.
 
     Example:
         curl "http://localhost:5000/api/camera/take_photo_custom?w=1920&h=1080" \
@@ -474,7 +487,7 @@ def take_photo_custom():
         io.BytesIO(image_binary),
         mimetype='image/jpeg',
         as_attachment=True,
-        download_name=f"custom_snap_{w}x{h}.jpg"
+        download_name=_photo_download_name()
     )
 
 def generate_frames():
@@ -619,18 +632,12 @@ def start_stream():
 @camera_bp.route('/stream/stop', methods=['POST'])
 def stop_stream():
     """
-    Disable MJPEG streaming and release the camera controller when possible.
+    Disable only MJPEG frame delivery, keeping the camera available to captures.
     """
     global stream_enabled, camera_closed_by_user
 
     stream_enabled = False
-    close_camera = getattr(rpicamz, 'close', None)
-    if callable(close_camera):
-        try:
-            close_camera()
-            camera_closed_by_user = True
-        except Exception as error:
-            module_logger.warning("No se pudo cerrar la cámara al detener stream: %s", error)
+    camera_closed_by_user = False
 
     return jsonify({"status": "success", "stream_enabled": False})
 
@@ -766,6 +773,7 @@ def update_settings():
                     auto_resume=current_status['auto_resume'],
                     light_enabled=current_status['light_enabled'],
                     light_intensity=current_status['light_intensity'],
+                    folder_name=current_status['folder_name'],
                 )
                 timelapse_service.start()
             elif timelapse_service is not None:

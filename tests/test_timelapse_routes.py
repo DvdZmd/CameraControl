@@ -1,7 +1,11 @@
 import tempfile
+import time
 import unittest
+import zipfile
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 from flask import Flask
 
@@ -45,6 +49,31 @@ class UnavailableTimelapseCamera:
         raise RuntimeError("cámara no disponible")
 
 
+class LegacyTimelapseCamera:
+    def __init__(self):
+        self.save_path = None
+        self.timelapse_organize_by_date = False
+        self.timelapse_active = False
+        self.capture_calls = []
+
+    def start_timelapse(self, interval, width, height):
+        raise AssertionError("El worker legacy de rpicam-z no debe iniciarse")
+
+    def stop_timelapse(self):
+        return True
+
+    def take_custom_photo(self, width, height):
+        self.capture_calls.append((width, height))
+        return b"legacy-jpeg"
+
+
+class PartialCallbackTimelapseCamera(LegacyTimelapseCamera):
+    def start_timelapse(
+        self, interval, width, height,
+        on_capture=None, on_error=None, on_complete=None,
+    ):
+        raise AssertionError("No debe usarse sin on_before_capture")
+
 class TimelapseRoutesTests(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -69,6 +98,7 @@ class TimelapseRoutesTests(unittest.TestCase):
         self.service = TimelapseService(
             self.app, lambda: self.camera, self.ble, defaults
         )
+        self.service.light_warmup_seconds = 0
         with self.app.app_context():
             db.create_all()
             self.service.ensure_schema()
@@ -91,6 +121,7 @@ class TimelapseRoutesTests(unittest.TestCase):
             "auto_resume": True,
             "light_enabled": True,
             "light_intensity": 42,
+            "folder_name": "cultivo agosto",
         })
         self.assertEqual(response.status_code, 200)
 
@@ -99,6 +130,10 @@ class TimelapseRoutesTests(unittest.TestCase):
         self.assertTrue(response.get_json()["running"])
         self.assertEqual(self.camera.start_calls, [(30, 1920, 1080)])
         self.assertTrue(self.camera.timelapse_organize_by_date)
+        self.assertEqual(
+            Path(self.camera.save_path),
+            Path(self.tmpdir.name) / "captures" / "cultivo agosto",
+        )
 
         self.camera.callbacks["on_before_capture"]({"capture_count": 1})
         self.assertEqual(self.ble.commands, ["SET_LIGHT:42"])
@@ -123,6 +158,98 @@ class TimelapseRoutesTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.get_json()["desired_running"])
 
+    def test_lists_and_downloads_captures_inside_selected_folder(self):
+        response = self.client.put("/api/timelapse/config", json={
+            "interval_seconds": 30,
+            "width": 1920,
+            "height": 1080,
+            "auto_resume": True,
+            "light_enabled": False,
+            "light_intensity": 100,
+            "folder_name": "prueba-01",
+        })
+        self.assertEqual(response.status_code, 200)
+        folder = Path(self.tmpdir.name) / "captures" / "prueba-01"
+        nested = folder / "2026-08-07" / "10-00-00"
+        nested.mkdir(parents=True)
+        (nested / "shot_01.jpg").write_bytes(b"jpeg-one")
+        (nested / "shot_02.jpg").write_bytes(b"jpeg-two")
+        (nested / "ignore.txt").write_text("not a capture", encoding="utf-8")
+
+        folders = self.client.get("/api/timelapse/folders").get_json()
+        self.assertEqual(folders["folders"], ["default", "prueba-01"])
+
+        captures_response = self.client.get(
+            "/api/timelapse/captures?folder=prueba-01"
+        )
+        self.assertEqual(captures_response.status_code, 200)
+        captures = captures_response.get_json()["captures"]
+        self.assertEqual(len(captures), 2)
+
+        single = self.client.get(
+            "/api/timelapse/capture/download",
+            query_string={"folder": "prueba-01", "path": captures[0]["path"]},
+        )
+        self.assertEqual(single.status_code, 200)
+        self.assertIn(single.data, {b"jpeg-one", b"jpeg-two"})
+        single.close()
+
+        archive = self.client.post("/api/timelapse/captures/download", json={
+            "folder": "prueba-01",
+            "captures": [capture["path"] for capture in captures],
+        })
+        self.assertEqual(archive.status_code, 200)
+        with zipfile.ZipFile(BytesIO(archive.data)) as downloaded:
+            self.assertEqual(len(downloaded.namelist()), 2)
+        archive.close()
+
+    def test_rejects_folder_and_capture_path_traversal(self):
+        response = self.client.put("/api/timelapse/config", json={
+            "interval_seconds": 30,
+            "width": 1920,
+            "height": 1080,
+            "auto_resume": True,
+            "folder_name": "../escape",
+        })
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.get(
+            "/api/timelapse/capture/download",
+            query_string={"folder": "default", "path": "../../etc/passwd"},
+        )
+        self.assertIn(response.status_code, {400, 404})
+
+    def test_deletes_selected_captures_and_complete_folder(self):
+        folder = self.service.folder_path("delete-me", create=True)
+        first = folder / "first.jpg"
+        second = folder / "second.jpg"
+        first.write_bytes(b"one")
+        second.write_bytes(b"two")
+
+        response = self.client.delete("/api/timelapse/captures", json={
+            "folder": "delete-me",
+            "captures": ["first.jpg"],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(first.exists())
+        self.assertTrue(second.exists())
+
+        response = self.client.delete("/api/timelapse/folders/delete-me")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(folder.exists())
+
+    def test_cannot_delete_folder_used_by_running_timelapse(self):
+        with self.app.app_context():
+            config = db.session.get(TimelapseConfig, 1)
+            config.folder_name = "active"
+            db.session.commit()
+        self.service.folder_path("active", create=True)
+        self.camera.running = True
+
+        response = self.client.delete("/api/timelapse/folders/active")
+
+        self.assertEqual(response.status_code, 409)
+
     def test_saved_active_timelapse_resumes(self):
         with self.app.app_context():
             config = db.session.get(TimelapseConfig, 1)
@@ -137,6 +264,47 @@ class TimelapseRoutesTests(unittest.TestCase):
         self.assertTrue(resumed)
         self.assertEqual(self.camera.start_calls, [(15, 1280, 720)])
 
+    def test_legacy_rpicam_z_uses_compatibility_worker_with_callbacks(self):
+        legacy_camera = LegacyTimelapseCamera()
+        self.camera = legacy_camera
+        response = self.client.put("/api/timelapse/config", json={
+            "interval_seconds": 3,
+            "width": 1280,
+            "height": 720,
+            "auto_resume": True,
+            "light_enabled": True,
+            "light_intensity": 35,
+            "folder_name": "legacy",
+        })
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.post("/api/timelapse/start")
+        self.assertEqual(response.status_code, 200)
+        deadline = time.monotonic() + 2
+        persisted_count = 0
+        while persisted_count < 1 and time.monotonic() < deadline:
+            time.sleep(0.01)
+            with self.app.app_context():
+                persisted_count = db.session.get(TimelapseConfig, 1).capture_count
+        self.assertEqual(legacy_camera.capture_calls, [(1280, 720)])
+        self.assertEqual(persisted_count, 1)
+
+        response = self.client.post("/api/timelapse/stop")
+        self.assertEqual(response.status_code, 200)
+        captures = list(
+            (Path(self.tmpdir.name) / "captures" / "legacy").rglob("*.jpg")
+        )
+        self.assertEqual(len(captures), 1)
+        self.assertEqual(captures[0].read_bytes(), b"legacy-jpeg")
+        self.assertRegex(
+            captures[0].name,
+            r"^\d{4}_\d{2}_\d{2}_\d{2}-\d{2}-\d{2}\.jpg$",
+        )
+
+    def test_partial_callback_api_also_uses_compatibility_worker(self):
+        camera = PartialCallbackTimelapseCamera()
+        self.assertFalse(self.service._supports_native_callbacks(camera))
+
     def test_configuration_cannot_change_while_running(self):
         self.camera.running = True
         response = self.client.put("/api/timelapse/config", json={
@@ -146,6 +314,35 @@ class TimelapseRoutesTests(unittest.TestCase):
             "auto_resume": True,
         })
         self.assertEqual(response.status_code, 409)
+
+    def test_light_requires_three_second_interval(self):
+        response = self.client.put("/api/timelapse/config", json={
+            "interval_seconds": 2,
+            "width": 1920,
+            "height": 1080,
+            "auto_resume": True,
+            "light_enabled": True,
+            "light_intensity": 50,
+            "folder_name": "minimum-light",
+        })
+        self.assertEqual(response.status_code, 400)
+
+    def test_light_waits_before_capture_callback_returns(self):
+        with self.app.app_context():
+            self.service.configure(
+                interval_seconds=3,
+                width=1920,
+                height=1080,
+                auto_resume=True,
+                light_enabled=True,
+                light_intensity=50,
+                folder_name="warmup",
+            )
+        self.service.light_warmup_seconds = 3
+        with mock.patch("timelapse.service.time.sleep") as sleep:
+            self.service._on_before_capture({"capture_count": 1})
+        sleep.assert_called_once_with(3)
+        self.assertEqual(self.ble.commands[-1], "SET_LIGHT:50")
 
     def test_stop_clears_persisted_intent_even_without_camera(self):
         with self.app.app_context():

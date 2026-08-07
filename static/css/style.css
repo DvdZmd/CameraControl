@@ -859,6 +859,28 @@ button:disabled {
     gap: 8px;
 }
 
+.field-help {
+    margin: 5px 0 0;
+    color: #888;
+    font-size: 0.72rem;
+}
+
+#tl-folder-select {
+    width: 100%;
+    margin: 6px 0 10px;
+    padding: 8px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #1b1b1b;
+    color: white;
+}
+
+.timelapse-capture-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 .timelapse-inline-fields input,
 .timelapse-inline-fields select {
     min-width: 0;

@@ -1,4 +1,8 @@
-from flask import Blueprint, current_app, jsonify, request
+import os
+import tempfile
+import zipfile
+
+from flask import Blueprint, after_this_request, current_app, jsonify, request, send_file
 
 
 timelapse_bp = Blueprint("timelapse", __name__, url_prefix="/api/timelapse")
@@ -37,7 +41,7 @@ def update_timelapse_config():
     try:
         allowed = {
             "interval_seconds", "width", "height", "auto_resume",
-            "light_enabled", "light_intensity",
+            "light_enabled", "light_intensity", "folder_name",
         }
         unknown = sorted(set(data) - allowed)
         if unknown:
@@ -62,6 +66,9 @@ def update_timelapse_config():
             raise ValueError("light_intensity debe estar entre 1 y 100")
         if light_intensity > 100:
             raise ValueError("light_intensity debe estar entre 1 y 100")
+        if light_enabled and interval < 3:
+            raise ValueError("interval_seconds debe ser al menos 3 cuando la luz está activa")
+        folder_name = data.get("folder_name", "default")
         status = get_timelapse_service().configure(
             interval_seconds=interval,
             width=width,
@@ -69,6 +76,7 @@ def update_timelapse_config():
             auto_resume=auto_resume,
             light_enabled=light_enabled,
             light_intensity=light_intensity,
+            folder_name=folder_name,
         )
         return jsonify(status)
     except ValueError as error:
@@ -91,3 +99,138 @@ def stop_timelapse():
         return jsonify(get_timelapse_service().stop())
     except Exception as error:
         return jsonify({"error": str(error)}), 503
+
+
+@timelapse_bp.route("/folders", methods=["GET"])
+def timelapse_folders():
+    service = get_timelapse_service()
+    return jsonify({
+        "folders": service.list_folders(),
+        "selected": service.status()["folder_name"],
+    })
+
+
+@timelapse_bp.route("/captures", methods=["GET"])
+def timelapse_captures():
+    folder = request.args.get("folder", "")
+    try:
+        captures = get_timelapse_service().list_captures(folder)
+        return jsonify({"folder": folder, "captures": captures, "total": len(captures)})
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except FileNotFoundError as error:
+        return jsonify({"error": str(error)}), 404
+
+
+def _zip_response(folder_name, capture_paths, archive_name):
+    service = get_timelapse_service()
+    archive = tempfile.NamedTemporaryFile(prefix="timelapse-", suffix=".zip", delete=False)
+    archive.close()
+    try:
+        with zipfile.ZipFile(archive.name, "w", compression=zipfile.ZIP_DEFLATED) as output:
+            for capture in capture_paths:
+                path = service.capture_path(folder_name, capture)
+                output.write(path, arcname=path.relative_to(service.folder_path(folder_name)))
+    except Exception:
+        os.unlink(archive.name)
+        raise
+
+    @after_this_request
+    def remove_archive(response):
+        try:
+            os.unlink(archive.name)
+        except OSError:
+            pass
+        return response
+
+    return send_file(
+        archive.name,
+        as_attachment=True,
+        download_name=archive_name,
+        mimetype="application/zip",
+    )
+
+
+@timelapse_bp.route("/folders/<folder_name>/download", methods=["GET"])
+def download_timelapse_folder(folder_name):
+    service = get_timelapse_service()
+    try:
+        captures = service.list_captures(folder_name)
+        return _zip_response(
+            folder_name,
+            [capture["path"] for capture in captures],
+            f"{folder_name}.zip",
+        )
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except FileNotFoundError as error:
+        return jsonify({"error": str(error)}), 404
+
+
+@timelapse_bp.route("/capture/download", methods=["GET"])
+def download_timelapse_capture():
+    try:
+        path = get_timelapse_service().capture_path(
+            request.args.get("folder", ""), request.args.get("path", "")
+        )
+        return send_file(path, as_attachment=True, download_name=path.name)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except FileNotFoundError as error:
+        return jsonify({"error": str(error)}), 404
+
+
+@timelapse_bp.route("/captures/download", methods=["POST"])
+def download_selected_captures():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Se requiere un objeto JSON"}), 400
+    folder = data.get("folder")
+    captures = data.get("captures")
+    if not isinstance(captures, list) or not captures:
+        return jsonify({"error": "Debe seleccionar al menos una captura"}), 400
+    if len(captures) > 5000 or any(not isinstance(item, str) for item in captures):
+        return jsonify({"error": "Selección de capturas inválida"}), 400
+    captures = list(dict.fromkeys(captures))
+    try:
+        return _zip_response(folder, captures, f"{folder}-seleccion.zip")
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except FileNotFoundError as error:
+        return jsonify({"error": str(error)}), 404
+
+
+@timelapse_bp.route("/captures", methods=["DELETE"])
+def delete_timelapse_captures():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Se requiere un objeto JSON"}), 400
+    folder = data.get("folder")
+    captures = data.get("captures")
+    if not isinstance(captures, list) or not captures:
+        return jsonify({"error": "Debe seleccionar al menos una captura"}), 400
+    if len(captures) > 5000 or any(not isinstance(item, str) for item in captures):
+        return jsonify({"error": "Selección de capturas inválida"}), 400
+    captures = list(dict.fromkeys(captures))
+    try:
+        deleted = get_timelapse_service().delete_captures(folder, captures)
+        return jsonify({"ok": True, "deleted": deleted, "folder": folder})
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except FileNotFoundError as error:
+        return jsonify({"error": str(error)}), 404
+    except RuntimeError as error:
+        return jsonify({"error": str(error)}), 409
+
+
+@timelapse_bp.route("/folders/<folder_name>", methods=["DELETE"])
+def delete_timelapse_folder(folder_name):
+    try:
+        get_timelapse_service().delete_folder(folder_name)
+        return jsonify({"ok": True, "deleted_folder": folder_name})
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except FileNotFoundError as error:
+        return jsonify({"error": str(error)}), 404
+    except RuntimeError as error:
+        return jsonify({"error": str(error)}), 409

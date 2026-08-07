@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import Blueprint, current_app, jsonify, request
 
-from database.models import SensorReading
+from database.models import SensorReading, db
 
 
 sensor_bp = Blueprint("sensors", __name__, url_prefix="/api/sensors")
@@ -175,3 +175,39 @@ def readings_history():
         "pages": pagination.pages,
         "readings": [_serialize(reading) for reading in pagination.items],
     })
+
+
+@sensor_bp.route("/readings", methods=["DELETE"])
+def delete_sensor_readings():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get("ids"), list):
+        return jsonify({"error": "ids debe ser una lista"}), 400
+    raw_ids = data["ids"]
+    if not raw_ids or len(raw_ids) > 5000:
+        return jsonify({"error": "Debe seleccionar entre 1 y 5000 lecturas"}), 400
+    if any(isinstance(value, bool) or not isinstance(value, int) or value < 1 for value in raw_ids):
+        return jsonify({"error": "Todos los ids deben ser enteros positivos"}), 400
+    ids = list(dict.fromkeys(raw_ids))
+    try:
+        deleted = SensorReading.query.filter(SensorReading.id.in_(ids)).delete(
+            synchronize_session=False
+        )
+        db.session.commit()
+        return jsonify({"ok": True, "deleted": deleted})
+    except Exception as error:
+        db.session.rollback()
+        return jsonify({"error": str(error)}), 500
+
+
+@sensor_bp.route("/readings/all", methods=["DELETE"])
+def delete_all_sensor_readings():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or data.get("confirm") is not True:
+        return jsonify({"error": "Se requiere confirm=true"}), 400
+    try:
+        deleted = SensorReading.query.delete(synchronize_session=False)
+        db.session.commit()
+        return jsonify({"ok": True, "deleted": deleted})
+    except Exception as error:
+        db.session.rollback()
+        return jsonify({"error": str(error)}), 500

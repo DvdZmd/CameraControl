@@ -60,6 +60,13 @@ def _env_positive_int(name: str, default: int) -> int:
         return default
     return parsed if parsed > 0 else default
 
+
+def _project_path_env(name: str, default: str) -> str:
+    path = Path(os.environ.get(name, default)).expanduser()
+    if not path.is_absolute():
+        path = Path(__file__).resolve().parent / path
+    return str(path.resolve())
+
 # === GLOBAL CONSTANTS (used by imports) ===
 # Camera settings 
 CAMERA_WIDTH = 1640
@@ -84,7 +91,8 @@ LENS_POSITION = None  # Manual focus
 AF_MODE = 2           # Autofocus mode: 0=manual, 1=auto, 2=continuous
 
 # Timelapse folder
-TIMELAPSE_DIR = os.path.abspath("./timelapse")
+PROJECT_ROOT = Path(__file__).resolve().parent
+TIMELAPSE_DIR = str((PROJECT_ROOT / "timelapse").resolve())
 
 # Available camera resolutions (width, height)
 AVAILABLE_RESOLUTIONS = [
@@ -153,9 +161,7 @@ class CameraConfig:
 @dataclass
 class TimelapseConfig:
     timelapse_dir: str = field(
-        default_factory=lambda: os.path.abspath(
-            os.environ.get("TIMELAPSE_DIR", "./timelapse")
-        )
+        default_factory=lambda: _project_path_env("TIMELAPSE_DIR", "timelapse")
     )
     default_interval_seconds: int = field(
         default_factory=lambda: _env_positive_int("TIMELAPSE_INTERVAL_SECONDS", 10)

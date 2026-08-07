@@ -99,8 +99,9 @@ El streaming MJPEG se controla explícitamente desde el frontend:
 
 - `POST /api/camera/stream/start`: habilita el streaming y reintenta crear la
   cámara si estaba ausente o cerrada.
-- `POST /api/camera/stream/stop`: apaga el streaming y libera la cámara cuando
-  el controlador expone `close()`.
+- `POST /api/camera/stream/stop`: detiene solamente la entrega de frames MJPEG.
+  No llama a `close()`, porque cerrar el controlador también detiene el
+  timelapse y libera Picamera2.
 - `GET /api/camera/video_feed`: sólo debe abrirse cuando el streaming está
   habilitado; si está apagado responde error controlado.
 - `GET /api/camera/camera_status`: expone `available` y `stream_enabled` para
@@ -108,6 +109,10 @@ El streaming MJPEG se controla explícitamente desde el frontend:
 
 Apagar o prender el stream no debe introducir productores permanentes de frames,
 colas ni polling de cámara.
+
+El estado `stream_enabled` controla exclusivamente `/video_feed` y
+`/video_feed_sync`. La cámara permanece operativa para fotografías y timelapse,
+por lo que estos flujos deben funcionar con Live Stream encendido o apagado.
 
 ## Concurrencia
 
@@ -269,9 +274,12 @@ No iniciar múltiples timelapses simultáneos.
 
 ### Implementación vigente
 
-`rpicam-z` conserva la propiedad del thread y expone cancelación con
-`threading.Event`, estado de runtime y callbacks. CameraControl no crea un
-segundo worker: persiste política y progreso mediante `TimelapseService`.
+Cuando `rpicam-z` expone callbacks, conserva la propiedad del thread y ofrece
+cancelación, estado de runtime y eventos de captura. La versión actualmente
+instalada en algunas instalaciones sólo acepta intervalo y resolución. En ese
+caso `TimelapseService` selecciona mediante introspección un worker compatible
+propio, cancelable con `threading.Event`, que usa `take_custom_photo()` y no
+inicia simultáneamente el worker legacy de la dependencia.
 
 Se distinguen dos estados:
 
@@ -287,13 +295,44 @@ los pulsos `P` y `T`. El directorio se organiza como
 La configuración se expone mediante `/api/timelapse`, se migra desde el antiguo
 campo `interval_minutes` y utiliza segundos como unidad canónica.
 
+`TIMELAPSE_DIR` define la única raíz autorizada para capturas. Cada timelapse
+persiste un `folder_name` directo dentro de esa raíz; nombres absolutos,
+traversal (`..`) y separadores de ruta son rechazados. Si no se configura la
+variable, la raíz es `<repositorio>/timelapse`, independientemente del working
+directory del proceso.
+
+El dashboard consume `/api/timelapse/folders` y
+`/api/timelapse/captures?folder=...` para presentar detalles de archivos JPEG o
+PNG. Las descargas individuales usan `send_file`; carpetas completas y
+selecciones múltiples se comprimen en un ZIP temporal fuera del repositorio y
+se eliminan al terminar la respuesta.
+
+Las capturas seleccionadas y los directorios completos pueden eliminarse desde
+el dashboard. Todas las rutas se resuelven nuevamente en el backend antes de
+borrar y se rechaza cualquier eliminación sobre la carpeta de un timelapse en
+ejecución para evitar carreras con el thread de captura.
+
+Las fotografías manuales y las capturas de timelapse usan el formato local
+`YYYY_MM_DD_HH-MM-SS.jpg`, compatible con Windows, Linux, ZIP, SMB y sistemas
+FAT/exFAT. Si ya existe un archivo del mismo segundo, se agrega
+un sufijo incremental (`_2`, `_3`, etc.) para evitar sobrescrituras. En el flujo
+nativo, CameraControl normaliza el nombre dentro del callback posterior a la
+escritura; el worker compatible genera directamente el mismo formato.
+
 Cada configuración también persiste su propia política de iluminación:
 `light_enabled` y `light_intensity` (1..100). El worker de `rpicam-z` llama a
 `on_before_capture` inmediatamente antes de tomar cada foto; CameraControl
 aplica allí la intensidad configurada. Los callbacks de captura, error y fin
 restauran el estado manual persistido, por lo que el timelapse no modifica la
-preferencia global. La versión instalada de `rpicam-z` debe soportar los
-callbacks `on_before_capture`, `on_capture`, `on_error` y `on_complete`.
+preferencia global. Si están disponibles, se usan los callbacks
+`on_before_capture`, `on_capture`, `on_error` y `on_complete`; si no, el worker
+compatible invoca el mismo contrato internamente.
+
+Con `light_enabled=true`, `on_before_capture` enciende la luz configurada y
+espera 3 segundos antes de solicitar la fotografía para permitir que la
+exposición automática se estabilice. En el worker compatible esta espera se
+interrumpe mediante su `Event` al detener el timelapse. El intervalo mínimo con
+luz es 3 segundos y se valida tanto en API como en el servicio.
 
 ## Errores
 

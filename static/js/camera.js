@@ -1069,7 +1069,17 @@ async function captureCustomPhoto() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Photo_${w}x${h}_${Date.now()}.jpg`;
+        const capturedAt = new Date();
+        const pad = value => String(value).padStart(2, '0');
+        a.download = [
+            capturedAt.getFullYear(),
+            pad(capturedAt.getMonth() + 1),
+            pad(capturedAt.getDate())
+        ].join('_') + '_' + [
+            pad(capturedAt.getHours()),
+            pad(capturedAt.getMinutes()),
+            pad(capturedAt.getSeconds())
+        ].join('-') + '.jpg';
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -1273,9 +1283,19 @@ function timelapseIntervalSeconds() {
     return unit === 'minutes' ? value * 60 : value;
 }
 
+function syncTimelapseIntervalMinimum() {
+    const input = document.getElementById('tl-interval');
+    const unit = document.getElementById('tl-interval-unit').value;
+    const lightEnabled = document.getElementById('tl-light-enabled').checked;
+    const minimum = unit === 'seconds' ? (lightEnabled ? 3 : 2) : 1;
+    input.min = String(minimum);
+    if (Number(input.value) < minimum) input.value = String(minimum);
+}
+
 function setTimelapseControlsDisabled(disabled) {
     ['tl-interval', 'tl-interval-unit', 'tl-w', 'tl-h', 'tl-auto-resume',
-        'tl-light-enabled', 'tl-light-intensity'].forEach(id => {
+        'tl-light-enabled', 'tl-light-intensity', 'tl-folder-name',
+        'tl-resolution-preset'].forEach(id => {
         const element = document.getElementById(id);
         if (element) element.disabled = disabled;
     });
@@ -1322,10 +1342,17 @@ function hydrateTimelapseConfig(data) {
     document.getElementById('tl-interval').value = useMinutes ? seconds / 60 : seconds;
     document.getElementById('tl-w').value = data.width;
     document.getElementById('tl-h').value = data.height;
+    const resolution = `${data.width}x${data.height}`;
+    const preset = document.getElementById('tl-resolution-preset');
+    const hasPreset = Array.from(preset.options).some(option => option.value === resolution);
+    preset.value = hasPreset ? resolution : 'custom';
+    document.getElementById('tl-custom-resolution').style.display = hasPreset ? 'none' : 'flex';
     document.getElementById('tl-auto-resume').checked = Boolean(data.auto_resume);
     document.getElementById('tl-light-enabled').checked = Boolean(data.light_enabled);
     document.getElementById('tl-light-intensity').value = data.light_intensity || 100;
     document.getElementById('tl-light-intensity-value').textContent = `${data.light_intensity || 100}%`;
+    document.getElementById('tl-folder-name').value = data.folder_name || 'default';
+    syncTimelapseIntervalMinimum();
 }
 
 async function refreshTimelapseStatus({ hydrate = false } = {}) {
@@ -1348,13 +1375,19 @@ async function refreshTimelapseStatus({ hydrate = false } = {}) {
 }
 
 async function saveTimelapseConfig() {
+    const intervalSeconds = timelapseIntervalSeconds();
+    const lightEnabled = document.getElementById('tl-light-enabled').checked;
+    if (lightEnabled && intervalSeconds < 3) {
+        throw new Error('Con luz activa el intervalo mínimo es de 3 segundos');
+    }
     const payload = {
-        interval_seconds: timelapseIntervalSeconds(),
+        interval_seconds: intervalSeconds,
         width: parseInt(document.getElementById('tl-w').value, 10),
         height: parseInt(document.getElementById('tl-h').value, 10),
         auto_resume: document.getElementById('tl-auto-resume').checked,
-        light_enabled: document.getElementById('tl-light-enabled').checked,
-        light_intensity: parseInt(document.getElementById('tl-light-intensity').value, 10)
+        light_enabled: lightEnabled,
+        light_intensity: parseInt(document.getElementById('tl-light-intensity').value, 10),
+        folder_name: document.getElementById('tl-folder-name').value.trim()
     };
     const response = await fetch('/api/timelapse/config', {
         method: 'PUT',
@@ -1364,7 +1397,164 @@ async function saveTimelapseConfig() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'No se pudo guardar la configuración');
     renderTimelapseStatus(data);
+    await loadTimelapseFolders(data.folder_name);
     return data;
+}
+
+function formatFileSize(sizeBytes) {
+    const bytes = Number(sizeBytes) || 0;
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function selectedTimelapseFolder() {
+    return document.getElementById('tl-folder-select').value;
+}
+
+async function loadTimelapseFolders(preferredFolder = null) {
+    const response = await fetch('/api/timelapse/folders');
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'No se pudieron consultar las carpetas');
+    const select = document.getElementById('tl-folder-select');
+    const selected = preferredFolder || select.value || data.selected;
+    select.replaceChildren();
+    data.folders.forEach(folder => {
+        const option = document.createElement('option');
+        option.value = folder;
+        option.textContent = folder;
+        select.appendChild(option);
+    });
+    if (data.folders.includes(selected)) select.value = selected;
+    if (select.value) await loadTimelapseCaptures();
+}
+
+async function loadTimelapseCaptures() {
+    const folder = selectedTimelapseFolder();
+    const body = document.getElementById('tl-captures-body');
+    const feedback = document.getElementById('tl-captures-feedback');
+    body.replaceChildren();
+    document.getElementById('tl-select-all-captures').checked = false;
+    if (!folder) {
+        feedback.classList.remove('hidden', 'status-error');
+        feedback.textContent = 'No hay directorios de timelapse';
+        return;
+    }
+    try {
+        const params = new URLSearchParams({ folder });
+        const response = await fetch(`/api/timelapse/captures?${params}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'No se pudieron consultar las capturas');
+        data.captures.forEach(capture => {
+            const row = document.createElement('tr');
+            const selectorCell = document.createElement('td');
+            const selector = document.createElement('input');
+            selector.type = 'checkbox';
+            selector.className = 'tl-capture-selector';
+            selector.value = capture.path;
+            selectorCell.appendChild(selector);
+            const values = [
+                capture.name,
+                capture.path,
+                formatFileSize(capture.size_bytes),
+                new Date(capture.modified_at).toLocaleString()
+            ];
+            row.appendChild(selectorCell);
+            values.forEach(value => {
+                const cell = document.createElement('td');
+                cell.textContent = value;
+                row.appendChild(cell);
+            });
+            const actionCell = document.createElement('td');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn-secondary';
+            button.dataset.action = 'download-timelapse-capture';
+            button.dataset.capturePath = capture.path;
+            button.textContent = 'Descargar';
+            actionCell.appendChild(button);
+            row.appendChild(actionCell);
+            body.appendChild(row);
+        });
+        feedback.classList.remove('hidden', 'status-error');
+        feedback.textContent = `${data.total} capturas en ${folder}`;
+    } catch (error) {
+        feedback.classList.remove('hidden');
+        feedback.classList.add('status-error');
+        feedback.textContent = error.message;
+    }
+}
+
+function downloadTimelapseCapture(capturePath) {
+    const params = new URLSearchParams({
+        folder: selectedTimelapseFolder(),
+        path: capturePath
+    });
+    window.location.assign(`/api/timelapse/capture/download?${params}`);
+}
+
+function downloadTimelapseFolder() {
+    const folder = selectedTimelapseFolder();
+    if (folder) window.location.assign(`/api/timelapse/folders/${encodeURIComponent(folder)}/download`);
+}
+
+async function downloadSelectedCaptures() {
+    const captures = Array.from(document.querySelectorAll('.tl-capture-selector:checked'))
+        .map(input => input.value);
+    const feedback = document.getElementById('tl-captures-feedback');
+    if (!captures.length) {
+        feedback.classList.remove('hidden');
+        feedback.classList.add('status-error');
+        feedback.textContent = 'Seleccioná al menos una captura';
+        return;
+    }
+    const folder = selectedTimelapseFolder();
+    const response = await fetch('/api/timelapse/captures/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder, captures })
+    });
+    if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'No se pudieron descargar las capturas');
+    }
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${folder}-seleccion.zip`;
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
+function selectedCapturePaths() {
+    return Array.from(document.querySelectorAll('.tl-capture-selector:checked'))
+        .map(input => input.value);
+}
+
+async function deleteSelectedCaptures() {
+    const captures = selectedCapturePaths();
+    if (!captures.length) throw new Error('Seleccioná al menos una captura');
+    if (!window.confirm(`¿Borrar definitivamente ${captures.length} capturas?`)) return;
+    const response = await fetch('/api/timelapse/captures', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder: selectedTimelapseFolder(), captures })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'No se pudieron borrar las capturas');
+    await loadTimelapseCaptures();
+}
+
+async function deleteTimelapseFolder() {
+    const folder = selectedTimelapseFolder();
+    if (!folder) throw new Error('No hay un directorio seleccionado');
+    if (!window.confirm(`¿Borrar definitivamente el directorio "${folder}" y todas sus capturas?`)) return;
+    const response = await fetch(`/api/timelapse/folders/${encodeURIComponent(folder)}`, {
+        method: 'DELETE'
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'No se pudo borrar el directorio');
+    await loadTimelapseFolders();
 }
 
 let sensorHistoryPage = 1;
@@ -1436,8 +1626,16 @@ function renderSensorHistory(data) {
     if (!body || !pagination) return;
 
     body.replaceChildren();
+    document.getElementById('sensor-select-all-readings').checked = false;
     data.readings.forEach(reading => {
         const row = document.createElement('tr');
+        const selectorCell = document.createElement('td');
+        const selector = document.createElement('input');
+        selector.type = 'checkbox';
+        selector.className = 'sensor-reading-selector';
+        selector.value = String(reading.id);
+        selectorCell.appendChild(selector);
+        row.appendChild(selectorCell);
         const values = [
             new Date(reading.timestamp).toLocaleString(),
             `${Number(reading.temperature_air).toFixed(1)} °C`,
@@ -1471,6 +1669,33 @@ function renderSensorHistory(data) {
         next.addEventListener('click', () => loadSensorHistory(data.page + 1));
         pagination.append(previous, label, next);
     }
+}
+
+async function deleteSelectedSensorReadings() {
+    const ids = Array.from(document.querySelectorAll('.sensor-reading-selector:checked'))
+        .map(input => Number(input.value));
+    if (!ids.length) throw new Error('Seleccioná al menos una lectura');
+    if (!window.confirm(`¿Borrar definitivamente ${ids.length} lecturas?`)) return;
+    const response = await fetch('/api/sensors/readings', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'No se pudieron borrar las lecturas');
+    await loadSensorHistory(sensorHistoryPage);
+}
+
+async function deleteAllSensorReadings() {
+    if (!window.confirm('¿Borrar definitivamente TODAS las lecturas de sensores?')) return;
+    const response = await fetch('/api/sensors/readings/all', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'No se pudieron borrar las lecturas');
+    await loadSensorHistory(1);
 }
 
 async function loadSensorHistory(page = 1) {
@@ -1564,6 +1789,45 @@ function setupEventListeners() {
                 break;
             case 'load-sensor-history': loadSensorHistory(1); break;
             case 'save-sensor-logging-config': saveSensorLoggingConfig(); break;
+            case 'refresh-timelapse-captures': loadTimelapseFolders(); break;
+            case 'download-timelapse-folder': downloadTimelapseFolder(); break;
+            case 'download-timelapse-capture':
+                downloadTimelapseCapture(actionTarget.dataset.capturePath);
+                break;
+            case 'download-selected-captures':
+                downloadSelectedCaptures().catch(error => {
+                    const feedback = document.getElementById('tl-captures-feedback');
+                    feedback.classList.remove('hidden');
+                    feedback.classList.add('status-error');
+                    feedback.textContent = error.message;
+                });
+                break;
+            case 'delete-selected-captures':
+            case 'delete-timelapse-folder': {
+                const operation = action === 'delete-selected-captures'
+                    ? deleteSelectedCaptures()
+                    : deleteTimelapseFolder();
+                operation.catch(error => {
+                    const feedback = document.getElementById('tl-captures-feedback');
+                    feedback.classList.remove('hidden');
+                    feedback.classList.add('status-error');
+                    feedback.textContent = error.message;
+                });
+                break;
+            }
+            case 'delete-selected-readings':
+            case 'delete-all-readings': {
+                const operation = action === 'delete-selected-readings'
+                    ? deleteSelectedSensorReadings()
+                    : deleteAllSensorReadings();
+                operation.catch(error => {
+                    const feedback = document.getElementById('sensor-history-feedback');
+                    feedback.classList.remove('hidden');
+                    feedback.classList.add('status-error');
+                    feedback.textContent = error.message;
+                });
+                break;
+            }
             case 'esp32-connect': connectEsp32(); break;
             case 'esp32-disconnect': disconnectEsp32(); break;
             case 'esp32-center': sendEsp32Center(); break;
@@ -1591,6 +1855,27 @@ function setupEventListeners() {
             setEsp32Speed(e.target.value);
         } else if (action === 'set-light-intensity') {
             setEsp32LightIntensity(e.target.value);
+        } else if (e.target.id === 'tl-resolution-preset') {
+            const custom = e.target.value === 'custom';
+            document.getElementById('tl-custom-resolution').style.display = custom ? 'flex' : 'none';
+            if (!custom) {
+                const [width, height] = e.target.value.split('x').map(Number);
+                document.getElementById('tl-w').value = width;
+                document.getElementById('tl-h').value = height;
+            }
+        } else if (e.target.id === 'tl-light-enabled' || e.target.id === 'tl-interval-unit') {
+            syncTimelapseIntervalMinimum();
+        } else if (e.target.id === 'tl-folder-select') {
+            document.getElementById('tl-folder-name').value = e.target.value;
+            loadTimelapseCaptures();
+        } else if (e.target.id === 'tl-select-all-captures') {
+            document.querySelectorAll('.tl-capture-selector').forEach(input => {
+                input.checked = e.target.checked;
+            });
+        } else if (e.target.id === 'sensor-select-all-readings') {
+            document.querySelectorAll('.sensor-reading-selector').forEach(input => {
+                input.checked = e.target.checked;
+            });
         } else if (control) {
             const valueType = e.target.dataset.type || (e.target.step ? 'float' : 'string');
             const value = parseValue(e.target.value, valueType);
@@ -1647,6 +1932,7 @@ async function initializeDashboard() {
     await refreshEsp32Status();
     await refreshTuyaStatus();
     await refreshTimelapseStatus({ hydrate: true });
+    await loadTimelapseFolders(document.getElementById('tl-folder-name').value);
     await loadSensorLoggingConfig();
 
     setInterval(refreshEsp32Status, 3000);

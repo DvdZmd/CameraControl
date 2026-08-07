@@ -107,6 +107,39 @@ class SensorHistoryTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    def test_deletes_selected_and_all_sensor_readings(self):
+        with self.app.app_context():
+            db.session.add_all([
+                SensorReading(
+                    temperature_air=20,
+                    humidity_air=70,
+                    temperature_soil=18,
+                    humidity_soil=50,
+                ),
+                SensorReading(
+                    temperature_air=21,
+                    humidity_air=71,
+                    temperature_soil=19,
+                    humidity_soil=51,
+                ),
+            ])
+            db.session.commit()
+            ids = [reading.id for reading in SensorReading.query.order_by(SensorReading.id)]
+
+        response = self.client.delete("/api/sensors/readings", json={"ids": [ids[0]]})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["deleted"], 1)
+
+        response = self.client.delete("/api/sensors/readings/all", json={"confirm": True})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["deleted"], 1)
+        with self.app.app_context():
+            self.assertEqual(SensorReading.query.count(), 0)
+
+    def test_delete_all_sensor_readings_requires_confirmation(self):
+        response = self.client.delete("/api/sensors/readings/all", json={})
+        self.assertEqual(response.status_code, 400)
+
     def test_logging_configuration_is_persisted_and_exposed(self):
         defaults = SimpleNamespace(enabled=True, interval_seconds=60)
         controller = SimpleNamespace(client=None, last_state={})
