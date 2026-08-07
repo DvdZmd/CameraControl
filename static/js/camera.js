@@ -1287,7 +1287,8 @@ function syncTimelapseIntervalMinimum() {
     const input = document.getElementById('tl-interval');
     const unit = document.getElementById('tl-interval-unit').value;
     const lightEnabled = document.getElementById('tl-light-enabled').checked;
-    const minimum = unit === 'seconds' ? (lightEnabled ? 3 : 2) : 1;
+    const warmupSeconds = Number(document.getElementById('tl-light-warmup').value) || 0;
+    const minimum = unit === 'seconds' ? Math.max(2, lightEnabled ? warmupSeconds : 0) : 1;
     input.min = String(minimum);
     if (Number(input.value) < minimum) input.value = String(minimum);
 }
@@ -1295,7 +1296,7 @@ function syncTimelapseIntervalMinimum() {
 function setTimelapseControlsDisabled(disabled) {
     ['tl-interval', 'tl-interval-unit', 'tl-w', 'tl-h', 'tl-auto-resume',
         'tl-light-enabled', 'tl-light-intensity', 'tl-folder-name',
-        'tl-resolution-preset'].forEach(id => {
+        'tl-light-warmup', 'tl-resolution-preset'].forEach(id => {
         const element = document.getElementById(id);
         if (element) element.disabled = disabled;
     });
@@ -1351,6 +1352,7 @@ function hydrateTimelapseConfig(data) {
     document.getElementById('tl-light-enabled').checked = Boolean(data.light_enabled);
     document.getElementById('tl-light-intensity').value = data.light_intensity || 100;
     document.getElementById('tl-light-intensity-value').textContent = `${data.light_intensity || 100}%`;
+    document.getElementById('tl-light-warmup').value = data.light_warmup_seconds ?? 3;
     document.getElementById('tl-folder-name').value = data.folder_name || 'default';
     syncTimelapseIntervalMinimum();
 }
@@ -1377,8 +1379,12 @@ async function refreshTimelapseStatus({ hydrate = false } = {}) {
 async function saveTimelapseConfig() {
     const intervalSeconds = timelapseIntervalSeconds();
     const lightEnabled = document.getElementById('tl-light-enabled').checked;
-    if (lightEnabled && intervalSeconds < 3) {
-        throw new Error('Con luz activa el intervalo mínimo es de 3 segundos');
+    const lightWarmupSeconds = Number(document.getElementById('tl-light-warmup').value);
+    if (!Number.isInteger(lightWarmupSeconds) || lightWarmupSeconds < 0 || lightWarmupSeconds > 60) {
+        throw new Error('La espera de luz debe ser un entero entre 0 y 60 segundos');
+    }
+    if (lightEnabled && intervalSeconds < lightWarmupSeconds) {
+        throw new Error(`Con luz activa el intervalo mínimo es de ${lightWarmupSeconds} segundos`);
     }
     const payload = {
         interval_seconds: intervalSeconds,
@@ -1387,6 +1393,7 @@ async function saveTimelapseConfig() {
         auto_resume: document.getElementById('tl-auto-resume').checked,
         light_enabled: lightEnabled,
         light_intensity: parseInt(document.getElementById('tl-light-intensity').value, 10),
+        light_warmup_seconds: lightWarmupSeconds,
         folder_name: document.getElementById('tl-folder-name').value.trim()
     };
     const response = await fetch('/api/timelapse/config', {
@@ -1863,7 +1870,11 @@ function setupEventListeners() {
                 document.getElementById('tl-w').value = width;
                 document.getElementById('tl-h').value = height;
             }
-        } else if (e.target.id === 'tl-light-enabled' || e.target.id === 'tl-interval-unit') {
+        } else if (
+            e.target.id === 'tl-light-enabled'
+            || e.target.id === 'tl-light-warmup'
+            || e.target.id === 'tl-interval-unit'
+        ) {
             syncTimelapseIntervalMinimum();
         } else if (e.target.id === 'tl-folder-select') {
             document.getElementById('tl-folder-name').value = e.target.value;

@@ -773,6 +773,7 @@ def update_settings():
                     auto_resume=current_status['auto_resume'],
                     light_enabled=current_status['light_enabled'],
                     light_intensity=current_status['light_intensity'],
+                    light_warmup_seconds=current_status['light_warmup_seconds'],
                     folder_name=current_status['folder_name'],
                 )
                 timelapse_service.start()

@@ -76,6 +76,7 @@ class TimelapseConfig(db.Model):
     last_error = db.Column(db.Text, nullable=True)
     light_enabled = db.Column(db.Boolean, nullable=False, default=False)
     light_intensity = db.Column(db.Integer, nullable=False, default=100)
+    light_warmup_seconds = db.Column(db.Integer, nullable=False, default=3)
     folder_name = db.Column(db.String(120), nullable=False, default="default")
 
 

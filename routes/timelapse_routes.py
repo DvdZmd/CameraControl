@@ -42,6 +42,7 @@ def update_timelapse_config():
         allowed = {
             "interval_seconds", "width", "height", "auto_resume",
             "light_enabled", "light_intensity", "folder_name",
+            "light_warmup_seconds",
         }
         unknown = sorted(set(data) - allowed)
         if unknown:
@@ -66,8 +67,19 @@ def update_timelapse_config():
             raise ValueError("light_intensity debe estar entre 1 y 100")
         if light_intensity > 100:
             raise ValueError("light_intensity debe estar entre 1 y 100")
-        if light_enabled and interval < 3:
-            raise ValueError("interval_seconds debe ser al menos 3 cuando la luz está activa")
+        light_warmup_seconds = data.get("light_warmup_seconds", 3)
+        if isinstance(light_warmup_seconds, bool):
+            raise ValueError("light_warmup_seconds debe ser un entero")
+        try:
+            light_warmup_seconds = int(light_warmup_seconds)
+        except (TypeError, ValueError) as error:
+            raise ValueError("light_warmup_seconds debe ser un entero") from error
+        if not 0 <= light_warmup_seconds <= 60:
+            raise ValueError("light_warmup_seconds debe estar entre 0 y 60")
+        if light_enabled and interval < light_warmup_seconds:
+            raise ValueError(
+                "interval_seconds debe ser al menos igual a light_warmup_seconds cuando la luz está activa"
+            )
         folder_name = data.get("folder_name", "default")
         status = get_timelapse_service().configure(
             interval_seconds=interval,
@@ -76,6 +88,7 @@ def update_timelapse_config():
             auto_resume=auto_resume,
             light_enabled=light_enabled,
             light_intensity=light_intensity,
+            light_warmup_seconds=light_warmup_seconds,
             folder_name=folder_name,
         )
         return jsonify(status)

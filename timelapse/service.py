@@ -27,7 +27,8 @@ DEFAULT_FOLDER_NAME = "default"
 FOLDER_NAME_PATTERN = re.compile(r"^[\w .-]{1,100}$", re.UNICODE)
 CAPTURE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 FOLDER_MARKER = ".cameracontrol-timelapse"
-LIGHT_WARMUP_SECONDS = 3
+DEFAULT_LIGHT_WARMUP_SECONDS = 3
+MAX_LIGHT_WARMUP_SECONDS = 60
 
 
 def _utc_now():
@@ -84,7 +85,6 @@ class TimelapseService:
         self._compat_stop_event = threading.Event()
         self._compat_thread = None
         self._compat_last_error = None
-        self.light_warmup_seconds = LIGHT_WARMUP_SECONDS
 
     def ensure_schema(self):
         with db.engine.begin() as connection:
@@ -104,6 +104,7 @@ class TimelapseService:
                 "last_error": "ALTER TABLE timelapse_config ADD COLUMN last_error TEXT",
                 "light_enabled": "ALTER TABLE timelapse_config ADD COLUMN light_enabled BOOLEAN NOT NULL DEFAULT 0",
                 "light_intensity": "ALTER TABLE timelapse_config ADD COLUMN light_intensity INTEGER NOT NULL DEFAULT 100",
+                "light_warmup_seconds": "ALTER TABLE timelapse_config ADD COLUMN light_warmup_seconds INTEGER NOT NULL DEFAULT 3",
                 "folder_name": "ALTER TABLE timelapse_config ADD COLUMN folder_name VARCHAR(120) NOT NULL DEFAULT 'default'",
             }
             added_interval_seconds = "interval_seconds" not in columns
@@ -257,11 +258,17 @@ class TimelapseService:
 
     def configure(
         self, *, interval_seconds, width, height, auto_resume,
-        light_enabled=False, light_intensity=100, folder_name=DEFAULT_FOLDER_NAME,
+        light_enabled=False, light_intensity=100,
+        light_warmup_seconds=DEFAULT_LIGHT_WARMUP_SECONDS,
+        folder_name=DEFAULT_FOLDER_NAME,
     ):
-        if light_enabled and interval_seconds < LIGHT_WARMUP_SECONDS:
+        if not 0 <= light_warmup_seconds <= MAX_LIGHT_WARMUP_SECONDS:
             raise ValueError(
-                f"El intervalo debe ser de al menos {LIGHT_WARMUP_SECONDS} segundos cuando la luz está activa"
+                f"light_warmup_seconds debe estar entre 0 y {MAX_LIGHT_WARMUP_SECONDS}"
+            )
+        if light_enabled and interval_seconds < light_warmup_seconds:
+            raise ValueError(
+                f"El intervalo debe ser de al menos {light_warmup_seconds} segundos cuando la luz está activa"
             )
         config = self.ensure_default_config()
         if self._runtime_status().get("running"):
@@ -273,6 +280,7 @@ class TimelapseService:
         config.auto_resume = auto_resume
         config.light_enabled = light_enabled
         config.light_intensity = light_intensity
+        config.light_warmup_seconds = light_warmup_seconds
         config.folder_name = self.validate_folder_name(folder_name)
         config.save_path = str(self.folder_path(config.folder_name, create=True))
         config.updated_at = _utc_now()
@@ -290,9 +298,9 @@ class TimelapseService:
 
     def start(self, *, resuming=False):
         config = self.ensure_default_config()
-        if config.light_enabled and config.interval_seconds < LIGHT_WARMUP_SECONDS:
+        if config.light_enabled and config.interval_seconds < config.light_warmup_seconds:
             raise ValueError(
-                f"El intervalo persistido debe ser de al menos {LIGHT_WARMUP_SECONDS} segundos cuando la luz está activa"
+                f"El intervalo persistido debe ser de al menos {config.light_warmup_seconds} segundos cuando la luz está activa"
             )
         camera = self.camera_getter()
         runtime = self._runtime_status(camera)
@@ -404,7 +412,7 @@ class TimelapseService:
             "height": config.height,
             "light_enabled": bool(config.light_enabled),
             "light_intensity": config.light_intensity,
-            "light_warmup_seconds": LIGHT_WARMUP_SECONDS,
+            "light_warmup_seconds": config.light_warmup_seconds,
             "folder_name": config.folder_name or DEFAULT_FOLDER_NAME,
             "root_path": str(self.root_path),
             "save_path": config.save_path,
@@ -608,17 +616,18 @@ class TimelapseService:
             config = self.ensure_default_config()
             light_enabled = bool(config.light_enabled)
             intensity = config.light_intensity if light_enabled else 0
+            warmup_seconds = config.light_warmup_seconds or 0
         try:
             self._set_light(intensity)
             if light_enabled:
                 if threading.current_thread() is self._compat_thread:
-                    self._compat_stop_event.wait(self.light_warmup_seconds)
+                    self._compat_stop_event.wait(warmup_seconds)
                 else:
-                    time.sleep(self.light_warmup_seconds)
+                    time.sleep(warmup_seconds)
             logger.debug(
                 "Luz de timelapse aplicada antes de captura: %s%%; estabilización=%ss",
                 intensity,
-                self.light_warmup_seconds if light_enabled else 0,
+                warmup_seconds if light_enabled else 0,
             )
         except Exception as error:
             # El ESP32 es hardware opcional: su ausencia no debe cancelar una

@@ -98,7 +98,6 @@ class TimelapseRoutesTests(unittest.TestCase):
         self.service = TimelapseService(
             self.app, lambda: self.camera, self.ble, defaults
         )
-        self.service.light_warmup_seconds = 0
         with self.app.app_context():
             db.create_all()
             self.service.ensure_schema()
@@ -124,6 +123,7 @@ class TimelapseRoutesTests(unittest.TestCase):
             "folder_name": "cultivo agosto",
         })
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["light_warmup_seconds"], 3)
 
         response = self.client.post("/api/timelapse/start")
         self.assertEqual(response.status_code, 200)
@@ -135,7 +135,9 @@ class TimelapseRoutesTests(unittest.TestCase):
             Path(self.tmpdir.name) / "captures" / "cultivo agosto",
         )
 
-        self.camera.callbacks["on_before_capture"]({"capture_count": 1})
+        with mock.patch("timelapse.service.time.sleep") as sleep:
+            self.camera.callbacks["on_before_capture"]({"capture_count": 1})
+        sleep.assert_called_once_with(3)
         self.assertEqual(self.ble.commands, ["SET_LIGHT:42"])
 
         self.camera.callbacks["on_capture"]({
@@ -149,6 +151,7 @@ class TimelapseRoutesTests(unittest.TestCase):
         with self.app.app_context():
             config = db.session.get(TimelapseConfig, 1)
             reading = SensorReading.query.one()
+            self.assertEqual(config.light_warmup_seconds, 3)
             self.assertEqual(config.capture_count, 1)
             self.assertEqual(config.last_capture_path, "/captures/shot.jpg")
             self.assertEqual(reading.pan_pulse_us, 1450)
@@ -274,6 +277,7 @@ class TimelapseRoutesTests(unittest.TestCase):
             "auto_resume": True,
             "light_enabled": True,
             "light_intensity": 35,
+            "light_warmup_seconds": 0,
             "folder_name": "legacy",
         })
         self.assertEqual(response.status_code, 200)
@@ -336,9 +340,9 @@ class TimelapseRoutesTests(unittest.TestCase):
                 auto_resume=True,
                 light_enabled=True,
                 light_intensity=50,
+                light_warmup_seconds=3,
                 folder_name="warmup",
             )
-        self.service.light_warmup_seconds = 3
         with mock.patch("timelapse.service.time.sleep") as sleep:
             self.service._on_before_capture({"capture_count": 1})
         sleep.assert_called_once_with(3)

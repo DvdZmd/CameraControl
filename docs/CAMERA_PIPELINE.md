@@ -329,10 +329,12 @@ preferencia global. Si están disponibles, se usan los callbacks
 compatible invoca el mismo contrato internamente.
 
 Con `light_enabled=true`, `on_before_capture` enciende la luz configurada y
-espera 3 segundos antes de solicitar la fotografía para permitir que la
-exposición automática se estabilice. En el worker compatible esta espera se
-interrumpe mediante su `Event` al detener el timelapse. El intervalo mínimo con
-luz es 3 segundos y se valida tanto en API como en el servicio.
+espera `light_warmup_seconds` antes de solicitar la fotografía para permitir
+que la exposición automática se estabilice. El valor se persiste por
+timelapse, admite entre 0 y 60 segundos y vale 3 por defecto. En el worker
+compatible esta espera se interrumpe mediante su `Event` al detener el
+timelapse. El intervalo mínimo con luz debe ser igual o mayor que la espera y
+se valida tanto en API como en el servicio.
 
 ## Errores
 
