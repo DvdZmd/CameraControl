@@ -2,13 +2,20 @@ import logging
 import math
 from datetime import UTC, datetime
 
-from database.models import Esp32Settings, SensorReading, TimelapseConfig, db
+from database.models import (
+    Esp32Settings,
+    SensorLoggingSettings,
+    SensorReading,
+    TimelapseConfig,
+    db,
+)
 from logs.sensor_logger import reading_from_ble_state
 
 
 logger = logging.getLogger(__name__)
 CONFIG_ID = 1
 ESP32_SETTINGS_ID = 1
+SENSOR_LOGGING_SETTINGS_ID = 1
 
 
 def _utc_now():
@@ -264,7 +271,11 @@ class TimelapseService:
 
             state = getattr(self.ble_controller, "last_state", None)
             reading = reading_from_ble_state(state)
-            if reading is not None:
+            logging_settings = db.session.get(
+                SensorLoggingSettings, SENSOR_LOGGING_SETTINGS_ID
+            )
+            logging_enabled = logging_settings is None or logging_settings.enabled
+            if logging_enabled and reading is not None:
                 reading.timestamp = config.last_capture_at
                 reading.pan_pulse_us = _optional_int(state.get("P"))
                 reading.tilt_pulse_us = _optional_int(state.get("T"))

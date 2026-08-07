@@ -1369,6 +1369,51 @@ async function saveTimelapseConfig() {
 
 let sensorHistoryPage = 1;
 
+function renderSensorLoggingConfig(data) {
+    document.getElementById('sensor-logging-enabled').checked = Boolean(data.enabled);
+    document.getElementById('sensor-logging-interval').value = data.interval_seconds;
+}
+
+async function loadSensorLoggingConfig() {
+    const feedback = document.getElementById('sensor-logging-feedback');
+    try {
+        const response = await fetch('/api/sensors/logging-config');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'No se pudo consultar la configuración');
+        renderSensorLoggingConfig(data);
+    } catch (error) {
+        feedback.classList.remove('hidden');
+        feedback.classList.add('status-error');
+        feedback.textContent = error.message;
+    }
+}
+
+async function saveSensorLoggingConfig() {
+    const feedback = document.getElementById('sensor-logging-feedback');
+    const payload = {
+        enabled: document.getElementById('sensor-logging-enabled').checked,
+        interval_seconds: Number(document.getElementById('sensor-logging-interval').value)
+    };
+    try {
+        const response = await fetch('/api/sensors/logging-config', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'No se pudo guardar la configuración');
+        renderSensorLoggingConfig(data);
+        feedback.classList.remove('hidden', 'status-error');
+        feedback.textContent = data.enabled
+            ? `Escritura activada cada ${data.interval_seconds} segundos`
+            : 'Escritura en base de datos desactivada';
+    } catch (error) {
+        feedback.classList.remove('hidden');
+        feedback.classList.add('status-error');
+        feedback.textContent = error.message;
+    }
+}
+
 function sensorHistoryParams(page) {
     const params = new URLSearchParams({ page: String(page), per_page: '20' });
     const fields = [
@@ -1518,6 +1563,7 @@ function setupEventListeners() {
                 });
                 break;
             case 'load-sensor-history': loadSensorHistory(1); break;
+            case 'save-sensor-logging-config': saveSensorLoggingConfig(); break;
             case 'esp32-connect': connectEsp32(); break;
             case 'esp32-disconnect': disconnectEsp32(); break;
             case 'esp32-center': sendEsp32Center(); break;
@@ -1601,6 +1647,7 @@ async function initializeDashboard() {
     await refreshEsp32Status();
     await refreshTuyaStatus();
     await refreshTimelapseStatus({ hydrate: true });
+    await loadSensorLoggingConfig();
 
     setInterval(refreshEsp32Status, 3000);
     setInterval(refreshTimelapseStatus, 5000);

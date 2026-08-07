@@ -164,13 +164,20 @@ def create_app():
     database_log_handler = enable_database_logging(app, app_config.logging)
     app.config["DATABASE_LOG_HANDLER"] = database_log_handler
 
-    sensor_thread, sensor_stop_event = start_sensor_logger(
+    sensor_logger_result = start_sensor_logger(
         app,
         ble_controller,
         app_config.sensor_logging,
     )
+    if len(sensor_logger_result) == 3:
+        sensor_thread, sensor_stop_event, sensor_logging_runtime = sensor_logger_result
+    else:
+        # Compatibilidad con dobles de prueba y extensiones antiguas.
+        sensor_thread, sensor_stop_event = sensor_logger_result
+        sensor_logging_runtime = None
     app.config["SENSOR_LOGGER_THREAD"] = sensor_thread
     app.config["SENSOR_LOGGER_STOP_EVENT"] = sensor_stop_event
+    app.config["SENSOR_LOGGING_RUNTIME"] = sensor_logging_runtime
 
     # --- INICIO: Solución al problema de reconexión ---
     # Registramos una función para que se ejecute al salir de la aplicación.
@@ -179,6 +186,8 @@ def create_app():
         """Función de limpieza para desconectar el ESP32 al cerrar la app."""
         if sensor_stop_event is not None:
             sensor_stop_event.set()
+        if sensor_logging_runtime is not None:
+            sensor_logging_runtime.wake_event.set()
         logger.info("Cerrando la aplicación; se desconectará el ESP32")
         if ble_controller and ble_controller.client and ble_controller.client.is_connected:
             try:

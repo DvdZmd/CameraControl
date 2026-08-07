@@ -2,7 +2,7 @@ import math
 import logging
 import threading
 
-from database.models import SensorReading, db
+from database.models import SensorLoggingSettings, SensorReading, db
 
 
 TELEMETRY_FIELDS = {
@@ -12,6 +12,7 @@ TELEMETRY_FIELDS = {
     "humidity_soil": "SP",
 }
 logger = logging.getLogger(__name__)
+SETTINGS_ID = 1
 
 
 def _finite_float(value):
@@ -57,27 +58,84 @@ def persist_current_telemetry(app, controller):
             return False
 
 
-def _sensor_logging_loop(app, controller, interval_seconds, stop_event):
-    while not stop_event.wait(interval_seconds):
-        persist_current_telemetry(app, controller)
+class SensorLoggingRuntime:
+    """Runtime reconfigurable backed by a singleton SQLite settings row."""
+
+    def __init__(self, app, controller, defaults):
+        self.app = app
+        self.controller = controller
+        self.stop_event = threading.Event()
+        self.wake_event = threading.Event()
+        self.lock = threading.Lock()
+        with app.app_context():
+            settings = db.session.get(SensorLoggingSettings, SETTINGS_ID)
+            if settings is None:
+                settings = SensorLoggingSettings(
+                    id=SETTINGS_ID,
+                    enabled=defaults.enabled,
+                    interval_seconds=defaults.interval_seconds,
+                )
+                db.session.add(settings)
+                db.session.commit()
+            self.enabled = bool(settings.enabled)
+            self.interval_seconds = float(settings.interval_seconds)
+        self.thread = threading.Thread(
+            target=self._run,
+            name="sensor-telemetry-logger",
+            daemon=True,
+        )
+
+    def start(self):
+        self.thread.start()
+
+    def status(self):
+        with self.lock:
+            return {
+                "enabled": self.enabled,
+                "interval_seconds": self.interval_seconds,
+            }
+
+    def configure(self, *, enabled, interval_seconds):
+        with self.app.app_context():
+            settings = db.session.get(SensorLoggingSettings, SETTINGS_ID)
+            if settings is None:
+                settings = SensorLoggingSettings(id=SETTINGS_ID)
+                db.session.add(settings)
+            settings.enabled = enabled
+            settings.interval_seconds = interval_seconds
+            db.session.commit()
+        with self.lock:
+            self.enabled = enabled
+            self.interval_seconds = interval_seconds
+        self.wake_event.set()
+        logger.info(
+            "Persistencia de telemetría actualizada: enabled=%s intervalo=%.2fs",
+            enabled,
+            interval_seconds,
+        )
+        return self.status()
+
+    def _run(self):
+        while not self.stop_event.is_set():
+            with self.lock:
+                enabled = self.enabled
+                interval_seconds = self.interval_seconds
+            timeout = interval_seconds if enabled else None
+            awakened = self.wake_event.wait(timeout)
+            self.wake_event.clear()
+            if self.stop_event.is_set():
+                break
+            if not awakened and enabled:
+                persist_current_telemetry(self.app, self.controller)
 
 
 def start_sensor_logger(app, controller, config):
-    """Start the daemon that periodically snapshots cached ESP32 telemetry."""
-    if not config.enabled:
-        logger.info("Persistencia de telemetría BLE deshabilitada")
-        return None, None
-
-    stop_event = threading.Event()
-    thread = threading.Thread(
-        target=_sensor_logging_loop,
-        args=(app, controller, config.interval_seconds, stop_event),
-        name="sensor-telemetry-logger",
-        daemon=True,
-    )
-    thread.start()
+    """Start the configurable daemon that snapshots cached ESP32 telemetry."""
+    runtime = SensorLoggingRuntime(app, controller, config)
+    runtime.start()
     logger.info(
-        "Persistencia de telemetría BLE iniciada cada %.2f segundos",
-        config.interval_seconds,
+        "Persistencia de telemetría BLE: enabled=%s intervalo=%.2fs",
+        runtime.enabled,
+        runtime.interval_seconds,
     )
-    return thread, stop_event
+    return runtime.thread, runtime.stop_event, runtime

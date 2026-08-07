@@ -5,7 +5,11 @@ from types import SimpleNamespace
 from flask import Flask
 
 from database.models import SensorReading, db
-from logs.sensor_logger import persist_current_telemetry, reading_from_ble_state
+from logs.sensor_logger import (
+    SensorLoggingRuntime,
+    persist_current_telemetry,
+    reading_from_ble_state,
+)
 from routes.sensor_routes import sensor_bp
 
 
@@ -101,6 +105,49 @@ class SensorHistoryTests(unittest.TestCase):
         response = self.client.get(
             "/api/sensors/readings?min_temperature_air=30&max_temperature_air=20"
         )
+        self.assertEqual(response.status_code, 400)
+
+    def test_logging_configuration_is_persisted_and_exposed(self):
+        defaults = SimpleNamespace(enabled=True, interval_seconds=60)
+        controller = SimpleNamespace(client=None, last_state={})
+        runtime = SensorLoggingRuntime(self.app, controller, defaults)
+        runtime.start()
+        self.app.config["SENSOR_LOGGING_RUNTIME"] = runtime
+        try:
+            response = self.client.put("/api/sensors/logging-config", json={
+                "enabled": False,
+                "interval_seconds": 120,
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.get_json(), {
+                "enabled": False,
+                "interval_seconds": 120.0,
+            })
+
+            restored = SensorLoggingRuntime(
+                self.app,
+                controller,
+                SimpleNamespace(enabled=True, interval_seconds=10),
+            )
+            self.assertEqual(restored.status(), {
+                "enabled": False,
+                "interval_seconds": 120.0,
+            })
+        finally:
+            runtime.stop_event.set()
+            runtime.wake_event.set()
+            runtime.thread.join(timeout=1)
+
+    def test_logging_configuration_validates_interval(self):
+        runtime = SimpleNamespace(
+            status=lambda: {"enabled": True, "interval_seconds": 60.0},
+            configure=lambda **values: values,
+        )
+        self.app.config["SENSOR_LOGGING_RUNTIME"] = runtime
+        response = self.client.put("/api/sensors/logging-config", json={
+            "enabled": True,
+            "interval_seconds": 0,
+        })
         self.assertEqual(response.status_code, 400)
 
 

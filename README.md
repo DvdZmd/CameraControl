@@ -124,6 +124,14 @@ SENSOR_LOG_ENABLED=true
 SENSOR_LOG_INTERVAL_SECONDS=60
 ```
 
+Estos valores sólo inicializan la configuración la primera vez. Después puede
+activarse o desactivarse la escritura y cambiarse el intervalo desde
+`Historial de lecturas`; la selección vigente se conserva en SQLite tras los
+reinicios.
+
+Al desactivar la escritura no se generan muestras periódicas ni lecturas
+asociadas a nuevas capturas de timelapse. Los registros existentes se conservan.
+
 Solo se guardan muestras cuando el ESP32 está conectado y la notificación
 cacheada contiene las cuatro lecturas ambientales válidas.
 

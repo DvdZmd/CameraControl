@@ -8,6 +8,7 @@ from database.models import SensorReading
 
 sensor_bp = Blueprint("sensors", __name__, url_prefix="/api/sensors")
 MAX_PER_PAGE = 100
+MAX_INTERVAL_SECONDS = 86400
 
 
 def _positive_int(name, default, maximum=None):
@@ -73,6 +74,45 @@ def _local_midnight_as_utc(value):
         raise ValueError(f"Zona horaria no válida: {timezone_name}") from error
     local_midnight = datetime.combine(value, time.min, tzinfo=local_timezone)
     return local_midnight.astimezone(UTC).replace(tzinfo=None)
+
+
+def _logging_runtime():
+    runtime = current_app.config.get("SENSOR_LOGGING_RUNTIME")
+    if runtime is None:
+        raise RuntimeError("Servicio de persistencia de sensores no configurado")
+    return runtime
+
+
+@sensor_bp.route("/logging-config", methods=["GET", "PUT"])
+def sensor_logging_config():
+    runtime = _logging_runtime()
+    if request.method == "GET":
+        return jsonify(runtime.status())
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Se requiere un objeto JSON"}), 400
+    unknown = sorted(set(data) - {"enabled", "interval_seconds"})
+    if unknown:
+        return jsonify({"error": f"Campos no soportados: {', '.join(unknown)}"}), 400
+    enabled = data.get("enabled")
+    if not isinstance(enabled, bool):
+        return jsonify({"error": "enabled debe ser booleano"}), 400
+    interval = data.get("interval_seconds")
+    if isinstance(interval, bool):
+        return jsonify({"error": "interval_seconds debe ser numérico"}), 400
+    try:
+        interval = float(interval)
+    except (TypeError, ValueError):
+        return jsonify({"error": "interval_seconds debe ser numérico"}), 400
+    if not 1 <= interval <= MAX_INTERVAL_SECONDS:
+        return jsonify({
+            "error": f"interval_seconds debe estar entre 1 y {MAX_INTERVAL_SECONDS}"
+        }), 400
+    try:
+        return jsonify(runtime.configure(enabled=enabled, interval_seconds=interval))
+    except Exception as error:
+        return jsonify({"error": str(error)}), 500
 
 
 @sensor_bp.route("/readings", methods=["GET"])

@@ -781,6 +781,28 @@ button:disabled {
 
 .hidden { display: none; }
 
+.sensor-logging-config {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 10px;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+}
+
+.sensor-logging-config > label:not(.timelapse-checkbox) {
+    color: #b7b7b7;
+    font-size: 0.8rem;
+}
+
+.sensor-logging-config input[type="number"] {
+    padding: 7px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #1b1b1b;
+    color: white;
+}
+
 .sensor-history-filters {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

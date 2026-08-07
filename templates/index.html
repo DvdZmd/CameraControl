@@ -394,6 +394,20 @@
                 </section>
                 <section class="control-group" aria-labelledby="sensor-history-heading">
                     <h3 id="sensor-history-heading">Historial de lecturas</h3>
+                    <div class="sensor-logging-config">
+                        <label class="timelapse-checkbox">
+                            <input type="checkbox" id="sensor-logging-enabled">
+                            Escribir lecturas en la base de datos
+                        </label>
+                        <label for="sensor-logging-interval">
+                            Intervalo de escritura (segundos)
+                        </label>
+                        <input type="number" id="sensor-logging-interval" min="1" max="86400" step="1" value="60">
+                        <button class="btn-primary" data-action="save-sensor-logging-config" type="button">
+                            Guardar configuración de escritura
+                        </button>
+                        <p id="sensor-logging-feedback" class="status-message hidden"></p>
+                    </div>
                     <div class="sensor-history-filters">
                         <label>Desde<input type="date" id="history-start-date"></label>
                         <label>Hasta<input type="date" id="history-end-date"></label>

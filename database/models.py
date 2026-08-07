@@ -91,6 +91,13 @@ class SensorReading(db.Model):
     tilt_pulse_us = db.Column(db.Integer, nullable=True)
 
 
+class SensorLoggingSettings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    enabled = db.Column(db.Boolean, nullable=False, default=True)
+    interval_seconds = db.Column(db.Float, nullable=False, default=60.0)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class CameraSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     camera_key = db.Column(db.String(255), unique=True, nullable=False, index=True)
