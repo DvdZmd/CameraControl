@@ -2,6 +2,7 @@ import tempfile
 import time
 import unittest
 import zipfile
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -160,6 +161,10 @@ class TimelapseRoutesTests(unittest.TestCase):
             self.assertEqual(config.light_warmup_seconds, 3)
             self.assertEqual(config.capture_count, 1)
             self.assertEqual(config.last_capture_path, "/captures/shot.jpg")
+            self.assertEqual(
+                config.last_capture_at,
+                datetime(2026, 8, 7, 0, 0),
+            )
             self.assertEqual(reading.pan_pulse_us, 1450)
             self.assertEqual(reading.tilt_pulse_us, 1520)
             self.assertEqual(reading.timelapse_folder.folder_name, "cultivo agosto")

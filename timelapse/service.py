@@ -33,13 +33,19 @@ def _utc_now():
     return datetime.now(UTC).replace(tzinfo=None)
 
 
-def _parse_datetime(value):
+def _parse_datetime(value, timezone_name):
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value)
     except (TypeError, ValueError):
         return None
+    if parsed.tzinfo is None:
+        try:
+            parsed = parsed.replace(tzinfo=ZoneInfo(timezone_name))
+        except ZoneInfoNotFoundError:
+            parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).replace(tzinfo=None)
 
 
 def _optional_int(value):
@@ -579,7 +585,12 @@ class TimelapseService:
         with self.app.app_context():
             self._restore_manual_light()
             config = self.ensure_default_config()
-            captured_at = _parse_datetime(metadata.get("captured_at")) or _utc_now()
+            captured_at = _parse_datetime(
+                metadata.get("captured_at"),
+                self.app.config.get(
+                    "APP_TIMEZONE", "America/Argentina/Buenos_Aires"
+                ),
+            ) or _utc_now()
             capture_path = metadata.get("path")
             if capture_path:
                 source = Path(capture_path).resolve()

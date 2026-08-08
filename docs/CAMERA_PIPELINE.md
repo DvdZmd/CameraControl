@@ -294,6 +294,11 @@ FK a `TimelapseFolder`. Este flag es independiente del logger ambiental
 periódico. El directorio se organiza como
 `<TIMELAPSE_DIR>/YYYY-MM-DD/HH-MM-SS/`.
 
+Los timestamps se persisten en UTC. Los callbacks nativos de `rpicam-z` que
+entregan una fecha sin offset se interpretan primero en `APP_TIMEZONE` y luego
+se convierten a UTC, evitando que el frontend aplique dos veces el desfase
+horario al presentar las lecturas.
+
 La configuración se expone mediante `/api/timelapse`, se migra desde el antiguo
 campo `interval_minutes` y utiliza segundos como unidad canónica.
 

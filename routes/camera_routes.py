@@ -775,6 +775,7 @@ def update_settings():
                     light_intensity=current_status['light_intensity'],
                     light_warmup_seconds=current_status['light_warmup_seconds'],
                     folder_name=current_status['folder_name'],
+                    save_sensor_readings=current_status['save_sensor_readings'],
                 )
                 timelapse_service.start()
             elif timelapse_service is not None:

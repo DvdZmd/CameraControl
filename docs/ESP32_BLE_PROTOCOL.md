@@ -203,6 +203,9 @@ Endpoints específicos del dashboard:
   `LIGHT_OFF`. Controla por PWM la tira LED conectada a GPIO21.
   Un comando exitoso persiste el estado y la intensidad para restaurarlos tras
   reinicios de la aplicación, Raspberry Pi o ESP32.
+  El dashboard conserva y muestra la última intensidad manual distinta de cero
+  aunque la luz esté apagada. Al volver a encender, envía `on=true` y el backend
+  aplica la intensidad persistida, en lugar de asumir 100% desde el navegador.
 - `POST /api/esp32/speed`: acepta `mode` entre 0 y 4, envía `SET_SPEED` y
   persiste el perfil seleccionado para rehidratar el dashboard.
 - `POST /api/esp32/position/current`: guarda en SQLite la posición `P`/`T`

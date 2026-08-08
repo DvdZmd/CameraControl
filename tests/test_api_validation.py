@@ -355,6 +355,43 @@ class ApiValidationTests(unittest.TestCase):
         self.assertEqual(self.ble.commands, ["SET_LIGHT:37"])
         self.assertEqual(self.ble.last_state["L"], "37")
 
+    def test_esp32_restores_saved_intensity_after_turning_off(self):
+        app = Flask(__name__)
+        app.config.update(
+            TESTING=True,
+            SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",
+            SQLALCHEMY_TRACK_MODIFICATIONS=False,
+            BLE_CAMERA_CONTROLLER=self.ble,
+        )
+        db.init_app(app)
+        app.register_blueprint(esp32_bp)
+        with app.app_context():
+            db.create_all()
+        client = app.test_client()
+
+        response = client.post("/api/esp32/light", json={"intensity": 37})
+        self.assertEqual(response.status_code, 200)
+        response = client.post("/api/esp32/light", json={"on": False})
+        self.assertEqual(response.status_code, 200)
+
+        status = client.get("/api/esp32/status").get_json()
+        self.assertEqual(status["saved_light"], {
+            "light_on": False,
+            "intensity": 37,
+        })
+
+        response = client.post("/api/esp32/light", json={"on": True})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["intensity"], 37)
+        self.assertEqual(
+            self.ble.commands,
+            ["SET_LIGHT:37", "LIGHT_OFF", "SET_LIGHT:37"],
+        )
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
+
     def test_esp32_accepts_valid_manual_light_pwm_command(self):
         response = self.client.post(
             "/api/esp32/command",

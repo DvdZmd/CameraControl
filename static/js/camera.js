@@ -87,8 +87,16 @@ function normalizeSpeedMode(value) {
     return Number.isInteger(mode) && mode >= 0 && mode <= 4 ? String(mode) : null;
 }
 
-function renderEsp32Light(intensity) {
+function renderEsp32Light(intensity, savedIntensity = null) {
     const normalizedIntensity = Math.max(0, Math.min(100, Number(intensity) || 0));
+    const normalizedSavedIntensity = Number(savedIntensity);
+    if (
+        Number.isInteger(normalizedSavedIntensity)
+        && normalizedSavedIntensity >= 1
+        && normalizedSavedIntensity <= 100
+    ) {
+        lastNonZeroLightIntensity = normalizedSavedIntensity;
+    }
     esp32LightIntensity = normalizedIntensity;
     esp32LightOn = normalizedIntensity > 0;
     if (esp32LightOn) lastNonZeroLightIntensity = normalizedIntensity;
@@ -100,8 +108,13 @@ function renderEsp32Light(intensity) {
     button.classList.toggle('active', esp32LightOn);
     button.setAttribute('aria-pressed', String(esp32LightOn));
     label.textContent = esp32LightOn ? 'Apagar luz' : 'Prender luz';
-    if (slider && document.activeElement !== slider) slider.value = String(normalizedIntensity);
-    if (valueLabel) valueLabel.textContent = `${normalizedIntensity}%`;
+    const displayedIntensity = esp32LightOn
+        ? normalizedIntensity
+        : lastNonZeroLightIntensity;
+    if (slider && document.activeElement !== slider) {
+        slider.value = String(displayedIntensity);
+    }
+    if (valueLabel) valueLabel.textContent = `${displayedIntensity}%`;
 }
 
 async function setEsp32LightIntensity(intensity) {
@@ -116,7 +129,7 @@ async function setEsp32LightIntensity(intensity) {
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'No se pudo cambiar la intensidad');
-        renderEsp32Light(data.intensity);
+        renderEsp32Light(data.intensity, data.saved_intensity);
         showEsp32Feedback(`Intensidad de luz: ${data.intensity}%`);
     } catch (error) {
         showEsp32Feedback(error.message || 'No se pudo cambiar la intensidad', true);
@@ -128,17 +141,17 @@ async function setEsp32LightIntensity(intensity) {
 
 async function toggleEsp32Light() {
     const button = document.getElementById('light-toggle-btn');
-    const requestedIntensity = esp32LightOn ? 0 : lastNonZeroLightIntensity;
+    const requestedState = !esp32LightOn;
     if (button) button.disabled = true;
     try {
         const response = await fetch('/api/esp32/light', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ intensity: requestedIntensity })
+            body: JSON.stringify({ on: requestedState })
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'No se pudo cambiar la luz');
-        renderEsp32Light(data.intensity);
+        renderEsp32Light(data.intensity, data.saved_intensity);
         showEsp32Feedback(data.light_on ? 'Luz prendida' : 'Luz apagada');
     } catch (error) {
         showEsp32Feedback(error.message || 'No se pudo cambiar la luz', true);
@@ -172,12 +185,16 @@ async function refreshEsp32Status() {
         const lastState = data.last_state || {};
         const lightState = stateValue(lastState, 'L');
         const savedLight = data.saved_light || {};
+        const savedIntensity = Number(savedLight.intensity);
+        if (Number.isInteger(savedIntensity) && savedIntensity >= 1 && savedIntensity <= 100) {
+            lastNonZeroLightIntensity = savedIntensity;
+        }
         const displayedLight = lightState !== null
             ? lightState
             : (savedLight.light_on ? savedLight.intensity : 0);
         const lightIntensity = Number(displayedLight);
         if (Number.isInteger(lightIntensity) && lightIntensity >= 0 && lightIntensity <= 100) {
-            renderEsp32Light(lightIntensity);
+            renderEsp32Light(lightIntensity, savedIntensity);
         }
         if (lastStateEl) {
             // La clave para velocidad es 'S'
