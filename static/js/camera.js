@@ -29,6 +29,53 @@ function showEsp32Feedback(message, isError = false) {
     }
 }
 
+function renderRaspberryStatus(data) {
+    const temperature = document.getElementById('pi-temperature');
+    const cpuUsage = document.getElementById('pi-cpu-usage');
+    const powerStatus = document.getElementById('pi-power-status');
+    const powerValue = document.getElementById('pi-power-value');
+    if (temperature) {
+        temperature.textContent = Number.isFinite(data.cpu_temperature_c)
+            ? `${data.cpu_temperature_c.toFixed(1)} °C`
+            : 'N/D';
+    }
+    if (cpuUsage) {
+        cpuUsage.textContent = Number.isFinite(data.cpu_usage_percent)
+            ? `${data.cpu_usage_percent.toFixed(1)}%`
+            : '--';
+    }
+    if (!powerStatus || !powerValue) return;
+    powerStatus.classList.remove('status-ok', 'status-warning', 'status-danger', 'status-unknown');
+    if (!data.power) {
+        powerStatus.classList.add('status-unknown');
+        powerValue.textContent = 'N/D';
+    } else if (data.power.undervoltage_now) {
+        powerStatus.classList.add('status-danger');
+        powerValue.textContent = 'Bajo voltaje';
+    } else if (data.power.undervoltage_occurred) {
+        powerStatus.classList.add('status-warning');
+        powerValue.textContent = 'Falla previa';
+    } else {
+        powerStatus.classList.add('status-ok');
+        powerValue.textContent = 'OK';
+    }
+}
+
+async function refreshRaspberryStatus() {
+    try {
+        const response = await fetch('/api/admin/system-status');
+        const data = await response.json();
+        if (!response.ok) throw new Error('No se pudo consultar la Raspberry Pi');
+        renderRaspberryStatus(data);
+    } catch (error) {
+        renderRaspberryStatus({
+            cpu_temperature_c: null,
+            cpu_usage_percent: null,
+            power: null
+        });
+    }
+}
+
 function setEsp32ConnectLoading(isLoading) {
     const button = document.getElementById('esp32-connect-btn');
     const label = document.getElementById('esp32-connect-label');
@@ -1963,12 +2010,15 @@ async function initializeDashboard() {
         }
     }
     await refreshEsp32Status();
+    await refreshRaspberryStatus();
+    setTimeout(refreshRaspberryStatus, 500);
     await refreshTuyaStatus();
     await refreshTimelapseStatus({ hydrate: true });
     await loadTimelapseFolders(document.getElementById('tl-folder-name').value);
     await loadSensorLoggingConfig();
 
     setInterval(refreshEsp32Status, 3000);
+    setInterval(refreshRaspberryStatus, 5000);
     setInterval(refreshTimelapseStatus, 5000);
 }
 

@@ -64,6 +64,30 @@ body {
 
 .light-icon { font-size: 1.1rem; }
 
+.raspberry-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.raspberry-status-item {
+    padding: 6px 9px;
+    border: 1px solid #444;
+    border-radius: 999px;
+    background: #242424;
+    color: #aaa;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.raspberry-status-item strong { color: #f1f1f1; }
+.raspberry-status-item.status-ok { border-color: #267a50; }
+.raspberry-status-item.status-ok strong { color: var(--accent); }
+.raspberry-status-item.status-warning { border-color: #d49522; }
+.raspberry-status-item.status-warning strong { color: #ffbd45; }
+.raspberry-status-item.status-danger { border-color: #d94a4a; }
+.raspberry-status-item.status-danger strong { color: #ff6b6b; }
+
 .light-intensity-control {
     width: min(240px, 32vw);
     min-width: 150px;
@@ -209,6 +233,12 @@ body {
     .light-toggle-btn {
         min-width: 108px;
         padding-inline: 10px;
+    }
+
+    .raspberry-status {
+        order: 3;
+        width: 100%;
+        justify-content: flex-end;
     }
 }
 

@@ -13,6 +13,12 @@ Sistema habitual:
 
 - Raspberry Pi OS Bookworm.
 
+El encabezado del dashboard consulta cada cinco segundos un endpoint local para
+mostrar temperatura del CPU, uso total de CPU y los flags de bajo voltaje del
+firmware. La temperatura se lee desde sysfs, el uso desde `/proc/stat` y la
+alimentación desde `get_throttled`; un dato no disponible se presenta como
+`N/D` y no impide iniciar la aplicación.
+
 El comportamiento puede variar por modelo, kernel, firmware y cámara.
 
 ## Cámaras

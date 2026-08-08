@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 from flask import Flask
 
+from routes import admin_routes
 from routes.admin_routes import admin_bp
 
 
@@ -19,6 +20,43 @@ class AdminRoutesTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.get_json()["status"], "error")
+
+    @patch("routes.admin_routes._throttled_flags", return_value={
+        "raw": "0x1",
+        "undervoltage_now": True,
+        "undervoltage_occurred": False,
+    })
+    @patch("routes.admin_routes._cpu_temperature_c", return_value=54.2)
+    @patch("routes.admin_routes._cpu_usage_percent", return_value=37.5)
+    def test_system_status_reports_raspberry_health(self, _usage, _temperature, _power):
+        response = self.client.get("/api/admin/system-status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {
+            "cpu_temperature_c": 54.2,
+            "cpu_usage_percent": 37.5,
+            "power": {
+                "raw": "0x1",
+                "undervoltage_now": True,
+                "undervoltage_occurred": False,
+            },
+        })
+
+    @patch("routes.admin_routes._read_cpu_sample", side_effect=[(1000, 600), (1100, 620)])
+    def test_cpu_usage_uses_proc_stat_deltas(self, _sample):
+        previous = admin_routes._previous_cpu_sample
+        try:
+            admin_routes._previous_cpu_sample = None
+            self.assertIsNone(admin_routes._cpu_usage_percent())
+            self.assertEqual(admin_routes._cpu_usage_percent(), 80.0)
+        finally:
+            admin_routes._previous_cpu_sample = previous
+
+    def test_throttled_parser_accepts_vcgencmd_output(self):
+        self.assertEqual(
+            admin_routes._parse_throttled_value("throttled=0x10001\n"),
+            0x10001,
+        )
 
     @patch("routes.admin_routes.threading.Thread")
     @patch("routes.admin_routes._reboot_command", return_value=["/bin/systemctl", "reboot"])

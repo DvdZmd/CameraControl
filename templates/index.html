@@ -12,6 +12,18 @@
             <span class="light-icon" aria-hidden="true">💡</span>
             <span>Iluminación</span>
         </div>
+        <div class="raspberry-status" aria-label="Estado de Raspberry Pi">
+            <span class="raspberry-status-item" title="Temperatura del procesador">
+                Temp <strong id="pi-temperature">--</strong>
+            </span>
+            <span class="raspberry-status-item" title="Uso total del procesador">
+                CPU <strong id="pi-cpu-usage">--</strong>
+            </span>
+            <span id="pi-power-status" class="raspberry-status-item status-unknown"
+                  title="Estado de alimentación reportado por el firmware">
+                Energía <strong id="pi-power-value">N/D</strong>
+            </span>
+        </div>
         <div class="light-intensity-control">
             <label for="light-intensity-slider">
                 Intensidad <span id="light-intensity-value">0%</span>
