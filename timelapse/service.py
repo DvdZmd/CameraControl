@@ -69,6 +69,18 @@ def _capture_filename(captured_at):
     return f"{captured_at.strftime('%Y_%m_%d_%H-%M-%S')}.jpg"
 
 
+def _local_capture_datetime(utc_value, timezone_name):
+    try:
+        timezone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        timezone = UTC
+    if utc_value.tzinfo is None:
+        utc_value = utc_value.replace(tzinfo=UTC)
+    else:
+        utc_value = utc_value.astimezone(UTC)
+    return utc_value.astimezone(timezone)
+
+
 def _unique_capture_path(directory, filename, *, current_path=None):
     candidate = directory / filename
     counter = 2
@@ -585,11 +597,12 @@ class TimelapseService:
         with self.app.app_context():
             self._restore_manual_light()
             config = self.ensure_default_config()
+            timezone_name = self.app.config.get(
+                "APP_TIMEZONE", "America/Argentina/Buenos_Aires"
+            )
             captured_at = _parse_datetime(
                 metadata.get("captured_at"),
-                self.app.config.get(
-                    "APP_TIMEZONE", "America/Argentina/Buenos_Aires"
-                ),
+                timezone_name,
             ) or _utc_now()
             capture_path = metadata.get("path")
             if capture_path:
@@ -598,7 +611,9 @@ class TimelapseService:
                 if source.is_file() and folder in source.parents:
                     destination = _unique_capture_path(
                         source.parent,
-                        _capture_filename(captured_at),
+                        _capture_filename(
+                            _local_capture_datetime(captured_at, timezone_name)
+                        ),
                         current_path=source,
                     )
                     if destination != source:

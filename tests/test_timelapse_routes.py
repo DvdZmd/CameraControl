@@ -216,6 +216,27 @@ class TimelapseRoutesTests(unittest.TestCase):
             self.assertEqual(SensorReading.query.count(), 0)
             self.assertEqual(TimelapseFolder.query.count(), 0)
 
+    def test_native_capture_uses_local_time_in_filename_and_utc_in_database(self):
+        folder = self.service.folder_path("default")
+        session = folder / "2026-08-06" / "21-00-00"
+        session.mkdir(parents=True)
+        source = session / "shot_native.jpg"
+        source.write_bytes(b"jpeg")
+
+        self.service._on_capture({
+            "captured_at": "2026-08-06T21:00:00",
+            "path": str(source),
+            "capture_count": 1,
+        })
+
+        expected = session / "2026_08_06_21-00-00.jpg"
+        self.assertTrue(expected.is_file())
+        self.assertFalse(source.exists())
+        with self.app.app_context():
+            config = db.session.get(TimelapseConfig, 1)
+            self.assertEqual(config.last_capture_at, datetime(2026, 8, 7, 0, 0))
+            self.assertEqual(config.last_capture_path, str(expected))
+
     def test_rejects_non_boolean_sensor_reading_flag(self):
         response = self.client.put("/api/timelapse/config", json={
             "interval_seconds": 30,
