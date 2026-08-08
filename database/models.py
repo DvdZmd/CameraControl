@@ -78,6 +78,15 @@ class TimelapseConfig(db.Model):
     light_intensity = db.Column(db.Integer, nullable=False, default=100)
     light_warmup_seconds = db.Column(db.Integer, nullable=False, default=3)
     folder_name = db.Column(db.String(120), nullable=False, default="default")
+    save_sensor_readings = db.Column(db.Boolean, nullable=False, default=True)
+
+
+class TimelapseFolder(db.Model):
+    """Stable identity for a timelapse capture folder."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    folder_name = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class SensorReading(db.Model):
@@ -91,6 +100,13 @@ class SensorReading(db.Model):
     # ambiental no completa estas columnas.
     pan_pulse_us = db.Column(db.Integer, nullable=True)
     tilt_pulse_us = db.Column(db.Integer, nullable=True)
+    timelapse_folder_id = db.Column(
+        db.Integer,
+        db.ForeignKey("timelapse_folder.id"),
+        nullable=True,
+        index=True,
+    )
+    timelapse_folder = db.relationship("TimelapseFolder", lazy="joined")
 
 
 class SensorLoggingSettings(db.Model):

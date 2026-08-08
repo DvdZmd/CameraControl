@@ -287,9 +287,11 @@ Se distinguen dos estados:
 - `desired_running`: el usuario dejó el timelapse activado y debe reanudarse si
   la cámara o el proceso vuelven a estar disponibles.
 
-Cada callback de captura actualiza contador, timestamp y ruta. Si la telemetría
-BLE contiene las cuatro lecturas válidas, también crea un `SensorReading` con
-los pulsos `P` y `T`. El directorio se organiza como
+Cada callback de captura actualiza contador, timestamp y ruta. Cuando
+`save_sensor_readings` está activo y la telemetría BLE contiene las cuatro
+lecturas válidas, también crea un `SensorReading` con los pulsos `P` y `T` y una
+FK a `TimelapseFolder`. Este flag es independiente del logger ambiental
+periódico. El directorio se organiza como
 `<TIMELAPSE_DIR>/YYYY-MM-DD/HH-MM-SS/`.
 
 La configuración se expone mediante `/api/timelapse`, se migra desde el antiguo

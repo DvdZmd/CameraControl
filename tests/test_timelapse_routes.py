@@ -9,7 +9,13 @@ from unittest import mock
 
 from flask import Flask
 
-from database.models import SensorReading, TimelapseConfig, db
+from database.models import (
+    SensorLoggingSettings,
+    SensorReading,
+    TimelapseConfig,
+    TimelapseFolder,
+    db,
+)
 from routes.timelapse_routes import timelapse_bp
 from timelapse.service import TimelapseService
 
@@ -156,10 +162,64 @@ class TimelapseRoutesTests(unittest.TestCase):
             self.assertEqual(config.last_capture_path, "/captures/shot.jpg")
             self.assertEqual(reading.pan_pulse_us, 1450)
             self.assertEqual(reading.tilt_pulse_us, 1520)
+            self.assertEqual(reading.timelapse_folder.folder_name, "cultivo agosto")
+            self.assertEqual(TimelapseFolder.query.count(), 1)
 
         response = self.client.post("/api/timelapse/stop")
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.get_json()["desired_running"])
+
+    def test_timelapse_flag_is_independent_from_periodic_logger_flag(self):
+        with self.app.app_context():
+            db.session.add(SensorLoggingSettings(
+                id=1,
+                enabled=False,
+                interval_seconds=60,
+            ))
+            db.session.commit()
+
+        self.client.post("/api/timelapse/start")
+        self.camera.callbacks["on_capture"]({
+            "captured_at": "2026-08-06T21:00:00",
+            "path": "/captures/shot.jpg",
+            "capture_count": 1,
+        })
+
+        with self.app.app_context():
+            self.assertEqual(SensorReading.query.count(), 1)
+
+    def test_capture_does_not_persist_telemetry_when_disabled(self):
+        response = self.client.put("/api/timelapse/config", json={
+            "interval_seconds": 30,
+            "width": 1920,
+            "height": 1080,
+            "auto_resume": True,
+            "folder_name": "sin-telemetria",
+            "save_sensor_readings": False,
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.get_json()["save_sensor_readings"])
+
+        self.client.post("/api/timelapse/start")
+        self.camera.callbacks["on_capture"]({
+            "captured_at": "2026-08-06T21:00:00",
+            "path": "/captures/shot.jpg",
+            "capture_count": 1,
+        })
+
+        with self.app.app_context():
+            self.assertEqual(SensorReading.query.count(), 0)
+            self.assertEqual(TimelapseFolder.query.count(), 0)
+
+    def test_rejects_non_boolean_sensor_reading_flag(self):
+        response = self.client.put("/api/timelapse/config", json={
+            "interval_seconds": 30,
+            "width": 1920,
+            "height": 1080,
+            "auto_resume": True,
+            "save_sensor_readings": "false",
+        })
+        self.assertEqual(response.status_code, 400)
 
     def test_lists_and_downloads_captures_inside_selected_folder(self):
         response = self.client.put("/api/timelapse/config", json={

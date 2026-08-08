@@ -183,8 +183,10 @@ Solo persiste una muestra cuando el ESP32 está conectado y existen valores
 numéricos válidos para `DT`, `DH`, `DS` y `SP`.
 
 `SensorReading` guarda las cuatro métricas ambientales. Sus columnas nullable
-`pan_pulse_us` y `tilt_pulse_us` están reservadas para asociar una posición de
-cámara a una captura de timelapse; el logger ambiental periódico no las llena.
+`pan_pulse_us` y `tilt_pulse_us` asocian la posición reportada por la última
+telemetría a una captura. `timelapse_folder_id` referencia a `TimelapseFolder`,
+que conserva una sola vez el nombre de carpeta; el logger ambiental periódico
+no completa ninguno de esos campos.
 
 La frecuencia se configura mediante `SENSOR_LOG_ENABLED` y
 `SENSOR_LOG_INTERVAL_SECONDS`. La consulta se expone bajo

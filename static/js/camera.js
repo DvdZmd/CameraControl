@@ -1296,7 +1296,7 @@ function syncTimelapseIntervalMinimum() {
 function setTimelapseControlsDisabled(disabled) {
     ['tl-interval', 'tl-interval-unit', 'tl-w', 'tl-h', 'tl-auto-resume',
         'tl-light-enabled', 'tl-light-intensity', 'tl-folder-name',
-        'tl-light-warmup', 'tl-resolution-preset'].forEach(id => {
+        'tl-light-warmup', 'tl-resolution-preset', 'tl-save-sensor-readings'].forEach(id => {
         const element = document.getElementById(id);
         if (element) element.disabled = disabled;
     });
@@ -1349,6 +1349,7 @@ function hydrateTimelapseConfig(data) {
     preset.value = hasPreset ? resolution : 'custom';
     document.getElementById('tl-custom-resolution').style.display = hasPreset ? 'none' : 'flex';
     document.getElementById('tl-auto-resume').checked = Boolean(data.auto_resume);
+    document.getElementById('tl-save-sensor-readings').checked = Boolean(data.save_sensor_readings);
     document.getElementById('tl-light-enabled').checked = Boolean(data.light_enabled);
     document.getElementById('tl-light-intensity').value = data.light_intensity || 100;
     document.getElementById('tl-light-intensity-value').textContent = `${data.light_intensity || 100}%`;
@@ -1391,6 +1392,7 @@ async function saveTimelapseConfig() {
         width: parseInt(document.getElementById('tl-w').value, 10),
         height: parseInt(document.getElementById('tl-h').value, 10),
         auto_resume: document.getElementById('tl-auto-resume').checked,
+        save_sensor_readings: document.getElementById('tl-save-sensor-readings').checked,
         light_enabled: lightEnabled,
         light_intensity: parseInt(document.getElementById('tl-light-intensity').value, 10),
         light_warmup_seconds: lightWarmupSeconds,
@@ -1648,7 +1650,10 @@ function renderSensorHistory(data) {
             `${Number(reading.temperature_air).toFixed(1)} °C`,
             `${Number(reading.humidity_air).toFixed(1)} %`,
             `${Number(reading.temperature_soil).toFixed(1)} °C`,
-            `${Number(reading.humidity_soil).toFixed(1)} %`
+            `${Number(reading.humidity_soil).toFixed(1)} %`,
+            reading.pan_pulse_us == null ? '--' : `${reading.pan_pulse_us} µs`,
+            reading.tilt_pulse_us == null ? '--' : `${reading.tilt_pulse_us} µs`,
+            reading.timelapse_folder_name || '--'
         ];
         values.forEach(value => {
             const cell = document.createElement('td');

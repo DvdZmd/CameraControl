@@ -52,6 +52,11 @@ def _serialize(reading):
         "humidity_soil": reading.humidity_soil,
         "pan_pulse_us": reading.pan_pulse_us,
         "tilt_pulse_us": reading.tilt_pulse_us,
+        "timelapse_folder_id": reading.timelapse_folder_id,
+        "timelapse_folder_name": (
+            reading.timelapse_folder.folder_name
+            if reading.timelapse_folder is not None else None
+        ),
     }
 
 

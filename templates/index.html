@@ -260,6 +260,10 @@
                         Reanudar automáticamente después de reiniciar
                     </label>
                     <label class="timelapse-checkbox">
+                        <input type="checkbox" id="tl-save-sensor-readings" checked>
+                        Guardar sensores y posición pan/tilt con cada captura
+                    </label>
+                    <label class="timelapse-checkbox">
                         <input type="checkbox" id="tl-light-enabled">
                         Prender la luz para cada foto
                     </label>
@@ -490,6 +494,9 @@
                                     <th>Hum. amb.</th>
                                     <th>Temp. suelo</th>
                                     <th>Hum. suelo</th>
+                                    <th>Pan</th>
+                                    <th>Tilt</th>
+                                    <th>Timelapse</th>
                                 </tr>
                             </thead>
                             <tbody id="sensor-history-body"></tbody>

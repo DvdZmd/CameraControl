@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from flask import Flask
 
-from database.models import SensorReading, db
+from database.models import SensorReading, TimelapseFolder, db
 from logs.sensor_logger import (
     SensorLoggingRuntime,
     persist_current_telemetry,
@@ -71,6 +71,9 @@ class SensorHistoryTests(unittest.TestCase):
 
     def test_history_filters_and_includes_entire_end_date(self):
         with self.app.app_context():
+            folder = TimelapseFolder(folder_name="cultivo-agosto")
+            db.session.add(folder)
+            db.session.flush()
             db.session.add_all([
                 SensorReading(
                     timestamp=datetime(2026, 8, 5, 23, 59),
@@ -87,6 +90,7 @@ class SensorHistoryTests(unittest.TestCase):
                     humidity_soil=60,
                     pan_pulse_us=1500,
                     tilt_pulse_us=1600,
+                    timelapse_folder_id=folder.id,
                 ),
             ])
             db.session.commit()
@@ -99,6 +103,7 @@ class SensorHistoryTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload["total"], 1)
         self.assertEqual(payload["readings"][0]["pan_pulse_us"], 1500)
+        self.assertEqual(payload["readings"][0]["timelapse_folder_name"], "cultivo-agosto")
         self.assertEqual(payload["readings"][0]["timestamp"], "2026-08-06T18:30:00Z")
 
     def test_history_rejects_invalid_ranges(self):

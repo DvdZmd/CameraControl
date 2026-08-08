@@ -11,9 +11,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from database.models import (
     Esp32Settings,
-    SensorLoggingSettings,
-    SensorReading,
     TimelapseConfig,
+    TimelapseFolder,
     db,
 )
 from logs.sensor_logger import reading_from_ble_state
@@ -22,7 +21,6 @@ from logs.sensor_logger import reading_from_ble_state
 logger = logging.getLogger(__name__)
 CONFIG_ID = 1
 ESP32_SETTINGS_ID = 1
-SENSOR_LOGGING_SETTINGS_ID = 1
 DEFAULT_FOLDER_NAME = "default"
 FOLDER_NAME_PATTERN = re.compile(r"^[\w .-]{1,100}$", re.UNICODE)
 CAPTURE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
@@ -87,6 +85,7 @@ class TimelapseService:
         self._compat_last_error = None
 
     def ensure_schema(self):
+        TimelapseFolder.__table__.create(bind=db.engine, checkfirst=True)
         with db.engine.begin() as connection:
             columns = {
                 row[1]
@@ -106,6 +105,7 @@ class TimelapseService:
                 "light_intensity": "ALTER TABLE timelapse_config ADD COLUMN light_intensity INTEGER NOT NULL DEFAULT 100",
                 "light_warmup_seconds": "ALTER TABLE timelapse_config ADD COLUMN light_warmup_seconds INTEGER NOT NULL DEFAULT 3",
                 "folder_name": "ALTER TABLE timelapse_config ADD COLUMN folder_name VARCHAR(120) NOT NULL DEFAULT 'default'",
+                "save_sensor_readings": "ALTER TABLE timelapse_config ADD COLUMN save_sensor_readings BOOLEAN NOT NULL DEFAULT 1",
             }
             added_interval_seconds = "interval_seconds" not in columns
             for column, statement in migrations.items():
@@ -115,6 +115,27 @@ class TimelapseService:
                 connection.exec_driver_sql(
                     "UPDATE timelapse_config SET interval_seconds = "
                     "CASE WHEN interval_minutes > 0 THEN interval_minutes * 60 ELSE 10 END"
+                )
+            sensor_tables = {
+                row[0]
+                for row in connection.exec_driver_sql(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            if "sensor_reading" in sensor_tables:
+                sensor_columns = {
+                    row[1]
+                    for row in connection.exec_driver_sql(
+                        "PRAGMA table_info(sensor_reading)"
+                    )
+                }
+                if "timelapse_folder_id" not in sensor_columns:
+                    connection.exec_driver_sql(
+                        "ALTER TABLE sensor_reading ADD COLUMN timelapse_folder_id INTEGER"
+                    )
+                connection.exec_driver_sql(
+                    "CREATE INDEX IF NOT EXISTS ix_sensor_reading_timelapse_folder_id "
+                    "ON sensor_reading (timelapse_folder_id)"
                 )
 
     def ensure_default_config(self):
@@ -261,6 +282,7 @@ class TimelapseService:
         light_enabled=False, light_intensity=100,
         light_warmup_seconds=DEFAULT_LIGHT_WARMUP_SECONDS,
         folder_name=DEFAULT_FOLDER_NAME,
+        save_sensor_readings=True,
     ):
         if not 0 <= light_warmup_seconds <= MAX_LIGHT_WARMUP_SECONDS:
             raise ValueError(
@@ -281,6 +303,7 @@ class TimelapseService:
         config.light_enabled = light_enabled
         config.light_intensity = light_intensity
         config.light_warmup_seconds = light_warmup_seconds
+        config.save_sensor_readings = save_sensor_readings
         config.folder_name = self.validate_folder_name(folder_name)
         config.save_path = str(self.folder_path(config.folder_name, create=True))
         config.updated_at = _utc_now()
@@ -413,6 +436,7 @@ class TimelapseService:
             "light_enabled": bool(config.light_enabled),
             "light_intensity": config.light_intensity,
             "light_warmup_seconds": config.light_warmup_seconds,
+            "save_sensor_readings": bool(config.save_sensor_readings),
             "folder_name": config.folder_name or DEFAULT_FOLDER_NAME,
             "root_path": str(self.root_path),
             "save_path": config.save_path,
@@ -577,15 +601,23 @@ class TimelapseService:
             config.updated_at = _utc_now()
 
             state = getattr(self.ble_controller, "last_state", None)
-            reading = reading_from_ble_state(state)
-            logging_settings = db.session.get(
-                SensorLoggingSettings, SENSOR_LOGGING_SETTINGS_ID
+            reading = (
+                reading_from_ble_state(state)
+                if config.save_sensor_readings
+                else None
             )
-            logging_enabled = logging_settings is None or logging_settings.enabled
-            if logging_enabled and reading is not None:
+            if reading is not None:
+                folder = TimelapseFolder.query.filter_by(
+                    folder_name=config.folder_name
+                ).one_or_none()
+                if folder is None:
+                    folder = TimelapseFolder(folder_name=config.folder_name)
+                    db.session.add(folder)
+                    db.session.flush()
                 reading.timestamp = config.last_capture_at
                 reading.pan_pulse_us = _optional_int(state.get("P"))
                 reading.tilt_pulse_us = _optional_int(state.get("T"))
+                reading.timelapse_folder_id = folder.id
                 db.session.add(reading)
             db.session.commit()
             logger.info("Captura de timelapse guardada: %s", config.last_capture_path)
