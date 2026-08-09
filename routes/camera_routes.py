@@ -331,7 +331,32 @@ def _apply_control(name, value):
     result = rpicamz.update_control(name, value)
     if result is False:
         module_logger.warning("Control de cámara no aplicado: %s=%r", name, value)
+        raise CameraControlError(f"La cámara rechazó el control {name}={value!r}")
     return result
+
+
+class CameraControlError(RuntimeError):
+    """Raised when the active camera rejects a supported runtime control."""
+
+
+def _apply_image_controls(controls):
+    """Apply autofocus-dependent controls in a deterministic order."""
+    controls = dict(controls)
+
+    # LensPosition is ignored by libcamera unless autofocus is already manual.
+    # Force both operations in the same HTTP request, with AfMode applied first.
+    if 'LensPosition' in controls:
+        controls['AfMode'] = 0
+
+    af_mode = controls.pop('AfMode', None)
+    if af_mode is not None:
+        _apply_control('AfMode', af_mode)
+        # Single-shot autofocus needs an explicit trigger after entering Auto.
+        if af_mode == 1:
+            _apply_control('AfTrigger', 0)
+
+    for name, value in controls.items():
+        _apply_control(name, value)
 
 
 def _database_ready():
@@ -786,12 +811,14 @@ def update_settings():
                 rpicamz.stop_timelapse()
 
         image_params = {'Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition', 'AeEnable'}
-        for param, value in validated['controls'].items():
-            _apply_control(param, value)
+        _apply_image_controls(validated['controls'])
+        for param in validated['controls']:
             if param in image_params:
                 # Add a small delay to allow image processing settings to apply before the next frame is requested.
                 # This helps prevent the UI from appearing to "freeze" for these specific controls.
                 time.sleep(0.05)
+    except CameraControlError as error:
+        return _error_response(str(error), 422)
     except RuntimeError as error:
         return _camera_unavailable_response(error)
 

@@ -1957,6 +1957,9 @@ function setupEventListeners() {
                 input.checked = e.target.checked;
             });
         } else if (control) {
+            // Range controls are sent by the debounced input handler below.
+            // Avoid sending the same value again when the pointer is released.
+            if (e.target.matches('input[type="range"]')) return;
             const valueType = e.target.dataset.type || (e.target.step ? 'float' : 'string');
             const value = parseValue(e.target.value, valueType);
             updateCameraSettings({ [control]: value });
@@ -1985,7 +1988,10 @@ function setupEventListeners() {
                 const control = e.target.dataset.control || e.target.id;
                 const valueType = e.target.dataset.type || 'float';
                 const value = parseValue(e.target.value, valueType);
-                updateCameraSettings({ [control]: value });
+                const payload = control === 'LensPosition'
+                    ? { AfMode: 0, LensPosition: value }
+                    : { [control]: value };
+                updateCameraSettings(payload);
             }, 50);
         });
     });

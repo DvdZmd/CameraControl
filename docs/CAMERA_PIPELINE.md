@@ -239,6 +239,10 @@ Camera v3 puede soportar:
 - Enfoque manual.
 - Posición de lente.
 
+El enfoque manual aplica `AfMode=0` antes de `LensPosition` dentro de la misma
+actualización. El modo automático de disparo único aplica `AfMode=1` seguido de
+`AfTrigger=Start`; cambiar solamente el modo no inicia un ciclo de enfoque.
+
 Las cámaras v1 y v2 normalmente no tienen autofocus.
 
 El frontend debe reaccionar a capacidades detectadas.

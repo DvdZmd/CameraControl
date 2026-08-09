@@ -184,6 +184,50 @@ class ApiValidationTests(unittest.TestCase):
         self.assertIn(("resolution", 1280, 720), self.camera.calls)
         self.assertIn(("control", "Brightness", 0.2), self.camera.calls)
 
+    def test_manual_focus_forces_manual_mode_before_lens_position(self):
+        self.camera.af_supported = True
+
+        response = self.client.post(
+            "/api/camera/update_settings",
+            json={"LensPosition": 4.5},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            self.camera.calls,
+            [("control", "AfMode", 0), ("control", "LensPosition", 4.5)],
+        )
+        self.assertEqual(self.camera.controls["AfMode"], 0)
+
+    def test_single_autofocus_mode_starts_autofocus_cycle(self):
+        self.camera.af_supported = True
+
+        response = self.client.post(
+            "/api/camera/update_settings",
+            json={"AfMode": 1},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            self.camera.calls,
+            [("control", "AfMode", 1), ("control", "AfTrigger", 0)],
+        )
+
+    def test_camera_reports_rejected_control(self):
+        def reject_control(name, value):
+            self.camera.calls.append(("control", name, value))
+            return False
+
+        self.camera.update_control = reject_control
+
+        response = self.client.post(
+            "/api/camera/update_settings",
+            json={"Brightness": 0.2},
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("rechazó el control", response.get_json()["message"])
+
     def test_camera_status_reports_stream_disabled_by_default(self):
         response = self.client.get("/api/camera/camera_status")
         self.assertEqual(response.status_code, 200)
