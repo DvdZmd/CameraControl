@@ -1,0 +1,73 @@
+                <section class="control-group">
+                    <h3>Configuración Timelapse</h3>
+                    <div class="slider-item">
+                        <label for="tl-interval">Intervalo</label>
+                        <div class="timelapse-inline-fields">
+                            <input type="number" id="tl-interval" value="10" min="2">
+                            <select id="tl-interval-unit">
+                                <option value="seconds">Segundos</option>
+                                <option value="minutes">Minutos</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="slider-item">
+                        <label>Resolución de Captura</label>
+                        <select id="tl-resolution-preset">
+                            <option value="640x480">480p (VGA)</option>
+                            <option value="1280x720">720p (HD)</option>
+                            <option value="1920x1080">1080p (Full HD)</option>
+                            <option value="3840x2160">4K (3840x2160)</option>
+                            <option value="custom">-- Personalizada --</option>
+                        </select>
+                        <div id="tl-custom-resolution" style="display: none; gap: 5px; margin-top: 8px;">
+                            <input type="number" id="tl-w" placeholder="Ancho" value="3840" style="width: 80px;">
+                            <span>x</span>
+                            <input type="number" id="tl-h" placeholder="Alto" value="2160" style="width: 80px;">
+                        </div>
+                        <p style="font-size: 0.7em; color: #888; margin-top: 5px;">
+                            Sugerencia 4K: 3840x2160 | Máx V3: 4608x2592
+                        </p>
+                    </div>
+                    <div class="slider-item">
+                        <label for="tl-folder-name">Carpeta del timelapse</label>
+                        <input type="text" id="tl-folder-name" maxlength="100" value="default"
+                               placeholder="Ejemplo: cultivo-agosto">
+                        <p class="field-help">Se creará siempre dentro del directorio raíz de timelapse.</p>
+                    </div>
+                    <label class="timelapse-checkbox">
+                        <input type="checkbox" id="tl-auto-resume" checked>
+                        Reanudar automáticamente después de reiniciar
+                    </label>
+                    <label class="timelapse-checkbox">
+                        <input type="checkbox" id="tl-save-sensor-readings" checked>
+                        Guardar sensores y posición pan/tilt con cada captura
+                    </label>
+                    <label class="timelapse-checkbox">
+                        <input type="checkbox" id="tl-light-enabled">
+                        Prender la luz para cada foto
+                    </label>
+                    <div class="slider-item">
+                        <label for="tl-light-warmup">Espera después de encender la luz (segundos)</label>
+                        <input id="tl-light-warmup" type="number" min="0" max="60" step="1" value="3">
+                        <p class="field-help">Permite que exposición y brillo se estabilicen antes de capturar.</p>
+                    </div>
+                    <div class="slider-item">
+                        <label for="tl-light-intensity">
+                            Intensidad de cada foto <span id="tl-light-intensity-value">100%</span>
+                        </label>
+                        <input id="tl-light-intensity" type="range" min="1" max="100" value="100">
+                    </div>
+                    <button class="btn-primary" data-action="save-timelapse-config" type="button">
+                        Guardar configuración
+                    </button>
+                    <button id="btn-timelapse" class="btn-primary" data-action="toggle-timelapse">
+                        Iniciar Timelapse
+                    </button>
+                    <div id="timelapse-status" class="status-message hidden"></div>
+                    <div class="esp32-status-card timelapse-details">
+                        <div class="esp32-status-row"><span>Estado persistido</span><span id="tl-desired-state">--</span></div>
+                        <div class="esp32-status-row"><span>Capturas</span><span id="tl-capture-count">0</span></div>
+                        <div class="esp32-status-row"><span>Última captura</span><span id="tl-last-capture">--</span></div>
+                        <div class="esp32-status-row"><span>Directorio</span><span id="tl-save-path">--</span></div>
+                    </div>
+                </section>

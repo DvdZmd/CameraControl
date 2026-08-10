@@ -17,6 +17,23 @@ La aplicación debe mantener desacoplados:
 
 ## Componentes principales
 
+### Frontend
+
+El dashboard se renderiza con Jinja a partir de un shell mínimo y componentes
+parciales organizados por dominio:
+
+- `templates/index.html`: estructura general y orden de carga de scripts.
+- `templates/components/layout/`: barra superior, streaming y navegación.
+- `templates/components/tabs/`: contenedores de las pestañas principales.
+- `templates/components/{camera,timelapse,esp32,sensors,devices}/`: controles de
+  cada dominio.
+- `static/js/components/`: comportamiento separado por dominio.
+- `static/js/dashboard.js`: registro central de eventos e inicialización.
+
+Los scripts son clásicos y se cargan en un orden explícito. Esta organización
+mantiene los contratos actuales basados en IDs y atributos `data-*`, a la vez
+que delimita los futuros componentes para la migración a Vue.js.
+
 ### `app.py`
 
 Punto de entrada mínimo.

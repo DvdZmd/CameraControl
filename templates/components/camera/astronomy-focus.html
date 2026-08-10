@@ -1,0 +1,46 @@
+            <section class="control-group">
+                <h3>Modo Astronomía (V3)</h3>
+                <div class="slider-item">
+                    <label for="AeEnable">Exposición Automática (AE)</label>
+                    <select id="AeEnable" data-control="AeEnable" data-type="boolean">
+                        <option value="true" selected>Habilitado (Auto)</option>
+                        <option value="false">Deshabilitado (Manual)</option>
+                    </select>
+                </div>
+                <div class="slider-item">
+                    <label>Ganancia Analógica (ISO)</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="range" id="AnalogueGain" data-control="AnalogueGain"
+                            min="1.0" max="10.6" step="0.1" value="1.0" 
+                            class="camera-slider">
+                        <span id="val-AnalogueGain">1.0</span>
+                    </div>
+                    <small>Mantener en 1.0 para objetos brillantes como la Luna</small>
+                </div>
+                <div class="slider-item">
+                    <label>Tiempo de Exposición (μs)</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="range" id="ExposureTime" data-control="ExposureTime" min="75" max="50000" step="100" value="10000" class="camera-slider">
+                        <span id="val-ExposureTime">10000</span>
+                    </div>y
+                    <small>Luna llena: 5,000 - 20,000 μs</small>
+                </div>
+            </section>
+            <div id="AfModeDiv" class="slider-item">
+                <label>Modo de Enfoque</label>
+                <select id="AfMode" data-control="AfMode" data-type="integer">
+                    <option value="2" selected>Continuo (AF-C)</option>
+                    <option value="1">Automático (AF-S)</option>
+                    <option value="0">Manual</option>
+                </select>
+            </div>
+            <div id="manual-focus-container" style="display: none;" class="slider-item">
+                <label>Distancia de Enfoque (Manual)</label>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span>Infinito</span>
+                    <input type="range" id="LensPosition" data-control="LensPosition"
+                        min="0.0" max="12.0" step="0.1" value="0.0" 
+                        class="camera-slider">
+                    <span>Cerca</span>
+                </div>
+            </div>

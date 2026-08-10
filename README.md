@@ -219,7 +219,7 @@ reiniciar la aplicación o cuando la cámara vuelve a estar disponible.
 
 Los contratos concretos y validaciones están definidos por el código en
 `routes/`. Antes de cambiar un endpoint deben revisarse también sus consumidores
-en `static/js/camera.js`.
+en `static/js/components/` y `static/js/dashboard.js`.
 
 ## Diagnóstico
 

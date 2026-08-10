@@ -1,0 +1,20 @@
+                <section class="control-group" aria-labelledby="esp32-speed-heading">
+                    <h3>Velocidad y comandos</h3>
+                    <div class="slider-item">
+                        <label for="esp32-speed-select">Perfil de velocidad</label>
+                        <select id="esp32-speed-select" data-action="esp32-set-speed">
+                            <option value="0">0 - Muy fino</option>
+                            <option value="1">1</option>
+                            <option value="2" selected>2 - Normal</option>
+                            <option value="3">3</option>
+                            <option value="4">4 - Rápido</option>
+                        </select>
+                    </div>
+                    <div class="slider-item">
+                        <label for="esp32-command-input">Comando manual</label>
+                        <input id="esp32-command-input" class="esp32-input" type="text" placeholder="PAN_LEFT, CENTER, SET_SPEED:2">
+                    </div>
+                    <div class="esp32-actions">
+                        <button class="btn-primary" data-action="esp32-send-custom-command" type="button">Enviar comando</button>
+                    </div>
+                </section>

@@ -1,0 +1,29 @@
+                <section class="control-group" aria-labelledby="esp32-status-heading">
+                    <h3>Estado BLE</h3>
+                    <div class="esp32-status-card">
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">Estado</span>
+                            <span id="esp32-status-badge" class="esp32-badge disconnected">Desconectado</span>
+                        </div>
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">Dispositivo</span>
+                            <span id="esp32-device-name">--</span>
+                        </div>
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">Dirección</span>
+                            <span id="esp32-address">--</span>
+                        </div>
+                        <div class="esp32-status-row">
+                            <span class="esp32-label">Último estado</span>
+                            <span id="esp32-last-state">--</span>
+                        </div>
+                    </div>
+                    <div class="esp32-actions">
+                        <button id="esp32-connect-btn" class="btn-primary" data-action="esp32-connect" type="button">
+                            <span class="btn-spinner hidden" aria-hidden="true"></span>
+                            <span id="esp32-connect-label">Conectar ESP32</span>
+                        </button>
+                        <button class="btn-danger" data-action="esp32-disconnect" type="button">Desconectar</button>
+                    </div>
+                    <div id="esp32-feedback" class="status-message hidden"></div>
+                </section>

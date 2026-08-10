@@ -1,0 +1,26 @@
+            <section class="control-group">
+                <h3>Gestión de Configuración</h3>
+                <div class="slider-item">
+                    <label>Presets Disponibles</label>
+                    <select id="camera-presets" data-action="apply-preset">
+                        <option value="" disabled selected>Selecciona un preset...</option>
+                        <option value="RPICAM_HELLO_DEFAULT">Por Defecto (Hello)</option>
+                        <option value="LUNAR_PHOTOGRAPHY">🌕 Fotografía Lunar</option>
+                        <option value="DAYLIGHT">☀️ Luz de Día</option>
+                        <option value="INDOOR">🏠 Interior</option>
+                        <option value="LOW_LIGHT">🌑 Baja Luz</option>
+                        <option value="TIMELAPSE">⏱️ Timelapse</option>
+                    </select>
+                </div>
+                <button class="btn-danger" data-action="reset-camera" style="width: 100%; margin-top: 10px;">
+                    ⚠️ Resetear a Valores de Fábrica
+                </button>
+                <button id="btn-update-software" class="btn-primary" data-action="update-software" style="width: 100%; margin-top: 10px;">
+                    Actualizar Software
+                </button>
+                <div id="update-status" class="status-message hidden"></div>
+                <button id="btn-reboot-system" class="btn-danger" data-action="reboot-system" style="width: 100%; margin-top: 10px;">
+                    Reiniciar Raspberry Pi
+                </button>
+                <div id="reboot-status" class="status-message hidden"></div>
+            </section>

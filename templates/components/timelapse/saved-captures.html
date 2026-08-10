@@ -1,0 +1,38 @@
+                <section class="control-group" aria-labelledby="timelapse-captures-heading">
+                    <h3 id="timelapse-captures-heading">Capturas guardadas</h3>
+                    <label for="tl-folder-select">Directorio</label>
+                    <select id="tl-folder-select"></select>
+                    <div class="timelapse-capture-actions">
+                        <button class="btn-primary" data-action="refresh-timelapse-captures" type="button">
+                            Actualizar lista
+                        </button>
+                        <button class="btn-primary" data-action="download-timelapse-folder" type="button">
+                            Descargar carpeta ZIP
+                        </button>
+                        <button class="btn-primary" data-action="download-selected-captures" type="button">
+                            Descargar seleccionadas
+                        </button>
+                        <button class="btn-danger" data-action="delete-selected-captures" type="button">
+                            Borrar seleccionadas
+                        </button>
+                        <button class="btn-danger" data-action="delete-timelapse-folder" type="button">
+                            Borrar directorio completo
+                        </button>
+                    </div>
+                    <p id="tl-captures-feedback" class="status-message hidden"></p>
+                    <div class="sensor-history-table-wrapper">
+                        <table class="sensor-history-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="tl-select-all-captures" aria-label="Seleccionar todas"></th>
+                                    <th>Archivo</th>
+                                    <th>Ruta</th>
+                                    <th>Tamaño</th>
+                                    <th>Fecha</th>
+                                    <th>Descarga</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tl-captures-body"></tbody>
+                        </table>
+                    </div>
+                </section>

@@ -1,0 +1,52 @@
+                <section class="control-group" aria-labelledby="sensor-history-heading">
+                    <h3 id="sensor-history-heading">Historial de lecturas</h3>
+                    <div class="sensor-logging-config">
+                        <label class="timelapse-checkbox">
+                            <input type="checkbox" id="sensor-logging-enabled">
+                            Escribir lecturas en la base de datos
+                        </label>
+                        <label for="sensor-logging-interval">
+                            Intervalo de escritura (segundos)
+                        </label>
+                        <input type="number" id="sensor-logging-interval" min="1" max="86400" step="1" value="60">
+                        <button class="btn-primary" data-action="save-sensor-logging-config" type="button">
+                            Guardar configuración de escritura
+                        </button>
+                        <p id="sensor-logging-feedback" class="status-message hidden"></p>
+                    </div>
+                    <div class="sensor-history-filters">
+                        <label>Desde<input type="date" id="history-start-date"></label>
+                        <label>Hasta<input type="date" id="history-end-date"></label>
+                        <label>Temp. ambiente mín.<input type="number" step="0.1" id="history-min-temperature-air"></label>
+                        <label>Temp. ambiente máx.<input type="number" step="0.1" id="history-max-temperature-air"></label>
+                        <label>Humedad ambiente mín.<input type="number" step="0.1" id="history-min-humidity-air"></label>
+                        <label>Humedad ambiente máx.<input type="number" step="0.1" id="history-max-humidity-air"></label>
+                        <label>Temp. suelo mín.<input type="number" step="0.1" id="history-min-temperature-soil"></label>
+                        <label>Temp. suelo máx.<input type="number" step="0.1" id="history-max-temperature-soil"></label>
+                        <label>Humedad suelo mín.<input type="number" step="0.1" id="history-min-humidity-soil"></label>
+                        <label>Humedad suelo máx.<input type="number" step="0.1" id="history-max-humidity-soil"></label>
+                    </div>
+                    <button class="btn-primary" data-action="load-sensor-history" type="button">Consultar historial</button>
+                    <button class="btn-danger" data-action="delete-selected-readings" type="button">Borrar seleccionadas</button>
+                    <button class="btn-danger" data-action="delete-all-readings" type="button">Borrar todas las lecturas</button>
+                    <p id="sensor-history-feedback" class="status-message hidden"></p>
+                    <div class="sensor-history-table-wrapper">
+                        <table class="sensor-history-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="sensor-select-all-readings" aria-label="Seleccionar todas"></th>
+                                    <th>Fecha</th>
+                                    <th>Temp. amb.</th>
+                                    <th>Hum. amb.</th>
+                                    <th>Temp. suelo</th>
+                                    <th>Hum. suelo</th>
+                                    <th>Pan</th>
+                                    <th>Tilt</th>
+                                    <th>Timelapse</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sensor-history-body"></tbody>
+                        </table>
+                    </div>
+                    <div id="sensor-history-pagination" class="sensor-history-pagination"></div>
+                </section>

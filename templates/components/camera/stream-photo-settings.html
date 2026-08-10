@@ -1,0 +1,39 @@
+                <section class="control-group">
+                <h3>Configuración de Stream</h3>
+                <div class="slider-item">
+                    <section class="control-group">
+                        <h3>Resolución</h3>
+                        <div class="slider-item">
+                            <select id="res-preset" data-action="set-resolution-preset">
+                                <option value="640x480">480p (VGA)</option>
+                                <option value="1280x720" selected>720p (HD)</option>
+                                <option value="1920x1080">1080p (Full HD)</option>
+                                <option value="1640x1232">1640x1232</option>
+                                <option value="custom">-- Personalizada --</option>
+                            </select>
+                        </div>
+                        <div id="custom-res-inputs" style="display: none; margin-top: 10px; gap: 5px; align-items: center;">
+                            <input type="number" id="custom-w" placeholder="Ancho" style="width: 70px;">
+                            <span>x</span>
+                            <input type="number" id="custom-h" placeholder="Alto" style="width: 70px;" >
+                            <button data-action="apply-custom-resolution" class="btn-small">Aplicar</button>
+                        </div>
+                        <small id="max-res-hint" style="color: #888;"></small>
+                    </section>
+                </div>
+            </section>  
+            <section class="control-group">
+                <h3>Configuración de Captura (Foto)</h3>
+                <div class="slider-item">
+                    <label>Resolución de Foto:</label>
+                    <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                        <input type="number" id="photo-w" placeholder="Ancho" value="1920" style="width: 80px;">
+                        <span>x</span>
+                        <input type="number" id="photo-h" placeholder="Alto" value="1080" style="width: 80px;">
+                    </div>
+                    <button class="btn-primary" data-action="capture-custom-photo" style="width: 100%;">
+                        📸 Tomar Foto Custom
+                    </button>
+                </div>
+                <small id="sensor-max-label"></small> 
+            </section>  
