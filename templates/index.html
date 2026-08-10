@@ -10,6 +10,10 @@
     {% include 'components/layout/top-bar.html' %}
     <div class="dashboard">
         {% include 'components/layout/stream-panel.html' %}
+        <div id="panel-resize-handle" class="panel-resize-handle" role="separator"
+             aria-label="Redimensionar panel de controles" aria-orientation="vertical"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="29" tabindex="0"
+             title="Arrastrá para cambiar el ancho del panel"></div>
         <div class="controls-panel">
             {% include 'components/layout/tabs-header.html' %}
             {% include 'components/tabs/home.html' %}

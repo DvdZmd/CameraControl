@@ -195,6 +195,47 @@ body {
     min-width: 0;
 }
 
+.panel-resize-handle {
+    position: relative;
+    flex: 0 0 8px;
+    width: 8px;
+    margin-inline: -4px;
+    z-index: 4;
+    cursor: col-resize;
+    touch-action: none;
+    outline: none;
+}
+
+.panel-resize-handle::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    left: 3px;
+    width: 2px;
+    background: #3d3d3d;
+    transition: background-color 120ms ease, width 120ms ease;
+}
+
+.panel-resize-handle:hover::after,
+.panel-resize-handle:focus-visible::after,
+.panel-resize-handle.dragging::after {
+    width: 3px;
+    background: var(--accent);
+}
+
+.panel-resize-handle.hidden {
+    display: none;
+}
+
+body.panel-resizing {
+    cursor: col-resize;
+    user-select: none;
+}
+
+body.panel-resizing .controls-panel {
+    transition: none;
+}
+
 .panel-header {
     display: flex;
     justify-content: space-between;

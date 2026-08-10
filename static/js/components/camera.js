@@ -169,13 +169,19 @@ function handleResolutionChange(val) {
 function restoreControlPanelState() {
     const panel = document.querySelector('.controls-panel');
     const toggleBtn = document.getElementById('toggle-panel-btn');
+    const resizeHandle = document.getElementById('panel-resize-handle');
     const hidden = localStorage.getItem('controlsPanelHidden') === 'true';
 
     if (hidden) {
         panel.classList.add('hidden');
+        panel.style.flexBasis = '0px';
+        if (resizeHandle) resizeHandle.classList.add('hidden');
         if (toggleBtn) toggleBtn.textContent = 'Mostrar panel';
     } else {
         panel.classList.remove('hidden');
+        const savedWidth = Number(localStorage.getItem('controlsPanelWidth'));
+        panel.style.flexBasis = Number.isFinite(savedWidth) && savedWidth > 0 ? `${savedWidth}px` : '';
+        if (resizeHandle) resizeHandle.classList.remove('hidden');
         if (toggleBtn) toggleBtn.textContent = 'Ocultar panel';
     }
 }
@@ -183,8 +189,16 @@ function restoreControlPanelState() {
 function toggleControlPanel() {
     const panel = document.querySelector('.controls-panel');
     const toggleBtn = document.getElementById('toggle-panel-btn');
+    const resizeHandle = document.getElementById('panel-resize-handle');
     const hidden = panel.classList.toggle('hidden');
 
+    if (hidden) {
+        panel.style.flexBasis = '0px';
+    } else {
+        const savedWidth = Number(localStorage.getItem('controlsPanelWidth'));
+        panel.style.flexBasis = Number.isFinite(savedWidth) && savedWidth > 0 ? `${savedWidth}px` : '';
+    }
+    if (resizeHandle) resizeHandle.classList.toggle('hidden', hidden);
     if (toggleBtn) toggleBtn.textContent = hidden ? 'Mostrar panel' : 'Ocultar panel';
     localStorage.setItem('controlsPanelHidden', hidden);
 }

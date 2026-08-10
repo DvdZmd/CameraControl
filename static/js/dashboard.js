@@ -179,9 +179,81 @@ function setupEventListeners() {
     });
 }
 
+function setupPanelResize() {
+    const dashboard = document.querySelector('.dashboard');
+    const panel = document.querySelector('.controls-panel');
+    const handle = document.getElementById('panel-resize-handle');
+    if (!dashboard || !panel || !handle) return;
+
+    const clampPanelWidth = width => {
+        const dashboardWidth = dashboard.getBoundingClientRect().width;
+        const minimumPanelWidth = Math.min(260, dashboardWidth * 0.45);
+        const minimumStreamWidth = Math.min(360, dashboardWidth * 0.5);
+        const maximumPanelWidth = Math.max(
+            minimumPanelWidth,
+            dashboardWidth - minimumStreamWidth - handle.offsetWidth
+        );
+        return Math.min(maximumPanelWidth, Math.max(minimumPanelWidth, width));
+    };
+
+    const applyPanelWidth = width => {
+        const clampedWidth = clampPanelWidth(width);
+        panel.style.flexBasis = `${clampedWidth}px`;
+        const dashboardWidth = dashboard.getBoundingClientRect().width;
+        const percentage = dashboardWidth > 0 ? Math.round(clampedWidth / dashboardWidth * 100) : 0;
+        handle.setAttribute('aria-valuenow', String(percentage));
+        handle.setAttribute('aria-valuetext', `${percentage}% del ancho disponible`);
+        return clampedWidth;
+    };
+
+    const savedWidth = Number(localStorage.getItem('controlsPanelWidth'));
+    if (Number.isFinite(savedWidth) && savedWidth > 0) applyPanelWidth(savedWidth);
+
+    let activePointerId = null;
+    handle.addEventListener('pointerdown', event => {
+        if (event.button !== 0 || panel.classList.contains('hidden')) return;
+        event.preventDefault();
+        activePointerId = event.pointerId;
+        handle.setPointerCapture(event.pointerId);
+        handle.classList.add('dragging');
+        document.body.classList.add('panel-resizing');
+    });
+
+    handle.addEventListener('pointermove', event => {
+        if (event.pointerId !== activePointerId) return;
+        const dashboardRect = dashboard.getBoundingClientRect();
+        applyPanelWidth(dashboardRect.right - event.clientX);
+    });
+
+    const finishResize = event => {
+        if (event.pointerId !== activePointerId) return;
+        if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+        activePointerId = null;
+        handle.classList.remove('dragging');
+        document.body.classList.remove('panel-resizing');
+        localStorage.setItem('controlsPanelWidth', String(Math.round(panel.getBoundingClientRect().width)));
+    };
+    handle.addEventListener('pointerup', finishResize);
+    handle.addEventListener('pointercancel', finishResize);
+
+    handle.addEventListener('keydown', event => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        const direction = event.key === 'ArrowLeft' ? 1 : -1;
+        const width = applyPanelWidth(panel.getBoundingClientRect().width + direction * 16);
+        localStorage.setItem('controlsPanelWidth', String(Math.round(width)));
+    });
+
+    window.addEventListener('resize', () => {
+        if (!panel.style.flexBasis || panel.classList.contains('hidden')) return;
+        applyPanelWidth(panel.getBoundingClientRect().width);
+    });
+}
+
 
 async function initializeDashboard() {
     setupEventListeners();
+    setupPanelResize();
     restoreControlPanelState();
     const cameraStatus = await initCameraSpecs();
     if (cameraStatus) {
