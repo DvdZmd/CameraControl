@@ -6,7 +6,7 @@ import threading
 import time
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 
 admin_bp = Blueprint(
@@ -103,6 +103,28 @@ def _throttled_flags():
     }
 
 
+def _timelapse_storage_path():
+    service = current_app.config.get("TIMELAPSE_SERVICE")
+    defaults = getattr(service, "defaults", None)
+    configured_path = getattr(defaults, "timelapse_dir", None)
+    path = Path(configured_path) if configured_path else Path(__file__).resolve().parent.parent
+    path = path.expanduser().resolve(strict=False)
+    while not path.exists() and path != path.parent:
+        path = path.parent
+    return path
+
+
+def _storage_status():
+    usage = shutil.disk_usage(_timelapse_storage_path())
+    free_percent = round(100 * usage.free / usage.total, 1) if usage.total > 0 else 0.0
+    return {
+        "total_bytes": usage.total,
+        "used_bytes": usage.used,
+        "free_bytes": usage.free,
+        "free_percent": free_percent,
+    }
+
+
 @admin_bp.route("/system-status", methods=["GET"])
 def system_status():
     """Return lightweight Raspberry Pi health data without requiring root."""
@@ -110,10 +132,15 @@ def system_status():
         cpu_usage = _cpu_usage_percent()
     except (OSError, TypeError, ValueError):
         cpu_usage = None
+    try:
+        storage = _storage_status()
+    except (OSError, TypeError, ValueError):
+        storage = None
     return jsonify({
         "cpu_temperature_c": _cpu_temperature_c(),
         "cpu_usage_percent": cpu_usage,
         "power": _throttled_flags(),
+        "storage": storage,
     })
 
 

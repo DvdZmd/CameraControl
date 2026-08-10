@@ -28,7 +28,13 @@ class AdminRoutesTests(unittest.TestCase):
     })
     @patch("routes.admin_routes._cpu_temperature_c", return_value=54.2)
     @patch("routes.admin_routes._cpu_usage_percent", return_value=37.5)
-    def test_system_status_reports_raspberry_health(self, _usage, _temperature, _power):
+    @patch("routes.admin_routes._storage_status", return_value={
+        "total_bytes": 1000,
+        "used_bytes": 400,
+        "free_bytes": 600,
+        "free_percent": 60.0,
+    })
+    def test_system_status_reports_raspberry_health(self, _storage, _usage, _temperature, _power):
         response = self.client.get("/api/admin/system-status")
 
         self.assertEqual(response.status_code, 200)
@@ -40,6 +46,26 @@ class AdminRoutesTests(unittest.TestCase):
                 "undervoltage_now": True,
                 "undervoltage_occurred": False,
             },
+            "storage": {
+                "total_bytes": 1000,
+                "used_bytes": 400,
+                "free_bytes": 600,
+                "free_percent": 60.0,
+            },
+        })
+
+    @patch("routes.admin_routes.shutil.disk_usage")
+    def test_storage_status_reports_free_space_for_timelapse_filesystem(self, disk_usage):
+        disk_usage.return_value = Mock(total=1000, used=250, free=750)
+
+        with self.client.application.test_request_context():
+            status = admin_routes._storage_status()
+
+        self.assertEqual(status, {
+            "total_bytes": 1000,
+            "used_bytes": 250,
+            "free_bytes": 750,
+            "free_percent": 75.0,
         })
 
     @patch("routes.admin_routes._read_cpu_sample", side_effect=[(1000, 600), (1100, 620)])

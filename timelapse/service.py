@@ -353,7 +353,7 @@ class TimelapseService:
         selected_path = self.folder_path(config.folder_name, create=True)
         camera.save_path = str(selected_path)
         config.save_path = str(selected_path)
-        camera.timelapse_organize_by_date = True
+        camera.timelapse_organize_by_date = False
         config.is_running = True
         config.last_error = None
         config.stopped_at = None
@@ -548,9 +548,7 @@ class TimelapseService:
             return datetime.now(UTC)
 
     def _compat_timelapse_worker(self, camera, interval, width, height, save_path):
-        started_at = self._capture_local_now()
-        session_path = save_path / started_at.strftime("%Y-%m-%d") / started_at.strftime("%H-%M-%S")
-        session_path.mkdir(parents=True, exist_ok=True)
+        save_path.mkdir(parents=True, exist_ok=True)
         capture_count = 0
         reason = "stopped"
         try:
@@ -566,7 +564,7 @@ class TimelapseService:
                         raise RuntimeError("La cámara no devolvió bytes JPEG")
                     captured_at = self._capture_local_now()
                     capture_path = _unique_capture_path(
-                        session_path,
+                        save_path,
                         _capture_filename(captured_at),
                     )
                     capture_path.write_bytes(frame)
@@ -610,7 +608,7 @@ class TimelapseService:
                 folder = self.folder_path(config.folder_name)
                 if source.is_file() and folder in source.parents:
                     destination = _unique_capture_path(
-                        source.parent,
+                        folder,
                         _capture_filename(
                             _local_capture_datetime(captured_at, timezone_name)
                         ),
@@ -618,6 +616,14 @@ class TimelapseService:
                     )
                     if destination != source:
                         source.rename(destination)
+                        directory = source.parent
+                        while directory != folder:
+                            parent = directory.parent
+                            try:
+                                directory.rmdir()
+                            except OSError:
+                                break
+                            directory = parent
                     capture_path = str(destination)
                     metadata["path"] = capture_path
             config.capture_count = (config.capture_count or 0) + 1

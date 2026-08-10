@@ -14,6 +14,17 @@
                   title="Estado de alimentación reportado por el firmware">
                 Energía <strong id="pi-power-value">N/D</strong>
             </span>
+            <div id="pi-storage-status" class="raspberry-storage status-unknown"
+                 title="Espacio libre en el filesystem del timelapse">
+                <div class="raspberry-storage-label">
+                    <span>SD</span>
+                    <strong id="pi-storage-value">N/D</strong>
+                </div>
+                <div id="pi-storage-progress" class="raspberry-storage-track" role="progressbar"
+                     aria-label="Espacio libre en disco" aria-valuemin="0" aria-valuemax="100">
+                    <span id="pi-storage-progress-bar"></span>
+                </div>
+            </div>
         </div>
         <div class="light-intensity-control">
             <label for="light-intensity-slider">

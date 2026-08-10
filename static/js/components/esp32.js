@@ -14,6 +14,7 @@ function renderRaspberryStatus(data) {
     const cpuUsage = document.getElementById('pi-cpu-usage');
     const powerStatus = document.getElementById('pi-power-status');
     const powerValue = document.getElementById('pi-power-value');
+    renderStorageStatus(data.storage);
     if (temperature) {
         temperature.textContent = Number.isFinite(data.cpu_temperature_c)
             ? `${data.cpu_temperature_c.toFixed(1)} °C`
@@ -41,6 +42,40 @@ function renderRaspberryStatus(data) {
     }
 }
 
+function formatStorageBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes < 0) return 'N/D';
+    const gibibytes = bytes / (1024 ** 3);
+    return `${gibibytes.toFixed(gibibytes >= 10 ? 1 : 2)} GB`;
+}
+
+function renderStorageStatus(storage) {
+    const container = document.getElementById('pi-storage-status');
+    const value = document.getElementById('pi-storage-value');
+    const progress = document.getElementById('pi-storage-progress');
+    const progressBar = document.getElementById('pi-storage-progress-bar');
+    if (!container || !value || !progress || !progressBar) return;
+
+    const freePercent = Number(storage?.free_percent);
+    const hasStorageData = Number.isFinite(freePercent);
+    const normalizedPercent = hasStorageData ? Math.max(0, Math.min(100, freePercent)) : 0;
+    container.classList.remove('status-ok', 'status-warning', 'status-danger', 'status-unknown');
+
+    if (!hasStorageData) {
+        container.classList.add('status-unknown');
+        value.textContent = 'N/D';
+        container.title = 'No se pudo consultar el espacio disponible';
+        progress.removeAttribute('aria-valuenow');
+    } else {
+        container.classList.add(
+            normalizedPercent <= 10 ? 'status-danger' : (normalizedPercent <= 20 ? 'status-warning' : 'status-ok')
+        );
+        value.textContent = `${normalizedPercent.toFixed(1)}% libre`;
+        container.title = `${formatStorageBytes(storage.free_bytes)} libres de ${formatStorageBytes(storage.total_bytes)}`;
+        progress.setAttribute('aria-valuenow', normalizedPercent.toFixed(1));
+    }
+    progressBar.style.width = `${normalizedPercent}%`;
+}
+
 async function refreshRaspberryStatus() {
     try {
         const response = await fetch('/api/admin/system-status');
@@ -51,7 +86,8 @@ async function refreshRaspberryStatus() {
         renderRaspberryStatus({
             cpu_temperature_c: null,
             cpu_usage_percent: null,
-            power: null
+            power: null,
+            storage: null
         });
     }
 }

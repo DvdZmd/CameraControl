@@ -88,6 +88,61 @@ body {
 .raspberry-status-item.status-danger { border-color: #d94a4a; }
 .raspberry-status-item.status-danger strong { color: #ff6b6b; }
 
+.raspberry-storage {
+    width: 150px;
+    padding: 5px 8px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    background: #242424;
+    box-sizing: border-box;
+}
+
+.raspberry-storage-label {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+    color: #aaa;
+    font-size: 0.7rem;
+}
+
+.raspberry-storage-label strong {
+    color: #f1f1f1;
+    font-weight: 700;
+}
+
+.raspberry-storage-track {
+    height: 5px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #111;
+}
+
+.raspberry-storage-track span {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+    transition: width 250ms ease, background-color 250ms ease;
+}
+
+.raspberry-storage.status-warning {
+    border-color: #d49522;
+}
+
+.raspberry-storage.status-warning .raspberry-storage-track span {
+    background: #ffbd45;
+}
+
+.raspberry-storage.status-danger {
+    border-color: #d94a4a;
+}
+
+.raspberry-storage.status-danger .raspberry-storage-track span {
+    background: #ff6b6b;
+}
+
 .light-intensity-control {
     width: min(240px, 32vw);
     min-width: 150px;

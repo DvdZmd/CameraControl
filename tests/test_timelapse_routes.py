@@ -136,7 +136,7 @@ class TimelapseRoutesTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.get_json()["running"])
         self.assertEqual(self.camera.start_calls, [(30, 1920, 1080)])
-        self.assertTrue(self.camera.timelapse_organize_by_date)
+        self.assertFalse(self.camera.timelapse_organize_by_date)
         self.assertEqual(
             Path(self.camera.save_path),
             Path(self.tmpdir.name) / "captures" / "cultivo agosto",
@@ -229,9 +229,11 @@ class TimelapseRoutesTests(unittest.TestCase):
             "capture_count": 1,
         })
 
-        expected = session / "2026_08_06_21-00-00.jpg"
+        expected = folder / "2026_08_06_21-00-00.jpg"
         self.assertTrue(expected.is_file())
         self.assertFalse(source.exists())
+        self.assertFalse(session.exists())
+        self.assertFalse((folder / "2026-08-06").exists())
         with self.app.app_context():
             config = db.session.get(TimelapseConfig, 1)
             self.assertEqual(config.last_capture_at, datetime(2026, 8, 7, 0, 0))
@@ -385,6 +387,10 @@ class TimelapseRoutesTests(unittest.TestCase):
             (Path(self.tmpdir.name) / "captures" / "legacy").rglob("*.jpg")
         )
         self.assertEqual(len(captures), 1)
+        self.assertEqual(
+            captures[0].parent,
+            Path(self.tmpdir.name) / "captures" / "legacy",
+        )
         self.assertEqual(captures[0].read_bytes(), b"legacy-jpeg")
         self.assertRegex(
             captures[0].name,
