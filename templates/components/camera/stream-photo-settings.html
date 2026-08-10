@@ -5,10 +5,12 @@
                         <h3>Resolución</h3>
                         <div class="slider-item">
                             <select id="res-preset" data-action="set-resolution-preset">
-                                <option value="640x480">480p (VGA)</option>
-                                <option value="1280x720" selected>720p (HD)</option>
-                                <option value="1920x1080">1080p (Full HD)</option>
-                                <option value="1640x1232">1640x1232</option>
+                                <option value="640x480" data-width="640" data-height="480">480p (VGA)</option>
+                                <option value="800x600" data-width="800" data-height="600">600p (SVGA)</option>
+                                <option value="1280x720" data-width="1280" data-height="720" selected>720p (HD)</option>
+                                <option value="1640x1232" data-width="1640" data-height="1232">1640x1232 (4:3)</option>
+                                <option value="1920x1080" data-width="1920" data-height="1080">1080p (Full HD)</option>
+                                <option value="2592x1944" data-width="2592" data-height="1944">2592x1944 (5 MP)</option>
                                 <option value="custom">-- Personalizada --</option>
                             </select>
                         </div>
@@ -25,8 +27,17 @@
             <section class="control-group">
                 <h3>Configuración de Captura (Foto)</h3>
                 <div class="slider-item">
-                    <label>Resolución de Foto:</label>
-                    <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                    <label for="photo-res-preset">Resolución de Foto:</label>
+                    <select id="photo-res-preset" data-action="set-photo-resolution-preset">
+                        <option value="640x480" data-width="640" data-height="480">480p (VGA)</option>
+                        <option value="800x600" data-width="800" data-height="600">600p (SVGA)</option>
+                        <option value="1280x720" data-width="1280" data-height="720">720p (HD)</option>
+                        <option value="1640x1232" data-width="1640" data-height="1232">1640x1232 (4:3)</option>
+                        <option value="1920x1080" data-width="1920" data-height="1080" selected>1080p (Full HD)</option>
+                        <option value="2592x1944" data-width="2592" data-height="1944">2592x1944 (5 MP)</option>
+                        <option value="custom">-- Personalizada --</option>
+                    </select>
+                    <div id="photo-custom-res-inputs" style="display: none; gap: 5px; margin: 10px 0;">
                         <input type="number" id="photo-w" placeholder="Ancho" value="1920" style="width: 80px;">
                         <span>x</span>
                         <input type="number" id="photo-h" placeholder="Alto" value="1080" style="width: 80px;">

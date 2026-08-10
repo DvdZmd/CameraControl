@@ -102,6 +102,8 @@ function setupEventListeners() {
 
         if (action === 'set-resolution-preset') {
             handleResolutionChange(e.target.value);
+        } else if (action === 'set-photo-resolution-preset') {
+            handlePhotoResolutionChange(e.target.value);
         } else if (action === 'apply-preset') {
             applyPreset(e.target.value);
         } else if (action === 'esp32-set-speed') {

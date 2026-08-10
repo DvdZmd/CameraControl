@@ -3,6 +3,76 @@ let cameraMaxW = 1280;
 let cameraMaxH = 720;
 let cameraAvailable = false;
 let cameraStreamEnabled = false;
+const CUSTOM_STREAM_RESOLUTION_KEY = 'cameraCustomStreamResolution';
+const CUSTOM_PHOTO_RESOLUTION_KEY = 'cameraCustomPhotoResolution';
+const PHOTO_RESOLUTION_PRESET_KEY = 'cameraPhotoResolutionPreset';
+
+function readStoredResolution(key) {
+    try {
+        const resolution = JSON.parse(localStorage.getItem(key));
+        const width = Number(resolution?.width);
+        const height = Number(resolution?.height);
+        if (Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0) {
+            return { width, height };
+        }
+    } catch (error) {
+        console.warn(`No se pudo restaurar ${key}:`, error);
+    }
+    return null;
+}
+
+function storeResolution(key, width, height) {
+    if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) return;
+    localStorage.setItem(key, JSON.stringify({ width, height }));
+}
+
+function setResolutionInputs(widthId, heightId, resolution) {
+    if (!resolution) return;
+    const width = document.getElementById(widthId);
+    const height = document.getElementById(heightId);
+    if (width) width.value = resolution.width;
+    if (height) height.value = resolution.height;
+}
+
+function configureResolutionPresetOptions() {
+    ['res-preset', 'photo-res-preset'].forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        select.querySelectorAll('option[data-width]').forEach(option => {
+            const supported = Number(option.dataset.width) <= cameraMaxW
+                && Number(option.dataset.height) <= cameraMaxH;
+            option.hidden = !supported;
+            option.disabled = !supported;
+        });
+    });
+
+    const photoPreset = document.getElementById('photo-res-preset');
+    const customOption = photoPreset?.querySelector('option[value="custom"]');
+    if (!photoPreset || !customOption) return;
+    photoPreset.querySelectorAll('option[data-generated="sensor-max"]').forEach(option => option.remove());
+    const maxResolution = `${cameraMaxW}x${cameraMaxH}`;
+    if (!Array.from(photoPreset.options).some(option => option.value === maxResolution)) {
+        const option = document.createElement('option');
+        option.value = maxResolution;
+        option.dataset.width = String(cameraMaxW);
+        option.dataset.height = String(cameraMaxH);
+        option.dataset.generated = 'sensor-max';
+        option.textContent = `Máxima del sensor (${cameraMaxW}x${cameraMaxH})`;
+        photoPreset.insertBefore(option, customOption);
+    }
+}
+
+function restoreResolutionPreferences() {
+    setResolutionInputs('custom-w', 'custom-h', readStoredResolution(CUSTOM_STREAM_RESOLUTION_KEY));
+    setResolutionInputs('photo-w', 'photo-h', readStoredResolution(CUSTOM_PHOTO_RESOLUTION_KEY));
+
+    const photoPreset = document.getElementById('photo-res-preset');
+    const savedPreset = localStorage.getItem(PHOTO_RESOLUTION_PRESET_KEY) || '1920x1080';
+    const savedOption = photoPreset
+        ? Array.from(photoPreset.options).find(option => option.value === savedPreset && !option.disabled)
+        : null;
+    handlePhotoResolutionChange(savedOption ? savedPreset : 'custom', false);
+}
 
 function setCameraStreamUi(enabled, detail) {
     cameraStreamEnabled = enabled;
@@ -84,6 +154,7 @@ async function toggleCameraStream() {
 }
 
 async function initCameraSpecs() {
+    restoreResolutionPreferences();
     let data;
     try {
         data = await fetchCameraStatus();
@@ -94,6 +165,8 @@ async function initCameraSpecs() {
     
     cameraMaxW = data.max_width || cameraMaxW;
     cameraMaxH = data.max_height || cameraMaxH;
+    configureResolutionPresetOptions();
+    restoreResolutionPreferences();
     
     // Mostramos al usuario el límite real de su cámara
     document.getElementById('max-res-hint').innerText = 
@@ -159,11 +232,31 @@ function handleResolutionChange(val) {
     const customDiv = document.getElementById('custom-res-inputs');
     if (val === 'custom') {
         customDiv.style.display = 'flex';
+        setResolutionInputs('custom-w', 'custom-h', readStoredResolution(CUSTOM_STREAM_RESOLUTION_KEY));
     } else {
         customDiv.style.display = 'none';
         const [w, h] = val.split('x');
         updateCameraSettings({ width: parseInt(w), height: parseInt(h) });
     }
+}
+
+function handlePhotoResolutionChange(value, persist = true) {
+    const preset = document.getElementById('photo-res-preset');
+    const customInputs = document.getElementById('photo-custom-res-inputs');
+    if (!preset || !customInputs) return;
+
+    preset.value = value;
+    if (persist) localStorage.setItem(PHOTO_RESOLUTION_PRESET_KEY, value);
+    if (value === 'custom') {
+        customInputs.style.display = 'flex';
+        setResolutionInputs('photo-w', 'photo-h', readStoredResolution(CUSTOM_PHOTO_RESOLUTION_KEY));
+        return;
+    }
+
+    const [width, height] = value.split('x').map(Number);
+    document.getElementById('photo-w').value = width;
+    document.getElementById('photo-h').value = height;
+    customInputs.style.display = 'none';
 }
 
 function restoreControlPanelState() {
@@ -212,6 +305,9 @@ function applyCustomResolution() {
     if (h > cameraMaxH) h = cameraMaxH;
     
     if (w > 0 && h > 0) {
+        document.getElementById('custom-w').value = w;
+        document.getElementById('custom-h').value = h;
+        storeResolution(CUSTOM_STREAM_RESOLUTION_KEY, w, h);
         updateCameraSettings({ width: w, height: h });
     }
 }
@@ -219,6 +315,9 @@ function applyCustomResolution() {
 async function captureCustomPhoto() {
     const w = document.getElementById('photo-w').value;
     const h = document.getElementById('photo-h').value;
+    if (document.getElementById('photo-res-preset').value === 'custom') {
+        storeResolution(CUSTOM_PHOTO_RESOLUTION_KEY, Number(w), Number(h));
+    }
     const video = document.getElementById('video-feed');
     const wasStreaming = cameraStreamEnabled;
     
