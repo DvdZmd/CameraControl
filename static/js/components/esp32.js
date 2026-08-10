@@ -1,12 +1,12 @@
 function showEsp32Feedback(message, isError = false) {
-    const feedback = document.getElementById('esp32-feedback');
-    if (!feedback) return;
+    ['esp32-feedback', 'home-esp32-feedback'].forEach(id => {
+        const feedback = document.getElementById(id);
+        if (!feedback) return;
 
-    feedback.classList.remove('hidden', 'status-error');
-    feedback.textContent = message;
-    if (isError) {
-        feedback.classList.add('status-error');
-    }
+        feedback.classList.remove('hidden', 'status-error');
+        feedback.textContent = message;
+        if (isError) feedback.classList.add('status-error');
+    });
 }
 
 function renderRaspberryStatus(data) {
@@ -56,14 +56,31 @@ async function refreshRaspberryStatus() {
     }
 }
 
-function setEsp32ConnectLoading(isLoading) {
+function setEsp32ConnectLoading(isLoading, operation = 'connect') {
     const button = document.getElementById('esp32-connect-btn');
     const label = document.getElementById('esp32-connect-label');
     const spinner = button ? button.querySelector('.btn-spinner') : null;
+    const homeButton = document.getElementById('home-esp32-connection-btn');
+    const homeLabel = document.getElementById('home-esp32-connection-label');
+    const homeSpinner = homeButton ? homeButton.querySelector('.btn-spinner') : null;
 
     if (button) button.disabled = isLoading;
     if (label) label.textContent = isLoading ? 'Conectando...' : 'Conectar ESP32';
     if (spinner) spinner.classList.toggle('hidden', !isLoading);
+    if (homeButton) homeButton.disabled = isLoading;
+    if (homeLabel) {
+        homeLabel.textContent = isLoading
+            ? (operation === 'disconnect' ? 'Desconectando...' : 'Conectando...')
+            : (esp32Connected ? 'Desconectar ESP32' : 'Conectar ESP32');
+    }
+    if (homeSpinner) homeSpinner.classList.toggle('hidden', !isLoading);
+}
+
+function setStatusText(ids, value) {
+    ids.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = value;
+    });
 }
 
 function stateValue(state, key) {
@@ -199,10 +216,27 @@ async function refreshEsp32Status() {
         const savedPositionEl = document.getElementById('esp32-saved-position');
         const currentPositionEl = document.getElementById('esp32-current-position');
         const speedSelect = document.getElementById('esp32-speed-select');
+        const homeBadge = document.getElementById('home-esp32-status-badge');
+        const homeConnectionButton = document.getElementById('home-esp32-connection-btn');
+        const homeConnectionLabel = document.getElementById('home-esp32-connection-label');
+
+        esp32Connected = Boolean(data.connected);
 
         if (badge) {
-            badge.textContent = data.connected ? 'Conectado' : 'Desconectado';
-            badge.className = `esp32-badge ${data.connected ? 'connected' : 'disconnected'}`;
+            badge.textContent = esp32Connected ? 'Conectado' : 'Desconectado';
+            badge.className = `esp32-badge ${esp32Connected ? 'connected' : 'disconnected'}`;
+        }
+        if (homeBadge) {
+            homeBadge.textContent = esp32Connected ? 'Conectado' : 'Desconectado';
+            homeBadge.className = `esp32-badge ${esp32Connected ? 'connected' : 'disconnected'}`;
+        }
+        if (homeConnectionButton) {
+            homeConnectionButton.dataset.connected = String(esp32Connected);
+            homeConnectionButton.classList.toggle('btn-primary', !esp32Connected);
+            homeConnectionButton.classList.toggle('btn-danger', esp32Connected);
+        }
+        if (homeConnectionLabel) {
+            homeConnectionLabel.textContent = esp32Connected ? 'Desconectar ESP32' : 'Conectar ESP32';
         }
         
         if (deviceName) deviceName.textContent = data.device_name || '--';
@@ -243,11 +277,23 @@ async function refreshEsp32Status() {
         const dsTemp = stateValue(lastState, 'DS');
         const soilPercent = stateValue(lastState, 'SP');
         const soilRaw = stateValue(lastState, 'SR');
-        document.getElementById('sensor-dht-temp').textContent = dhtTemp !== null ? `${parseFloat(dhtTemp).toFixed(1)} °C` : '--';
-        document.getElementById('sensor-dht-humidity').textContent = dhtHumidity !== null ? `${parseFloat(dhtHumidity).toFixed(1)} %` : '--';
-        document.getElementById('sensor-ds-temp').textContent = dsTemp !== null ? `${parseFloat(dsTemp).toFixed(1)} °C` : '--';
-        document.getElementById('sensor-soil-percent').textContent = soilPercent !== null ? `${soilPercent} %` : '--';
-        document.getElementById('sensor-soil-raw').textContent = soilRaw !== null ? soilRaw : '--';
+        setStatusText(
+            ['sensor-dht-temp', 'home-sensor-dht-temp'],
+            dhtTemp !== null ? `${parseFloat(dhtTemp).toFixed(1)} °C` : '--'
+        );
+        setStatusText(
+            ['sensor-dht-humidity', 'home-sensor-dht-humidity'],
+            dhtHumidity !== null ? `${parseFloat(dhtHumidity).toFixed(1)} %` : '--'
+        );
+        setStatusText(
+            ['sensor-ds-temp', 'home-sensor-ds-temp'],
+            dsTemp !== null ? `${parseFloat(dsTemp).toFixed(1)} °C` : '--'
+        );
+        setStatusText(
+            ['sensor-soil-percent', 'home-sensor-soil-percent'],
+            soilPercent !== null ? `${soilPercent} %` : '--'
+        );
+        setStatusText(['sensor-soil-raw', 'home-sensor-soil-raw'], soilRaw !== null ? soilRaw : '--');
 
         // Estado de Movimiento (Servos)
         const panPulse = stateValue(lastState, 'P');
@@ -290,6 +336,8 @@ async function connectEsp32() {
 }
 
 async function disconnectEsp32() {
+    setEsp32ConnectLoading(true, 'disconnect');
+    showEsp32Feedback('Desconectando ESP32...');
     try {
         const response = await fetch('/api/esp32/disconnect', { method: 'POST' });
         const data = await response.json();
@@ -300,6 +348,16 @@ async function disconnectEsp32() {
         await refreshEsp32Status();
     } catch (error) {
         showEsp32Feedback(error.message || 'No se pudo desconectar del ESP32', true);
+    } finally {
+        setEsp32ConnectLoading(false, 'disconnect');
+    }
+}
+
+async function toggleEsp32Connection() {
+    if (esp32Connected) {
+        await disconnectEsp32();
+    } else {
+        await connectEsp32();
     }
 }
 
@@ -415,4 +473,3 @@ async function sendEsp32CustomCommand() {
         showEsp32Feedback(error.message || 'No se pudo enviar el comando', true);
     }
 }
-

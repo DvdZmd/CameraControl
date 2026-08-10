@@ -25,8 +25,8 @@ parciales organizados por dominio:
 - `templates/index.html`: estructura general y orden de carga de scripts.
 - `templates/components/layout/`: barra superior, streaming y navegación.
 - `templates/components/tabs/`: contenedores de las pestañas principales.
-- `templates/components/{camera,timelapse,esp32,sensors,devices}/`: controles de
-  cada dominio.
+- `templates/components/{home,camera,timelapse,esp32,sensors,devices}/`:
+  resumen principal y controles de cada dominio.
 - `static/js/components/`: comportamiento separado por dominio.
 - `static/js/dashboard.js`: registro central de eventos e inicialización.
 

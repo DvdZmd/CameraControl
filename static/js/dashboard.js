@@ -26,6 +26,7 @@ function setupEventListeners() {
             case 'toggle-esp32-light': toggleEsp32Light(); break;
             case 'apply-custom-resolution': applyCustomResolution(); break;
             case 'capture-custom-photo': captureCustomPhoto(); break;
+            case 'capture-visible-frame': captureVisibleFrame(); break;
             case 'reset-camera': resetCamera(); break;
             case 'update-software': triggerSoftwareUpdate(); break;
             case 'reboot-system': triggerSystemReboot(); break;
@@ -81,6 +82,7 @@ function setupEventListeners() {
             }
             case 'esp32-connect': connectEsp32(); break;
             case 'esp32-disconnect': disconnectEsp32(); break;
+            case 'esp32-toggle-connection': toggleEsp32Connection(); break;
             case 'esp32-center': sendEsp32Center(); break;
             case 'esp32-save-current-position': saveEsp32CurrentPosition(); break;
             case 'esp32-return-position': returnEsp32ToSavedPosition(); break;

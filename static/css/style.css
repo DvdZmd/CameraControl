@@ -115,7 +115,7 @@ body {
 
 /* Panel del Stream */
 .stream-panel {
-    flex: 2;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     background-color: #000;
@@ -186,7 +186,8 @@ body {
 
 /* Panel de Controles */
 .controls-panel {
-    flex: 1;
+    flex: 0 1 29.166%;
+    box-sizing: border-box;
     background-color: var(--panel-dark);
     padding: 20px;
     overflow-y: auto;
@@ -264,6 +265,98 @@ body {
     display: block;
 }
 
+.home-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+}
+
+.home-capture {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.home-capture .status-message {
+    flex: 1;
+    margin: 0;
+}
+
+.home-card {
+    min-width: 0;
+    background: #2a2a2a;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.home-card-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.home-card-heading h3 {
+    margin-bottom: 0;
+}
+
+.home-connection {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.home-action-btn,
+.home-action-btn.btn-primary,
+.home-action-btn.btn-danger {
+    width: auto;
+    min-height: 34px;
+    margin-top: 0;
+    padding: 6px 10px;
+}
+
+.home-sensor-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.home-sensor-grid > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 7px 8px;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    background: #232323;
+}
+
+.home-sensor-grid span {
+    color: #9aa0a6;
+    font-size: 0.72rem;
+}
+
+.home-sensor-grid strong {
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+}
+
+.esp32-move-grid.home-move-grid {
+    width: 132px;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.home-move-grid .esp32-move-btn {
+    font-size: 1.1rem;
+}
+
+.home-move-grid .esp32-center-pad-btn {
+    font-size: 0.62rem;
+}
+
 .control-group {
     background: #2a2a2a;
     padding: 15px;
@@ -330,7 +423,8 @@ h3 { margin-top: 0; color: var(--accent); font-size: 0.9rem; text-transform: upp
 }
 
 .controls-panel {
-    flex: 1;
+    flex: 0 1 29.166%;
+    box-sizing: border-box;
     background-color: var(--panel-dark);
     padding: 20px;
     overflow-y: auto;

@@ -248,6 +248,81 @@ async function captureCustomPhoto() {
     }
 }
 
+function showHomeCaptureFeedback(message, isError = false) {
+    const feedback = document.getElementById('home-capture-feedback');
+    if (!feedback) return;
+
+    feedback.classList.remove('hidden', 'status-error');
+    feedback.classList.toggle('status-error', isError);
+    feedback.textContent = message;
+}
+
+function captureVisibleFrame() {
+    const video = document.getElementById('video-feed');
+    const button = document.getElementById('home-capture-frame-btn');
+    if (!cameraStreamEnabled || !video || video.naturalWidth === 0 || video.naturalHeight === 0) {
+        showHomeCaptureFeedback('El stream debe estar encendido para capturar el frame visible.', true);
+        return;
+    }
+
+    let rotation = 0;
+    if (video.classList.contains('rotate-90')) rotation = 90;
+    if (video.classList.contains('rotate-180')) rotation = 180;
+    if (video.classList.contains('rotate-270')) rotation = 270;
+
+    const swapsDimensions = rotation === 90 || rotation === 270;
+    const canvas = document.createElement('canvas');
+    canvas.width = swapsDimensions ? video.naturalHeight : video.naturalWidth;
+    canvas.height = swapsDimensions ? video.naturalWidth : video.naturalHeight;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+        showHomeCaptureFeedback('El navegador no pudo preparar la captura.', true);
+        return;
+    }
+
+    try {
+        context.translate(canvas.width / 2, canvas.height / 2);
+        context.rotate(rotation * Math.PI / 180);
+        context.drawImage(video, -video.naturalWidth / 2, -video.naturalHeight / 2);
+    } catch (error) {
+        console.error('Error capturando el frame visible:', error);
+        showHomeCaptureFeedback('No se pudo leer el frame actual del stream.', true);
+        return;
+    }
+
+    if (button) button.disabled = true;
+    canvas.toBlob(blob => {
+        if (!blob) {
+            showHomeCaptureFeedback('No se pudo generar la foto.', true);
+            if (button) button.disabled = false;
+            return;
+        }
+
+        const capturedAt = new Date();
+        const pad = value => String(value).padStart(2, '0');
+        const filename = [
+            capturedAt.getFullYear(),
+            pad(capturedAt.getMonth() + 1),
+            pad(capturedAt.getDate())
+        ].join('_') + '_' + [
+            pad(capturedAt.getHours()),
+            pad(capturedAt.getMinutes()),
+            pad(capturedAt.getSeconds())
+        ].join('-') + '_stream.jpg';
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+        showHomeCaptureFeedback('Frame capturado.');
+        if (button) button.disabled = false;
+    }, 'image/jpeg', 0.95);
+}
+
 
 // Función para manejar la visibilidad de los controles según el hardware
 async function checkCameraCapabilities() {
@@ -425,4 +500,3 @@ async function setRotation(angle) {
         applyVideoRotation(parseInt(result.display_rotation || 0, 10));
     }
 }
-
