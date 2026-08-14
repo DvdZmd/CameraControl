@@ -17,6 +17,21 @@ La aplicación debe mantener desacoplados:
 
 ## Componentes principales
 
+### Composición por perfiles
+
+`profiles.py` define la identidad del producto y los módulos habilitados. El
+perfil se resuelve al crear Flask, antes de inicializar controladores, registrar
+blueprints o iniciar workers. Si no se configura `CAMERACONTROL_PROFILE`, el
+perfil `default` conserva todos los módulos históricos.
+
+El backend es la autoridad de esta composición. El dashboard HTML recibe el
+perfil desde Flask y omite pestañas y llamadas de módulos deshabilitados. Los
+futuros frontends satélite deben consultar `GET /api/system/capabilities`, pero
+no pueden habilitar funcionalidades del servidor.
+
+Los perfiles y su matriz vigente se documentan en
+`docs/PROJECT_PROFILES.md`.
+
 ### Frontend
 
 El dashboard se renderiza con Jinja a partir de un shell mínimo y componentes
@@ -73,6 +88,15 @@ Las integraciones opcionales no deben impedir que Flask inicie.
 ### Blueprints
 
 La API se organiza por dominios.
+
+Los blueprints de dominio se registran únicamente cuando el perfil activo los
+habilita. `system_bp` y `admin_bp` son infraestructura común y siempre se
+registran.
+
+#### Sistema
+
+`GET /api/system/capabilities` expone el perfil, la versión del contrato y las
+features configuradas. No consulta cámara, BLE ni servicios externos.
 
 #### Cámara
 

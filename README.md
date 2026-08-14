@@ -9,6 +9,11 @@ El frontend actual usa HTML, CSS y JavaScript servidos por Flask. Se utiliza
 como interfaz de desarrollo y está previsto migrarlo a una webapp Vue cuando
 las funcionalidades y contratos estén estabilizados.
 
+El backend se compone mediante perfiles de producto. `default` mantiene el
+comportamiento completo actual, mientras que `starseek` evita inicializar y
+exponer sensores y Tuya. `fungiforge` conserva por ahora la composición
+completa. Consultar `docs/PROJECT_PROFILES.md` para el contrato y alcance.
+
 ## Componentes
 
 - Cámara: `rpicam-z`, librería externa y reutilizable instalada desde GitHub.
@@ -166,9 +171,22 @@ source venv/bin/activate
 python app.py
 ```
 
+Seleccionar un producto desde `.env` o el entorno:
+
+```dotenv
+CAMERACONTROL_PROFILE=starseek
+```
+
+Si no se configura, se utiliza `default`. Los nombres desconocidos provocan un
+error de arranque en lugar de activar módulos silenciosamente.
+
 La interfaz queda disponible en `http://<ip-de-la-pi>:5000`.
 
 ## API actual
+
+### Sistema — `/api/system`
+
+- `GET /capabilities`: perfil y módulos configurados, sin consultar hardware.
 
 ### Cámara — `/api/camera`
 
@@ -275,6 +293,7 @@ Raspberry Pi y el ESP32 reales.
 - `docs/ESP32_BLE_PROTOCOL.md`
 - `docs/HARDWARE.md`
 - `docs/PROJECT_HISTORY.md`
+- `docs/PROJECT_PROFILES.md`
 - `docs/SECURITY.md`
 - `docs/TROUBLESHOOTING.md`
 

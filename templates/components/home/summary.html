@@ -6,6 +6,7 @@
                     <div id="home-capture-feedback" class="status-message hidden" role="status"></div>
                 </div>
                 <div class="home-summary">
+                    {% if camera_control.features.esp32 %}
                     <section class="home-card home-connection" aria-labelledby="home-esp32-heading">
                         <div class="home-card-heading">
                             <h3 id="home-esp32-heading">ESP32</h3>
@@ -32,7 +33,9 @@
                             Volver a posición guardada
                         </button>
                     </section>
+                    {% endif %}
 
+                    {% if camera_control.features.sensors %}
                     <section class="home-card" aria-labelledby="home-sensors-heading">
                         <h3 id="home-sensors-heading">Sensores actuales</h3>
                         <div class="home-sensor-grid">
@@ -43,5 +46,6 @@
                             <div><span>Suelo RAW</span><strong id="home-sensor-soil-raw">--</strong></div>
                         </div>
                     </section>
+                    {% endif %}
 
                 </div>

@@ -254,6 +254,7 @@ function setupPanelResize() {
 
 
 async function initializeDashboard() {
+    const features = (window.CAMERA_CONTROL && window.CAMERA_CONTROL.features) || {};
     setupEventListeners();
     setupPanelResize();
     restoreControlPanelState();
@@ -266,17 +267,20 @@ async function initializeDashboard() {
             if (afControl) afControl.style.display = 'none';
         }
     }
-    await refreshEsp32Status();
+    if (features.esp32) await refreshEsp32Status();
     await refreshRaspberryStatus();
     setTimeout(refreshRaspberryStatus, 500);
-    await refreshTuyaStatus();
-    await refreshTimelapseStatus({ hydrate: true });
-    await loadTimelapseFolders(document.getElementById('tl-folder-name').value);
-    await loadSensorLoggingConfig();
+    if (features.tuya) await refreshTuyaStatus();
+    if (features.timelapse) {
+        await refreshTimelapseStatus({ hydrate: true });
+        const folderName = document.getElementById('tl-folder-name');
+        if (folderName) await loadTimelapseFolders(folderName.value);
+    }
+    if (features.sensors) await loadSensorLoggingConfig();
 
-    setInterval(refreshEsp32Status, 3000);
+    if (features.esp32) setInterval(refreshEsp32Status, 3000);
     setInterval(refreshRaspberryStatus, 5000);
-    setInterval(refreshTimelapseStatus, 5000);
+    if (features.timelapse) setInterval(refreshTimelapseStatus, 5000);
 }
 
 window.addEventListener('load', initializeDashboard);

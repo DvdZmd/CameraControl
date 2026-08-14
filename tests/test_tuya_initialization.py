@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 
 try:
-    from flask import Blueprint
+    from flask import Blueprint, render_template
 except ModuleNotFoundError:
     Blueprint = None
 
@@ -121,6 +121,33 @@ class TuyaInitializationTests(unittest.TestCase):
             "No se pudo conectar a la API de Tuya al iniciar: %s",
             "sin red",
         )
+
+    @patch("app_factory.db.create_all")
+    @patch("app_factory.TuyaController")
+    def test_starseek_does_not_initialize_or_register_disabled_modules(
+        self,
+        controller_class,
+        _create_all,
+    ):
+        app_factory.start_sensor_logger.reset_mock()
+
+        app = app_factory.create_app("starseek")
+
+        rules = {rule.rule for rule in app.url_map.iter_rules()}
+        self.assertNotIn("/api/tuya/devices", rules)
+        self.assertNotIn("/api/sensors/readings", rules)
+        self.assertIn("/api/system/capabilities", rules)
+        self.assertIsNone(app.config["TUYA_CONTROLLER"])
+        self.assertIsNone(app.config["TUYA_INITIALIZATION_THREAD"])
+        controller_class.assert_not_called()
+        app_factory.start_sensor_logger.assert_not_called()
+
+        with app.test_request_context():
+            tabs = render_template("components/layout/tabs-header.html")
+        self.assertNotIn("sensors-tab", tabs)
+        self.assertNotIn("devices-tab", tabs)
+        self.assertIn("camera-tab", tabs)
+        self.assertIn("esp32-tab", tabs)
 
     def test_unexpected_connection_exception_is_logged_without_raising(self):
         controller = Mock()
