@@ -6,7 +6,7 @@ from routes import camera_routes
 from routes import esp32_routes
 from routes import tuya_routes
 from routes.camera_routes import camera_bp
-from routes.esp32_routes import esp32_bp
+from routes.esp32_routes import esp32_bp, lighting_bp, pan_tilt_bp
 from routes.tuya_routes import tuya_bp
 from routes.sensor_routes import sensor_bp
 from routes.timelapse_routes import timelapse_bp
@@ -133,6 +133,10 @@ def create_app(profile_name: str | None = None):
         app.register_blueprint(camera_bp)
     if features.esp32:
         app.register_blueprint(esp32_bp)
+    if features.pan_tilt:
+        app.register_blueprint(pan_tilt_bp)
+    if features.lighting:
+        app.register_blueprint(lighting_bp)
     if features.tuya:
         app.register_blueprint(tuya_bp)
     if features.sensors:

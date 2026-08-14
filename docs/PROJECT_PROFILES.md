@@ -19,22 +19,28 @@ el arranque con un error descriptivo; no existe fallback silencioso.
 
 ## Perfiles actuales
 
-| Módulo | `default` | `starseek` | `fungiforge` |
-|---|---:|---:|---:|
-| Cámara | Sí | Sí | Sí |
-| Timelapse | Sí | Sí | Sí |
-| ESP32/BLE | Sí | Sí | Sí |
-| Sensores e historial periódico | Sí | No | Sí |
-| Tuya | Sí | No | Sí |
+| Módulo | `default` | `starseek` | `fungiforge` | `fungiforge_monitor` |
+|---|---:|---:|---:|---:|
+| Cámara | Sí | Sí | Sí | Sí |
+| Timelapse | Sí | Sí | Sí | Sí |
+| ESP32/BLE | Sí | Sí | Sí | Sí |
+| Pan/tilt | Sí | Sí | Sí | No |
+| Iluminación ESP32 | Sí | No | Sí | Sí |
+| Sensores e historial periódico | Sí | No | Sí | Sí |
+| Tuya | Sí | No | Sí | Sí |
 
 `default` preserva la composición histórica cuando no se configura ninguna
-variable. `fungiforge` tiene por ahora la misma composición, pero establece una
-identidad de producto independiente para cambios posteriores.
+variable. `fungiforge` conserva el cabezal móvil vigente y
+`fungiforge_monitor` representa una instalación de cultivo sin servos.
 
-Pan/tilt, iluminación y conexión BLE todavía comparten `esp32_bp` y el mismo
-controlador. Por eso no se anuncian como features independientes en esta etapa.
-Separarlos requiere primero delimitar sus rutas y contratos sin cambiar el
-protocolo vigente.
+La conexión BLE, pan/tilt e iluminación comparten deliberadamente una única
+instancia de `Esp32Controller`, pero se registran como capacidades HTTP
+independientes. Sus URLs públicas no cambiaron: continúan bajo `/api/esp32`.
+
+`esp32_bp` conserva conexión, desconexión, estado y el comando manual validado;
+`pan_tilt_bp` contiene movimiento, centro, velocidad y posiciones;
+`lighting_bp` contiene el control de luz. El endpoint de comando manual también
+comprueba el perfil, por lo que no permite eludir una capacidad deshabilitada.
 
 ## Efecto de deshabilitar un módulo
 
@@ -67,6 +73,8 @@ Ejemplo:
     "camera": true,
     "timelapse": true,
     "esp32": true,
+    "pan_tilt": true,
+    "lighting": false,
     "sensors": false,
     "tuya": false
   }
@@ -82,6 +90,13 @@ si el hardware está conectado o disponible.
 
 - `timelapse` requiere `camera`.
 - `sensors` requiere `esp32`.
+- `pan_tilt` requiere `esp32`.
+- `lighting` requiere `esp32`.
+
+Cuando iluminación o sensores están deshabilitados, el timelapse no ejecuta
+esas integraciones aunque SQLite conserve una configuración anterior. La API
+rechaza intentos explícitos de volver a activarlas bajo ese perfil. Los datos
+persistidos no se borran.
 
 Los perfiles se definen y validan en `profiles.py`. No contienen credenciales,
 pines ni datos específicos del hardware.

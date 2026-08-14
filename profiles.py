@@ -11,6 +11,8 @@ class FeatureConfig:
     camera: bool = True
     timelapse: bool = True
     esp32: bool = True
+    pan_tilt: bool = True
+    lighting: bool = True
     sensors: bool = True
     tuya: bool = True
 
@@ -31,6 +33,10 @@ class ProjectProfile:
             errors.append("timelapse requiere camera")
         if self.features.sensors and not self.features.esp32:
             errors.append("sensors requiere esp32")
+        if self.features.pan_tilt and not self.features.esp32:
+            errors.append("pan_tilt requiere esp32")
+        if self.features.lighting and not self.features.esp32:
+            errors.append("lighting requiere esp32")
         if errors:
             raise ValueError(
                 f"Perfil CameraControl inválido '{self.name}': {', '.join(errors)}"
@@ -46,9 +52,13 @@ PROFILES = {
     "default": ProjectProfile("default", FeatureConfig()),
     "starseek": ProjectProfile(
         "starseek",
-        FeatureConfig(sensors=False, tuya=False),
+        FeatureConfig(lighting=False, sensors=False, tuya=False),
     ),
     "fungiforge": ProjectProfile("fungiforge", FeatureConfig()),
+    "fungiforge_monitor": ProjectProfile(
+        "fungiforge_monitor",
+        FeatureConfig(pan_tilt=False),
+    ),
 }
 
 

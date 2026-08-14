@@ -21,7 +21,7 @@ sys.modules.setdefault("rpicam_z.rpicam_z", fake_rpicam_module)
 
 from routes import camera_routes
 from routes.camera_routes import camera_bp
-from routes.esp32_routes import esp32_bp
+from routes.esp32_routes import esp32_bp, lighting_bp, pan_tilt_bp
 
 
 class FakeCamera:
@@ -131,8 +131,11 @@ class ApiValidationTests(unittest.TestCase):
         app.config["TESTING"] = True
         self.ble = FakeBleController()
         app.config["BLE_CAMERA_CONTROLLER"] = self.ble
+        app.config["FEATURES"] = {"pan_tilt": True, "lighting": True}
         app.register_blueprint(camera_bp)
         app.register_blueprint(esp32_bp)
+        app.register_blueprint(pan_tilt_bp)
+        app.register_blueprint(lighting_bp)
         self.client = app.test_client()
 
     def tearDown(self):
@@ -406,9 +409,11 @@ class ApiValidationTests(unittest.TestCase):
             SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",
             SQLALCHEMY_TRACK_MODIFICATIONS=False,
             BLE_CAMERA_CONTROLLER=self.ble,
+            FEATURES={"pan_tilt": True, "lighting": True},
         )
         db.init_app(app)
         app.register_blueprint(esp32_bp)
+        app.register_blueprint(lighting_bp)
         with app.app_context():
             db.create_all()
         client = app.test_client()
@@ -444,6 +449,17 @@ class ApiValidationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.ble.commands, ["SET_LIGHT:75"])
 
+    def test_manual_command_cannot_bypass_disabled_lighting_feature(self):
+        self.client.application.config["FEATURES"]["lighting"] = False
+
+        response = self.client.post(
+            "/api/esp32/command",
+            json={"command": "SET_LIGHT:75"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.ble.commands, [])
+
     def test_esp32_rejects_invalid_light_pwm_intensity(self):
         for intensity in (-1, 101, True, 12.5):
             response = self.client.post(
@@ -464,8 +480,10 @@ class ApiValidationTests(unittest.TestCase):
         app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
         ble = FakeBleController()
         app.config["BLE_CAMERA_CONTROLLER"] = ble
+        app.config["FEATURES"] = {"pan_tilt": True, "lighting": True}
         db.init_app(app)
         app.register_blueprint(esp32_bp)
+        app.register_blueprint(pan_tilt_bp)
 
         with app.app_context():
             db.create_all()
@@ -492,6 +510,7 @@ class ApiValidationTests(unittest.TestCase):
         app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
         ble = FakeBleController()
         app.config["BLE_CAMERA_CONTROLLER"] = ble
+        app.config["FEATURES"] = {"pan_tilt": True, "lighting": True}
         db.init_app(app)
         app.register_blueprint(esp32_bp)
 
@@ -524,6 +543,7 @@ class ApiValidationTests(unittest.TestCase):
         app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
         ble = FakeBleController()
         app.config["BLE_CAMERA_CONTROLLER"] = ble
+        app.config["FEATURES"] = {"pan_tilt": True, "lighting": True}
         db.init_app(app)
         app.register_blueprint(esp32_bp)
 
@@ -559,8 +579,10 @@ class ApiValidationTests(unittest.TestCase):
         app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
         ble = FakeBleController()
         app.config["BLE_CAMERA_CONTROLLER"] = ble
+        app.config["FEATURES"] = {"pan_tilt": True, "lighting": True}
         db.init_app(app)
         app.register_blueprint(esp32_bp)
+        app.register_blueprint(pan_tilt_bp)
 
         with app.app_context():
             db.create_all()
@@ -585,8 +607,10 @@ class ApiValidationTests(unittest.TestCase):
         app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
         ble = FakeBleController()
         app.config["BLE_CAMERA_CONTROLLER"] = ble
+        app.config["FEATURES"] = {"pan_tilt": True, "lighting": True}
         db.init_app(app)
         app.register_blueprint(esp32_bp)
+        app.register_blueprint(pan_tilt_bp)
 
         with app.app_context():
             db.create_all()
@@ -614,8 +638,10 @@ class ApiValidationTests(unittest.TestCase):
         app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
         ble = FakeBleController()
         app.config["BLE_CAMERA_CONTROLLER"] = ble
+        app.config["FEATURES"] = {"pan_tilt": True, "lighting": True}
         db.init_app(app)
         app.register_blueprint(esp32_bp)
+        app.register_blueprint(pan_tilt_bp)
 
         with app.app_context():
             db.create_all()

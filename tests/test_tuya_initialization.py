@@ -23,7 +23,9 @@ def _import_app_factory_without_hardware():
             camera_bp=Blueprint("test-camera", __name__)
         ),
         "routes.esp32_routes": SimpleNamespace(
-            esp32_bp=Blueprint("test-esp32", __name__)
+            esp32_bp=Blueprint("test-esp32", __name__),
+            pan_tilt_bp=Blueprint("test-pan-tilt", __name__),
+            lighting_bp=Blueprint("test-lighting", __name__),
         ),
         "routes.tuya_routes": SimpleNamespace(
             tuya_bp=Blueprint("test-tuya", __name__)
@@ -139,6 +141,8 @@ class TuyaInitializationTests(unittest.TestCase):
         self.assertIn("/api/system/capabilities", rules)
         self.assertIsNone(app.config["TUYA_CONTROLLER"])
         self.assertIsNone(app.config["TUYA_INITIALIZATION_THREAD"])
+        self.assertNotIn("test-lighting", app.blueprints)
+        self.assertIn("test-pan-tilt", app.blueprints)
         controller_class.assert_not_called()
         app_factory.start_sensor_logger.assert_not_called()
 
@@ -148,6 +152,15 @@ class TuyaInitializationTests(unittest.TestCase):
         self.assertNotIn("devices-tab", tabs)
         self.assertIn("camera-tab", tabs)
         self.assertIn("esp32-tab", tabs)
+
+        with app.test_request_context():
+            top_bar = render_template("components/layout/top-bar.html")
+            timelapse_settings = render_template(
+                "components/timelapse/settings.html"
+            )
+        self.assertNotIn("light-toggle-btn", top_bar)
+        self.assertNotIn("Prender la luz para cada foto", timelapse_settings)
+        self.assertNotIn("Guardar sensores y posición", timelapse_settings)
 
     def test_unexpected_connection_exception_is_logged_without_raising(self):
         controller = Mock()
@@ -159,6 +172,22 @@ class TuyaInitializationTests(unittest.TestCase):
         logger.exception.assert_called_once_with(
             "Excepción no controlada al inicializar la conexión con Tuya"
         )
+
+    @patch("app_factory.db.create_all")
+    @patch("app_factory.threading.Thread", side_effect=DeferredThread)
+    def test_fungiforge_monitor_registers_lighting_without_pan_tilt(
+        self,
+        _thread_class,
+        _create_all,
+    ):
+        app = app_factory.create_app("fungiforge_monitor")
+
+        self.assertIn("test-lighting", app.blueprints)
+        self.assertNotIn("test-pan-tilt", app.blueprints)
+        with app.test_request_context():
+            esp32_tab = render_template("components/tabs/esp32.html")
+        self.assertIn("Estado BLE", esp32_tab)
+        self.assertNotIn("Control de movimiento", esp32_tab)
 
     def test_invalid_connection_response_is_logged_without_raising(self):
         controller = Mock()

@@ -8,6 +8,16 @@ esp32_bp = Blueprint(
     __name__,
     url_prefix="/api/esp32"
 )
+pan_tilt_bp = Blueprint(
+    "pan_tilt",
+    __name__,
+    url_prefix="/api/esp32",
+)
+lighting_bp = Blueprint(
+    "lighting",
+    __name__,
+    url_prefix="/api/esp32",
+)
 module_logger = logging.getLogger(__name__)
 
 def get_ble_controller():
@@ -103,6 +113,16 @@ def _validate_command(raw_command):
         return None, f"pan y tilt deben estar entre {SERVO_PULSE_MIN_US} y {SERVO_PULSE_MAX_US} us"
 
     return None, f"Comando no permitido o formato inválido: {command}"
+
+
+def _command_feature(command):
+    if command in {"LIGHT_ON", "LIGHT_OFF"} or SET_LIGHT_PATTERN.fullmatch(command):
+        return "lighting"
+    return "pan_tilt"
+
+
+def _feature_enabled(name):
+    return bool(current_app.config.get("FEATURES", {}).get(name))
 
 
 def _database_ready():
@@ -256,11 +276,13 @@ def esp32_status():
     controller = get_ble_controller()
     status = controller.get_status_sync()
     settings = _saved_esp32_settings()
-    status["saved_position"] = _saved_position_payload(settings)
-    status["saved_position_details"] = _saved_position_details_payload(settings)
-    status["saved_speed_mode"] = _saved_speed_mode(settings)
-    status["saved_light"] = _saved_light_payload(settings)
-    status["current_position"] = _current_position_payload_from_status(status)
+    if _feature_enabled("pan_tilt"):
+        status["saved_position"] = _saved_position_payload(settings)
+        status["saved_position_details"] = _saved_position_details_payload(settings)
+        status["saved_speed_mode"] = _saved_speed_mode(settings)
+        status["current_position"] = _current_position_payload_from_status(status)
+    if _feature_enabled("lighting"):
+        status["saved_light"] = _saved_light_payload(settings)
     return jsonify(status), 200
 
 
@@ -282,8 +304,9 @@ def esp32_connect():
     controller = get_ble_controller()
     try:
         result = controller.connect_sync()
-        saved_light = _apply_saved_light(controller)
-        result["saved_light"] = saved_light
+        if _feature_enabled("lighting"):
+            saved_light = _apply_saved_light(controller)
+            result["saved_light"] = saved_light
         return jsonify(result), 200
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 500
@@ -338,6 +361,12 @@ def esp32_command():
     command, validation_error = _validate_command(data.get("command"))
     if validation_error:
         return jsonify({"ok": False, "error": validation_error}), 400
+    required_feature = _command_feature(command)
+    if not _feature_enabled(required_feature):
+        return jsonify({
+            "ok": False,
+            "error": f"La capacidad {required_feature} está deshabilitada",
+        }), 403
 
     try:
         result = controller.send_command_sync(command)
@@ -346,7 +375,7 @@ def esp32_command():
         return jsonify({"ok": False, "error": str(ex)}), 500
 
 
-@esp32_bp.route("/center", methods=["POST"])
+@pan_tilt_bp.route("/center", methods=["POST"])
 def esp32_center():
     """
     Send the centering command to the ESP32.
@@ -368,7 +397,7 @@ def esp32_center():
         return jsonify({"ok": False, "error": str(ex)}), 500
 
 
-@esp32_bp.route("/light", methods=["POST"])
+@lighting_bp.route("/light", methods=["POST"])
 def esp32_light():
     """Set GPIO21 LED-strip intensity through ESP32 PWM."""
     data, error_response = _json_object()
@@ -429,7 +458,7 @@ def esp32_light():
         return jsonify({"ok": False, "error": str(ex)}), 500
 
 
-@esp32_bp.route("/position/current", methods=["POST"])
+@pan_tilt_bp.route("/position/current", methods=["POST"])
 def esp32_save_current_position():
     """
     Persist the current ESP32 pan/tilt position from cached telemetry.
@@ -467,7 +496,7 @@ def esp32_save_current_position():
         return jsonify({"ok": False, "error": str(ex)}), 500
 
 
-@esp32_bp.route("/position/return", methods=["POST"])
+@pan_tilt_bp.route("/position/return", methods=["POST"])
 def esp32_return_to_saved_position():
     """
     Move the ESP32 head to the persisted custom pan/tilt position.
@@ -495,7 +524,7 @@ def esp32_return_to_saved_position():
         return jsonify({"ok": False, "error": str(ex)}), 500
 
 
-@esp32_bp.route("/speed", methods=["POST"])
+@pan_tilt_bp.route("/speed", methods=["POST"])
 def esp32_speed():
     """
     Set the ESP32 movement speed preset.
@@ -550,7 +579,7 @@ def esp32_speed():
         return jsonify({"ok": False, "error": str(ex)}), 500
 
 
-@esp32_bp.route("/move", methods=["POST"])
+@pan_tilt_bp.route("/move", methods=["POST"])
 def esp32_move():
     """
     Move the ESP32-controlled head in one cardinal direction.

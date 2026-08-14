@@ -93,6 +93,16 @@ Los blueprints de dominio se registran únicamente cuando el perfil activo los
 habilita. `system_bp` y `admin_bp` son infraestructura común y siempre se
 registran.
 
+Las capacidades del ESP32 comparten un solo transporte BLE, pero tienen
+blueprints independientes bajo el prefijo estable `/api/esp32`:
+
+- `esp32_bp`: conexión, desconexión, estado y comando manual validado.
+- `pan_tilt_bp`: movimiento, centro, velocidad y posiciones.
+- `lighting_bp`: iluminación PWM.
+
+El comando manual aplica la misma política de capacidades y no puede enviar
+órdenes de movimiento o iluminación deshabilitadas por el perfil.
+
 #### Sistema
 
 `GET /api/system/capabilities` expone el perfil, la versión del contrato y las

@@ -249,6 +249,47 @@ class TimelapseRoutesTests(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 400)
 
+    def test_profile_rejects_disabled_timelapse_integrations(self):
+        self.app.config["FEATURES"] = {
+            "lighting": False,
+            "sensors": False,
+        }
+
+        base_payload = {
+            "interval_seconds": 30,
+            "width": 1920,
+            "height": 1080,
+            "auto_resume": True,
+            "folder_name": "perfil-limitado",
+        }
+        light_response = self.client.put("/api/timelapse/config", json={
+            **base_payload,
+            "light_enabled": True,
+            "save_sensor_readings": False,
+        })
+        sensor_response = self.client.put("/api/timelapse/config", json={
+            **base_payload,
+            "light_enabled": False,
+            "save_sensor_readings": True,
+        })
+
+        self.assertEqual(light_response.status_code, 400)
+        self.assertIn("iluminación", light_response.get_json()["error"])
+        self.assertEqual(sensor_response.status_code, 400)
+        self.assertIn("sensores", sensor_response.get_json()["error"])
+
+    def test_disabled_lighting_is_not_touched_by_capture_callbacks(self):
+        self.app.config["FEATURES"] = {
+            "lighting": False,
+            "sensors": False,
+        }
+
+        self.service._on_before_capture({"capture_count": 1})
+        with self.app.app_context():
+            self.service._restore_manual_light()
+
+        self.assertEqual(self.ble.commands, [])
+
     def test_lists_and_downloads_captures_inside_selected_folder(self):
         response = self.client.put("/api/timelapse/config", json={
             "interval_seconds": 30,

@@ -11,8 +11,9 @@ las funcionalidades y contratos estén estabilizados.
 
 El backend se compone mediante perfiles de producto. `default` mantiene el
 comportamiento completo actual, mientras que `starseek` evita inicializar y
-exponer sensores y Tuya. `fungiforge` conserva por ahora la composición
-completa. Consultar `docs/PROJECT_PROFILES.md` para el contrato y alcance.
+exponer iluminación, sensores y Tuya. `fungiforge` conserva la composición
+completa y `fungiforge_monitor` deshabilita pan/tilt para instalaciones sin
+servos. Consultar `docs/PROJECT_PROFILES.md` para el contrato y alcance.
 
 ## Componentes
 

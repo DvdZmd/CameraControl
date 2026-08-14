@@ -17,6 +17,8 @@ class ProjectProfileTests(unittest.TestCase):
             "camera": True,
             "timelapse": True,
             "esp32": True,
+            "pan_tilt": True,
+            "lighting": True,
             "sensors": True,
             "tuya": True,
         })
@@ -29,6 +31,17 @@ class ProjectProfileTests(unittest.TestCase):
         self.assertTrue(profile.features.camera)
         self.assertTrue(profile.features.timelapse)
         self.assertTrue(profile.features.esp32)
+        self.assertTrue(profile.features.pan_tilt)
+        self.assertFalse(profile.features.lighting)
+
+    def test_fungiforge_monitor_disables_only_pan_tilt(self):
+        profile = resolve_profile("fungiforge_monitor")
+
+        self.assertFalse(profile.features.pan_tilt)
+        self.assertTrue(profile.features.esp32)
+        self.assertTrue(profile.features.lighting)
+        self.assertTrue(profile.features.sensors)
+        self.assertTrue(profile.features.tuya)
 
     def test_profile_can_be_selected_from_environment(self):
         with patch.dict(os.environ, {"CAMERACONTROL_PROFILE": "StarSeek"}):
@@ -47,6 +60,14 @@ class ProjectProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "timelapse requiere camera"):
             profile.validate()
 
+    def test_esp32_subcapabilities_require_transport(self):
+        for feature_name in ("pan_tilt", "lighting"):
+            values = {"esp32": False, feature_name: True}
+            profile = ProjectProfile("invalid", FeatureConfig(**values))
+            with self.subTest(feature=feature_name):
+                with self.assertRaisesRegex(ValueError, f"{feature_name} requiere esp32"):
+                    profile.validate()
+
     def test_capabilities_endpoint_exposes_active_contract(self):
         app = Flask(__name__)
         app.config["PROJECT_PROFILE"] = resolve_profile("starseek")
@@ -62,6 +83,8 @@ class ProjectProfileTests(unittest.TestCase):
                 "camera": True,
                 "timelapse": True,
                 "esp32": True,
+                "pan_tilt": True,
+                "lighting": False,
                 "sensors": False,
                 "tuya": False,
             },

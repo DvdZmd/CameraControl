@@ -1,8 +1,10 @@
-    <header class="global-light-bar" aria-label="Control global de iluminación">
+    <header class="global-light-bar" aria-label="Estado general y control de iluminación">
+        {% if camera_control.features.lighting %}
         <div class="light-control-title">
             <span class="light-icon" aria-hidden="true">💡</span>
             <span>Iluminación</span>
         </div>
+        {% endif %}
         <div class="raspberry-status" aria-label="Estado de Raspberry Pi">
             <span class="raspberry-status-item" title="Temperatura del procesador">
                 Temp <strong id="pi-temperature">--</strong>
@@ -26,6 +28,7 @@
                 </div>
             </div>
         </div>
+        {% if camera_control.features.lighting %}
         <div class="light-intensity-control">
             <label for="light-intensity-slider">
                 Intensidad <span id="light-intensity-value">0%</span>
@@ -37,4 +40,5 @@
                 type="button" aria-pressed="false" title="Controlar tira LED mediante ESP32">
             <span id="light-toggle-label">Prender luz</span>
         </button>
+        {% endif %}
     </header>

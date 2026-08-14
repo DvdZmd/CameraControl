@@ -335,12 +335,18 @@ async function refreshEsp32Status() {
         const panPulse = stateValue(lastState, 'P');
         const tiltPulse = stateValue(lastState, 'T');
         const currentPosition = data.current_position || {};
-        document.getElementById('servo-pan-pulse').textContent = formatAxisPosition(
-            currentPosition.pan || (panPulse !== null ? { pulse_us: panPulse, angle_deg: null } : null)
-        );
-        document.getElementById('servo-tilt-pulse').textContent = formatAxisPosition(
-            currentPosition.tilt || (tiltPulse !== null ? { pulse_us: tiltPulse, angle_deg: null } : null)
-        );
+        const panPosition = document.getElementById('servo-pan-pulse');
+        const tiltPosition = document.getElementById('servo-tilt-pulse');
+        if (panPosition) {
+            panPosition.textContent = formatAxisPosition(
+                currentPosition.pan || (panPulse !== null ? { pulse_us: panPulse, angle_deg: null } : null)
+            );
+        }
+        if (tiltPosition) {
+            tiltPosition.textContent = formatAxisPosition(
+                currentPosition.tilt || (tiltPulse !== null ? { pulse_us: tiltPulse, angle_deg: null } : null)
+            );
+        }
         if (currentPositionEl) {
             currentPositionEl.textContent = formatPositionDetails(data.current_position);
         }

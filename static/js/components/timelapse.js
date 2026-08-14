@@ -60,6 +60,7 @@ function renderTimelapseStatus(data) {
 }
 
 function hydrateTimelapseConfig(data) {
+    const features = (window.CAMERA_CONTROL && window.CAMERA_CONTROL.features) || {};
     const seconds = Number(data.interval_seconds || 10);
     const useMinutes = seconds >= 60 && seconds % 60 === 0;
     document.getElementById('tl-interval-unit').value = useMinutes ? 'minutes' : 'seconds';
@@ -72,8 +73,12 @@ function hydrateTimelapseConfig(data) {
     preset.value = hasPreset ? resolution : 'custom';
     document.getElementById('tl-custom-resolution').style.display = hasPreset ? 'none' : 'flex';
     document.getElementById('tl-auto-resume').checked = Boolean(data.auto_resume);
-    document.getElementById('tl-save-sensor-readings').checked = Boolean(data.save_sensor_readings);
-    document.getElementById('tl-light-enabled').checked = Boolean(data.light_enabled);
+    document.getElementById('tl-save-sensor-readings').checked = Boolean(
+        features.sensors && data.save_sensor_readings
+    );
+    document.getElementById('tl-light-enabled').checked = Boolean(
+        features.lighting && data.light_enabled
+    );
     document.getElementById('tl-light-intensity').value = data.light_intensity || 100;
     document.getElementById('tl-light-intensity-value').textContent = `${data.light_intensity || 100}%`;
     document.getElementById('tl-light-warmup').value = data.light_warmup_seconds ?? 3;

@@ -20,6 +20,7 @@
                         <div id="home-esp32-feedback" class="status-message hidden"></div>
                     </section>
 
+                    {% if camera_control.features.pan_tilt %}
                     <section class="home-card" aria-labelledby="home-movement-heading">
                         <h3 id="home-movement-heading">Movimiento</h3>
                         <div class="btn-grid esp32-move-grid home-move-grid" data-action-group="esp32-move">
@@ -33,6 +34,7 @@
                             Volver a posición guardada
                         </button>
                     </section>
+                    {% endif %}
                     {% endif %}
 
                     {% if camera_control.features.sensors %}
