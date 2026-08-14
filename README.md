@@ -199,6 +199,14 @@ La interfaz queda disponible en `http://<ip-de-la-pi>:5000`.
 
 ## API actual
 
+El inventario contractual completo —49 reglas, features requeridas, formatos,
+efectos y restricciones de Tuya— está en [`docs/API.md`](docs/API.md). Los
+frontends futuros deben comenzar por `GET /api/system/capabilities`.
+
+La especificación [OpenAPI 3.1](docs/openapi.json) permite inspeccionar modelos
+o generar clientes, y [`docs/API_COMPATIBILITY.md`](docs/API_COMPATIBILITY.md)
+define qué cambios pueden hacerse sin incrementar la versión del contrato.
+
 ### Sistema — `/api/system`
 
 - `GET /capabilities`: perfil y módulos configurados, sin consultar hardware.

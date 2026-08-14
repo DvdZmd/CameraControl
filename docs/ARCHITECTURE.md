@@ -32,6 +32,16 @@ no pueden habilitar funcionalidades del servidor.
 Los perfiles y su matriz vigente se documentan en
 `docs/PROJECT_PROFILES.md`.
 
+La superficie HTTP vigente está inventariada en `docs/API.md` y protegida por
+`tests/test_api_contracts.py`. Esa instantánea permite refactorizar internamente
+sin alterar de forma accidental URLs, métodos o envelopes consumidos por el
+dashboard y por futuros frontends.
+
+`api_contract.py` contiene la descripción OpenAPI libre de dependencias de
+Flask y hardware; genera `docs/openapi.json`. La evolución de estos modelos se
+rige por `docs/API_COMPATIBILITY.md`: los campos nuevos deben ser opcionales y
+los cambios incompatibles requieren migración explícita o una nueva versión.
+
 ### Frontend
 
 El dashboard se renderiza con Jinja a partir de un shell mínimo y componentes
