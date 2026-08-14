@@ -15,6 +15,21 @@ El stack de cámara puede incluir:
 
 El código actual determina qué biblioteca posee la instancia real de cámara.
 
+## Fuente de configuración
+
+La configuración efectiva de cámara no se obtiene de constantes globales en
+`config.py`. Sus fuentes vigentes son:
+
+1. Los valores iniciales y el lifecycle del controlador `rpicam-z`.
+2. Las capacidades y controles soportados que reporta el hardware en runtime.
+3. Los ajustes confirmados por cámara que CameraControl guarda en
+   `CameraSettings` y restaura durante el arranque.
+
+No existe actualmente una `CameraConfig` de aplicación. Añadir una política de
+arranque por perfil o instancia requiere definir explícitamente su precedencia
+respecto de SQLite y `rpicam-z`; no debe conectarse otra fuente de defaults sin
+validar resolución, autofocus, exposición y estabilidad del streaming.
+
 ## Cámaras conocidas
 
 - Camera v1.3 — OV5647 — 5 MP.

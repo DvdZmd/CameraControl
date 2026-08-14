@@ -6,6 +6,10 @@ CameraControl mantiene un único backend y selecciona su composición mediante u
 perfil de producto. El perfil es configuración de despliegue del servidor: el
 navegador no puede activar módulos ni cambiarlo durante la ejecución.
 
+El perfil no identifica el almacenamiento. Cada instalación puede seleccionar
+además una instancia mediante `CAMERACONTROL_INSTANCE`; consultar
+`docs/INSTANCES.md`.
+
 La selección se realiza con:
 
 ```dotenv
@@ -69,6 +73,7 @@ Ejemplo:
 {
   "api_version": "1",
   "profile": "starseek",
+  "instance": "observatorio",
   "features": {
     "camera": true,
     "timelapse": true,

@@ -79,6 +79,7 @@ class ProjectProfileTests(unittest.TestCase):
         self.assertEqual(response.get_json(), {
             "api_version": "1",
             "profile": "starseek",
+            "instance": "default",
             "features": {
                 "camera": True,
                 "timelapse": True,

@@ -25,6 +25,10 @@ servos. Consultar `docs/PROJECT_PROFILES.md` para el contrato y alcance.
 - Persistencia backend: SQLite con Flask-SQLAlchemy.
 - Frontend actual: `templates/index.html` y `static/`.
 
+Los ajustes de cámara se obtienen de `rpicam-z`, de las capacidades reportadas
+por el hardware y de `CameraSettings` en SQLite. `config.py` no mantiene una
+segunda colección de defaults de cámara.
+
 La aplicación intenta degradar de forma controlada cuando falta hardware
 opcional. La conexión inicial con Tuya se realiza en segundo plano para no
 bloquear el arranque de Flask.
@@ -181,6 +185,16 @@ CAMERACONTROL_PROFILE=starseek
 Si no se configura, se utiliza `default`. Los nombres desconocidos provocan un
 error de arranque en lugar de activar módulos silenciosamente.
 
+Para aislar SQLite, capturas y logs de una instalación física:
+
+```dotenv
+CAMERACONTROL_INSTANCE=observatorio
+```
+
+Las instancias nombradas usan `data/<instancia>/`; la instancia `default`
+conserva los paths históricos. No existe migración automática. Consultar
+`docs/INSTANCES.md` antes de cambiar una instalación existente.
+
 La interfaz queda disponible en `http://<ip-de-la-pi>:5000`.
 
 ## API actual
@@ -293,6 +307,7 @@ Raspberry Pi y el ESP32 reales.
 - `docs/CAMERA_PIPELINE.md`
 - `docs/ESP32_BLE_PROTOCOL.md`
 - `docs/HARDWARE.md`
+- `docs/INSTANCES.md`
 - `docs/PROJECT_HISTORY.md`
 - `docs/PROJECT_PROFILES.md`
 - `docs/SECURITY.md`

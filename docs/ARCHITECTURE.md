@@ -85,6 +85,23 @@ Ejemplos conceptuales:
 
 Las integraciones opcionales no deben impedir que Flask inicie.
 
+### Configuración de aplicación
+
+`config.py` contiene únicamente configuración consumida durante la creación de
+servicios: logging, timelapse, persistencia periódica de sensores, Tuya y zona
+horaria. La cámara no recibe configuración desde `AppConfig`; utiliza defaults
+de `rpicam-z`, capacidades runtime y ajustes persistidos por `camera_key` en
+SQLite.
+
+Las instancias de `TuyaConfig` leen el entorno al construirse. Sus campos de
+credenciales y `device_id` están excluidos de la representación de la dataclass
+para reducir filtraciones accidentales en logs.
+
+`InstanceConfig` separa la identidad física de la composición del perfil y
+resuelve los paths de SQLite, timelapse y logs antes de inicializar esos
+servicios. La instancia `default` conserva las ubicaciones históricas; las
+instancias nombradas usan `data/<instancia>/`. Consultar `docs/INSTANCES.md`.
+
 ### Blueprints
 
 La API se organiza por dominios.

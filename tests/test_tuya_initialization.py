@@ -56,6 +56,11 @@ def _import_app_factory_without_hardware():
         ),
         "config": SimpleNamespace(
             AppConfig=lambda: SimpleNamespace(
+                instance=SimpleNamespace(
+                    name="default",
+                    database_path="/tmp/cameracontrol-test.db",
+                    ensure_directories=Mock(),
+                ),
                 tuya=SimpleNamespace(),
                 logging=SimpleNamespace(),
                 timelapse=SimpleNamespace(),
@@ -102,6 +107,12 @@ class TuyaInitializationTests(unittest.TestCase):
 
         app = app_factory.create_app()
 
+        self.assertEqual(app.config["INSTANCE_NAME"], "default")
+        self.assertEqual(
+            app.config["SQLALCHEMY_DATABASE_URI"],
+            "sqlite:////tmp/cameracontrol-test.db",
+        )
+        app.config["INSTANCE_CONFIG"].ensure_directories.assert_called_once_with()
         self.assertIs(app.config["TUYA_CONTROLLER"], controller)
         initialization_thread = app.config["TUYA_INITIALIZATION_THREAD"]
         self.assertTrue(initialization_thread.started)

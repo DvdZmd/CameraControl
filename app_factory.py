@@ -77,9 +77,13 @@ def create_app(profile_name: str | None = None):
     # Cargar configuración desde el objeto AppConfig
     # (En un futuro, esto podría venir de un archivo YAML o similar)
     app_config = AppConfig()
+    instance_config = app_config.instance
+    instance_config.ensure_directories()
     project_profile = resolve_profile(profile_name)
     features = project_profile.features
     app.config["PROJECT_PROFILE"] = project_profile
+    app.config["INSTANCE_CONFIG"] = instance_config
+    app.config["INSTANCE_NAME"] = instance_config.name
     app.config["FEATURES"] = features.as_dict()
     app.config["APP_TIMEZONE"] = getattr(
         app_config, "timezone_name", "America/Argentina/Buenos_Aires"
@@ -87,8 +91,9 @@ def create_app(profile_name: str | None = None):
     configure_logging(app, app_config.logging)
 
     # Database config
-    db_path = os.path.join(os.path.dirname(__file__), 'database', 'app.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    app.config['SQLALCHEMY_DATABASE_URI'] = (
+        f"sqlite:///{instance_config.database_path}"
+    )
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     db.init_app(app)
 
@@ -146,7 +151,9 @@ def create_app(profile_name: str | None = None):
 
     @app.context_processor
     def expose_project_profile():
-        return {"camera_control": project_profile.as_dict()}
+        camera_control = project_profile.as_dict()
+        camera_control["instance"] = instance_config.name
+        return {"camera_control": camera_control}
 
     # Secret key for session management. An ephemeral fallback keeps local
     # development usable without embedding a shared secret in source control.

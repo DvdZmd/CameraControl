@@ -12,5 +12,6 @@ def capabilities():
     return jsonify({
         "api_version": "1",
         "profile": profile.name,
+        "instance": current_app.config.get("INSTANCE_NAME", "default"),
         "features": profile.features.as_dict(),
     })
