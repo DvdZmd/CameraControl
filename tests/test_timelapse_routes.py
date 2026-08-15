@@ -117,6 +117,7 @@ class TimelapseRoutesTests(unittest.TestCase):
         with self.app.app_context():
             db.session.remove()
             db.drop_all()
+            db.engine.dispose()
         self.tmpdir.cleanup()
 
     def test_config_start_capture_and_stop_are_persisted(self):

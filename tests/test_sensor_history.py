@@ -31,6 +31,7 @@ class SensorHistoryTests(unittest.TestCase):
         with self.app.app_context():
             db.session.remove()
             db.drop_all()
+            db.engine.dispose()
 
     def test_ble_state_maps_the_four_environmental_values(self):
         reading = reading_from_ble_state({

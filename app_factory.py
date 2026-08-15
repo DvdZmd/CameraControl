@@ -131,6 +131,10 @@ def create_app(profile_name: str | None = None):
             logger,
         )
 
+    initialize_camera = getattr(camera_routes, "initialize_camera", None)
+    if features.camera and callable(initialize_camera):
+        initialize_camera()
+
     # Register routes
     app.register_blueprint(admin_bp)
     app.register_blueprint(system_bp)

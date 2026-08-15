@@ -89,7 +89,20 @@ def _create_camera_controller():
         return _unavailable_camera(error)
 
 
-rpicamz = _create_camera_controller()
+camera_initialized = False
+rpicamz = _unavailable_camera("Controlador de cámara todavía no inicializado")
+
+
+def initialize_camera(*, force=False):
+    """Create the shared camera controller outside module import time."""
+    global camera_initialized, rpicamz
+
+    if camera_initialized and not force:
+        return rpicamz
+
+    rpicamz = _create_camera_controller()
+    camera_initialized = True
+    return rpicamz
 
 
 def _camera_unavailable_response(error):
@@ -631,10 +644,10 @@ def start_stream():
     """
     Enable MJPEG streaming and retry camera initialization if it was unavailable.
     """
-    global rpicamz, stream_enabled, camera_closed_by_user
+    global stream_enabled, camera_closed_by_user
 
     if camera_closed_by_user or not _is_camera_available():
-        rpicamz = _create_camera_controller()
+        initialize_camera(force=True)
         camera_closed_by_user = False
 
     if not _is_camera_available():

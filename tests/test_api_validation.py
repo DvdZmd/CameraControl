@@ -121,9 +121,11 @@ class ApiValidationTests(unittest.TestCase):
     def setUp(self):
         self.camera = FakeCamera()
         self.previous_camera = camera_routes.rpicamz
+        self.previous_camera_initialized = camera_routes.camera_initialized
         self.previous_stream_enabled = camera_routes.stream_enabled
         self.previous_camera_closed_by_user = camera_routes.camera_closed_by_user
         camera_routes.rpicamz = self.camera
+        camera_routes.camera_initialized = True
         camera_routes.stream_enabled = False
         camera_routes.camera_closed_by_user = False
 
@@ -140,6 +142,7 @@ class ApiValidationTests(unittest.TestCase):
 
     def tearDown(self):
         camera_routes.rpicamz = self.previous_camera
+        camera_routes.camera_initialized = self.previous_camera_initialized
         camera_routes.stream_enabled = self.previous_stream_enabled
         camera_routes.camera_closed_by_user = self.previous_camera_closed_by_user
 
@@ -277,6 +280,27 @@ class ApiValidationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertFalse(response.get_json()["stream_enabled"])
         self.assertFalse(camera_routes.stream_enabled)
+
+    def test_camera_initialization_is_explicit_and_idempotent(self):
+        previous_factory = camera_routes.rpicam_z
+        created = []
+
+        class InitializedCamera(FakeCamera):
+            def __init__(self):
+                super().__init__()
+                created.append(self)
+
+        camera_routes.rpicam_z = InitializedCamera
+        camera_routes.camera_initialized = False
+        try:
+            first = camera_routes.initialize_camera()
+            second = camera_routes.initialize_camera()
+        finally:
+            camera_routes.rpicam_z = previous_factory
+
+        self.assertIs(first, second)
+        self.assertEqual(created, [first])
+        self.assertTrue(camera_routes.camera_initialized)
 
     def test_camera_persists_applied_settings_when_database_is_available(self):
         app = Flask(__name__)

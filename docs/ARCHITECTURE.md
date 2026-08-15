@@ -83,6 +83,11 @@ Responsable de:
 - Inicializar integraciones opcionales.
 - Ejecutar limpieza al terminar.
 
+La creación de la cámara también pertenece a la factory: importar el blueprint
+no debe enumerar `/dev/media*`. La factory inicializa el controlador compartido
+únicamente si el perfil habilita `camera`; las rutas conservan un mecanismo de
+reintento controlado cuando la cámara estaba ausente.
+
 La conexión inicial con Tuya se ejecuta en un hilo daemon para no bloquear la
 creación de Flask. El controlador se registra antes en `app.config`.
 
