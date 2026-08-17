@@ -101,6 +101,7 @@ class TimelapseService:
         self._compat_stop_event = threading.Event()
         self._compat_thread = None
         self._compat_last_error = None
+        self._storage_lock = threading.RLock()
 
     def _feature_enabled(self, name):
         features = self.app.config.get("FEATURES")
@@ -269,37 +270,68 @@ class TimelapseService:
         return path
 
     def delete_captures(self, folder_name, relative_paths):
-        folder = self.folder_path(folder_name)
-        self._assert_folder_not_active(folder_name)
-        paths = [self.capture_path(folder_name, value) for value in relative_paths]
-        for path in paths:
-            path.unlink()
-        # rpicam-z crea subdirectorios por fecha/sesión. Se podan solamente los
-        # que quedaron vacíos, sin eliminar la carpeta seleccionable ni marker.
-        for directory in sorted(
-            (path for path in folder.rglob("*") if path.is_dir()),
-            key=lambda path: len(path.parts),
-            reverse=True,
-        ):
-            try:
-                directory.rmdir()
-            except OSError:
-                pass
-        return len(paths)
+        with self._storage_lock:
+            folder = self.folder_path(folder_name)
+            paths = [self.capture_path(folder_name, value) for value in relative_paths]
+            for path in paths:
+                path.unlink()
+            # rpicam-z crea subdirectorios por fecha/sesión. Se podan solamente
+            # los que quedaron vacíos, sin eliminar la carpeta seleccionable ni
+            # el marker. Esto también es seguro con el timelapse activo porque
+            # la lista sólo expone capturas cuya escritura ya terminó.
+            for directory in sorted(
+                (path for path in folder.rglob("*") if path.is_dir()),
+                key=lambda path: len(path.parts),
+                reverse=True,
+            ):
+                try:
+                    directory.rmdir()
+                except OSError:
+                    pass
+            return len(paths)
 
     def delete_folder(self, folder_name):
-        folder = self.folder_path(folder_name)
-        self._assert_folder_not_active(folder_name)
-        shutil.rmtree(folder)
-        logger.info("Carpeta de timelapse eliminada: %s", folder)
+        with self._storage_lock:
+            normalized = self.validate_folder_name(folder_name)
+            folder = self.folder_path(normalized)
+            config = self.ensure_default_config()
+            was_active = (
+                self._runtime_status().get("running")
+                and config.folder_name == normalized
+            )
 
-    def _assert_folder_not_active(self, folder_name):
-        config = self.ensure_default_config()
-        if (
-            self._runtime_status().get("running")
-            and config.folder_name == self.validate_folder_name(folder_name)
-        ):
-            raise RuntimeError("No se pueden borrar archivos del timelapse activo")
+            if was_active:
+                stopped_status = self.stop()
+                if stopped_status.get("running"):
+                    config.is_running = True
+                    db.session.commit()
+                    raise RuntimeError(
+                        "No se pudo pausar el timelapse para vaciar el directorio activo"
+                    )
+
+            shutil.rmtree(folder)
+            logger.info("Carpeta de timelapse eliminada: %s", folder)
+
+            if not was_active:
+                return False
+
+            # La configuración sigue apuntando a este nombre. Se recrea vacío y
+            # se reanuda como la misma sesión para conservar contador y ajustes.
+            recreated = self.folder_path(normalized, create=True)
+            config.save_path = str(recreated)
+            db.session.commit()
+            try:
+                self.start(resuming=True)
+            except Exception as error:
+                logger.exception(
+                    "El directorio activo fue vaciado pero el timelapse no pudo reanudarse"
+                )
+                raise RuntimeError(
+                    "El directorio fue vaciado, pero no se pudo reanudar el timelapse: "
+                    f"{error}"
+                ) from error
+            logger.info("Timelapse reanudado después de vaciar: %s", recreated)
+            return True
 
     def configure(
         self, *, interval_seconds, width, height, auto_resume,

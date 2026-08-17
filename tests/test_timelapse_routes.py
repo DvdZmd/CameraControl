@@ -402,17 +402,49 @@ class TimelapseRoutesTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(folder.exists())
 
-    def test_cannot_delete_folder_used_by_running_timelapse(self):
+    def test_deletes_selected_capture_while_timelapse_is_running(self):
+        folder = self.service.folder_path("active-selection", create=True)
+        capture = folder / "old.jpg"
+        capture.write_bytes(b"old")
+        with self.app.app_context():
+            config = db.session.get(TimelapseConfig, 1)
+            config.folder_name = "active-selection"
+            config.save_path = str(folder)
+            db.session.commit()
+        self.camera.running = True
+
+        response = self.client.delete("/api/timelapse/captures", json={
+            "folder": "active-selection",
+            "captures": ["old.jpg"],
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(capture.exists())
+        self.assertTrue(self.camera.running)
+        self.assertEqual(self.camera.start_calls, [])
+
+    def test_clears_active_folder_and_resumes_timelapse(self):
         with self.app.app_context():
             config = db.session.get(TimelapseConfig, 1)
             config.folder_name = "active"
+            config.capture_count = 7
             db.session.commit()
-        self.service.folder_path("active", create=True)
+        folder = self.service.folder_path("active", create=True)
+        (folder / "old.jpg").write_bytes(b"old")
         self.camera.running = True
 
         response = self.client.delete("/api/timelapse/folders/active")
 
-        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["timelapse_resumed"])
+        self.assertTrue(folder.is_dir())
+        self.assertFalse((folder / "old.jpg").exists())
+        self.assertTrue(self.camera.running)
+        self.assertEqual(self.camera.start_calls, [(10, 3840, 2160)])
+        with self.app.app_context():
+            config = db.session.get(TimelapseConfig, 1)
+            self.assertTrue(config.is_running)
+            self.assertEqual(config.capture_count, 7)
 
     def test_saved_active_timelapse_resumes(self):
         with self.app.app_context():

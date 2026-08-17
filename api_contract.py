@@ -224,6 +224,7 @@ SCHEMAS = {
         {
             "ok": {"type": "boolean"}, "deleted": {"type": "integer"},
             "folder": {"type": "string"}, "deleted_folder": {"type": "string"},
+            "timelapse_resumed": {"type": "boolean"},
         },
         required=("ok",),
         additional=True,

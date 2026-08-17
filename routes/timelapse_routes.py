@@ -282,8 +282,12 @@ def delete_timelapse_captures():
 @timelapse_bp.route("/folders/<folder_name>", methods=["DELETE"])
 def delete_timelapse_folder(folder_name):
     try:
-        get_timelapse_service().delete_folder(folder_name)
-        return jsonify({"ok": True, "deleted_folder": folder_name})
+        resumed = get_timelapse_service().delete_folder(folder_name)
+        return jsonify({
+            "ok": True,
+            "deleted_folder": folder_name,
+            "timelapse_resumed": resumed,
+        })
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
     except FileNotFoundError as error:

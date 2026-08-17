@@ -1907,6 +1907,9 @@
           },
           "deleted_folder": {
             "type": "string"
+          },
+          "timelapse_resumed": {
+            "type": "boolean"
           }
         },
         "additionalProperties": true,

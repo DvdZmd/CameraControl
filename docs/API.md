@@ -144,9 +144,9 @@ interpretan usando `APP_TIMEZONE`.
 | `GET` | `/api/timelapse/captures?folder=…` | JSON `folder`/`captures`/`total` | Lista capturas locales |
 | `GET` | `/api/timelapse/capture/download?folder=…&path=…` | Archivo de captura | Descarga individual |
 | `POST` | `/api/timelapse/captures/download` | ZIP adjunto | Objeto `folder`/`captures` |
-| `DELETE` | `/api/timelapse/captures` | JSON `ok`/`deleted`/`folder` | Borra selección explícita |
+| `DELETE` | `/api/timelapse/captures` | JSON `ok`/`deleted`/`folder` | Borra selección explícita, incluso del timelapse activo |
 | `GET` | `/api/timelapse/folders/<folder_name>/download` | ZIP adjunto | Descarga carpeta |
-| `DELETE` | `/api/timelapse/folders/<folder_name>` | JSON `ok`/`deleted_folder` | Borra carpeta validada |
+| `DELETE` | `/api/timelapse/folders/<folder_name>` | JSON `ok`/`deleted_folder`/`timelapse_resumed` | Borra carpeta validada; si está activa, pausa y reanuda el timelapse sobre una carpeta vacía |
 
 ### Tuya — feature `tuya`
 
