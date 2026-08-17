@@ -238,6 +238,9 @@ $RECYCLE.BIN/
 *.bmp
 *.gif
 *.tiff
+
+# Runtime data for named CameraControl instances
+/data/
 .codex
 *.tif
 *.webp

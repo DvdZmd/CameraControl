@@ -1,0 +1,2275 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "CameraControl API",
+    "version": "1.0.0",
+    "description": "Contrato vigente para api_version 1."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/api/system/capabilities": {
+      "get": {
+        "operationId": "system.capabilities",
+        "tags": [
+          "common"
+        ],
+        "x-cameracontrol-feature": "common",
+        "x-flask-endpoint": "system.capabilities",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/system-status": {
+      "get": {
+        "operationId": "admin.system_status",
+        "tags": [
+          "common"
+        ],
+        "x-cameracontrol-feature": "common",
+        "x-flask-endpoint": "admin.system_status",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/update": {
+      "post": {
+        "operationId": "admin.trigger_update",
+        "tags": [
+          "common"
+        ],
+        "x-cameracontrol-feature": "common",
+        "x-flask-endpoint": "admin.trigger_update",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusMessage"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/reboot": {
+      "post": {
+        "operationId": "admin.trigger_reboot",
+        "tags": [
+          "common"
+        ],
+        "x-cameracontrol-feature": "common",
+        "x-flask-endpoint": "admin.trigger_reboot",
+        "responses": {
+          "202": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusMessage"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/camera/": {
+      "get": {
+        "operationId": "camera_controller.index",
+        "tags": [
+          "camera"
+        ],
+        "x-cameracontrol-feature": "camera",
+        "x-flask-endpoint": "camera_controller.index",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/camera/apply_preset": {
+      "post": {
+        "operationId": "camera_controller.apply_preset",
+        "tags": [
+          "camera"
+        ],
+        "x-cameracontrol-feature": "camera",
+        "x-flask-endpoint": "camera_controller.apply_preset",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusMessage"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresetRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/camera/camera_status": {
+      "get": {
+        "operationId": "camera_controller.camera_status",
+        "tags": [
+          "camera"
+        ],
+        "x-cameracontrol-feature": "camera",
+        "x-flask-endpoint": "camera_controller.camera_status",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CameraStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/camera/reset": {
+      "post": {
+        "operationId": "camera_controller.reset_camera",
+        "tags": [
+          "camera"
+        ],
+        "x-cameracontrol-feature": "camera",
+        "x-flask-endpoint": "camera_controller.reset_camera",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusMessage"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/camera/stream/start": {
+      "post": {
+        "operationId": "camera_controller.start_stream",
+        "tags": [
+          "camera"
+        ],
+        "x-cameracontrol-feature": "camera",
+        "x-flask-endpoint": "camera_controller.start_stream",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamState"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/camera/stream/stop": {
+      "post": {
+        "operationId": "camera_controller.stop_stream",
+        "tags": [
+          "camera"
+        ],
+        "x-cameracontrol-feature": "camera",
+        "x-flask-endpoint": "camera_controller.stop_stream",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamState"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/camera/take_photo_custom": {
+      "get": {
+        "operationId": "camera_controller.take_photo_custom",
+        "tags": [
+          "camera"
+        ],
+        "x-cameracontrol-feature": "camera",
+        "x-flask-endpoint": "camera_controller.take_photo_custom",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/camera/update_settings": {
+      "post": {
+        "operationId": "camera_controller.update_settings",
+        "tags": [
+          "camera"
+        ],
+        "x-cameracontrol-feature": "camera",
+        "x-flask-endpoint": "camera_controller.update_settings",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CameraUpdateResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CameraSettingsRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/camera/video_feed": {
+      "get": {
+        "operationId": "camera_controller.video_feed",
+        "tags": [
+          "camera"
+        ],
+        "x-cameracontrol-feature": "camera",
+        "x-flask-endpoint": "camera_controller.video_feed",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/camera/video_feed_sync": {
+      "get": {
+        "operationId": "camera_controller.video_feed_sync",
+        "tags": [
+          "camera"
+        ],
+        "x-cameracontrol-feature": "camera",
+        "x-flask-endpoint": "camera_controller.video_feed_sync",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/esp32/status": {
+      "get": {
+        "operationId": "camera.esp32_status",
+        "tags": [
+          "esp32"
+        ],
+        "x-cameracontrol-feature": "esp32",
+        "x-flask-endpoint": "camera.esp32_status",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Esp32Status"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/esp32/connect": {
+      "post": {
+        "operationId": "camera.esp32_connect",
+        "tags": [
+          "esp32"
+        ],
+        "x-cameracontrol-feature": "esp32",
+        "x-flask-endpoint": "camera.esp32_connect",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/esp32/disconnect": {
+      "post": {
+        "operationId": "camera.esp32_disconnect",
+        "tags": [
+          "esp32"
+        ],
+        "x-cameracontrol-feature": "esp32",
+        "x-flask-endpoint": "camera.esp32_disconnect",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/esp32/command": {
+      "post": {
+        "operationId": "camera.esp32_command",
+        "tags": [
+          "esp32"
+        ],
+        "x-cameracontrol-feature": "esp32",
+        "x-flask-endpoint": "camera.esp32_command",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Esp32CommandRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/esp32/center": {
+      "post": {
+        "operationId": "pan_tilt.esp32_center",
+        "tags": [
+          "pan_tilt"
+        ],
+        "x-cameracontrol-feature": "pan_tilt",
+        "x-flask-endpoint": "pan_tilt.esp32_center",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/esp32/move": {
+      "post": {
+        "operationId": "pan_tilt.esp32_move",
+        "tags": [
+          "pan_tilt"
+        ],
+        "x-cameracontrol-feature": "pan_tilt",
+        "x-flask-endpoint": "pan_tilt.esp32_move",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/esp32/position/current": {
+      "post": {
+        "operationId": "pan_tilt.esp32_save_current_position",
+        "tags": [
+          "pan_tilt"
+        ],
+        "x-cameracontrol-feature": "pan_tilt",
+        "x-flask-endpoint": "pan_tilt.esp32_save_current_position",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/esp32/position/return": {
+      "post": {
+        "operationId": "pan_tilt.esp32_return_to_saved_position",
+        "tags": [
+          "pan_tilt"
+        ],
+        "x-cameracontrol-feature": "pan_tilt",
+        "x-flask-endpoint": "pan_tilt.esp32_return_to_saved_position",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/esp32/speed": {
+      "post": {
+        "operationId": "pan_tilt.esp32_speed",
+        "tags": [
+          "pan_tilt"
+        ],
+        "x-cameracontrol-feature": "pan_tilt",
+        "x-flask-endpoint": "pan_tilt.esp32_speed",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeedRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/esp32/light": {
+      "post": {
+        "operationId": "lighting.esp32_light",
+        "tags": [
+          "lighting"
+        ],
+        "x-cameracontrol-feature": "lighting",
+        "x-flask-endpoint": "lighting.esp32_light",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LightRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sensors/logging-config": {
+      "get": {
+        "operationId": "sensors.sensor_logging_config.get",
+        "tags": [
+          "sensors"
+        ],
+        "x-cameracontrol-feature": "sensors",
+        "x-flask-endpoint": "sensors.sensor_logging_config",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SensorLoggingConfig"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "sensors.sensor_logging_config.put",
+        "tags": [
+          "sensors"
+        ],
+        "x-cameracontrol-feature": "sensors",
+        "x-flask-endpoint": "sensors.sensor_logging_config",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SensorLoggingConfig"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SensorLoggingConfigRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sensors/readings": {
+      "get": {
+        "operationId": "sensors.readings_history",
+        "tags": [
+          "sensors"
+        ],
+        "x-cameracontrol-feature": "sensors",
+        "x-flask-endpoint": "sensors.readings_history",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SensorReadingsPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "sensors.delete_sensor_readings",
+        "tags": [
+          "sensors"
+        ],
+        "x-cameracontrol-feature": "sensors",
+        "x-flask-endpoint": "sensors.delete_sensor_readings",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdSelectionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sensors/readings/all": {
+      "delete": {
+        "operationId": "sensors.delete_all_sensor_readings",
+        "tags": [
+          "sensors"
+        ],
+        "x-cameracontrol-feature": "sensors",
+        "x-flask-endpoint": "sensors.delete_all_sensor_readings",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timelapse/status": {
+      "get": {
+        "operationId": "timelapse.timelapse_status",
+        "tags": [
+          "timelapse"
+        ],
+        "x-cameracontrol-feature": "timelapse",
+        "x-flask-endpoint": "timelapse.timelapse_status",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelapseStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/timelapse/config": {
+      "put": {
+        "operationId": "timelapse.update_timelapse_config",
+        "tags": [
+          "timelapse"
+        ],
+        "x-cameracontrol-feature": "timelapse",
+        "x-flask-endpoint": "timelapse.update_timelapse_config",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelapseStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimelapseConfigRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timelapse/start": {
+      "post": {
+        "operationId": "timelapse.start_timelapse",
+        "tags": [
+          "timelapse"
+        ],
+        "x-cameracontrol-feature": "timelapse",
+        "x-flask-endpoint": "timelapse.start_timelapse",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelapseStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/timelapse/stop": {
+      "post": {
+        "operationId": "timelapse.stop_timelapse",
+        "tags": [
+          "timelapse"
+        ],
+        "x-cameracontrol-feature": "timelapse",
+        "x-flask-endpoint": "timelapse.stop_timelapse",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelapseStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/timelapse/folders": {
+      "get": {
+        "operationId": "timelapse.timelapse_folders",
+        "tags": [
+          "timelapse"
+        ],
+        "x-cameracontrol-feature": "timelapse",
+        "x-flask-endpoint": "timelapse.timelapse_folders",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderList"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/timelapse/captures": {
+      "get": {
+        "operationId": "timelapse.timelapse_captures",
+        "tags": [
+          "timelapse"
+        ],
+        "x-cameracontrol-feature": "timelapse",
+        "x-flask-endpoint": "timelapse.timelapse_captures",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaptureList"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "timelapse.delete_timelapse_captures",
+        "tags": [
+          "timelapse"
+        ],
+        "x-cameracontrol-feature": "timelapse",
+        "x-flask-endpoint": "timelapse.delete_timelapse_captures",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptureSelectionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timelapse/folders/{folder_name}/download": {
+      "get": {
+        "operationId": "timelapse.download_timelapse_folder",
+        "tags": [
+          "timelapse"
+        ],
+        "x-cameracontrol-feature": "timelapse",
+        "x-flask-endpoint": "timelapse.download_timelapse_folder",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "folder_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/timelapse/capture/download": {
+      "get": {
+        "operationId": "timelapse.download_timelapse_capture",
+        "tags": [
+          "timelapse"
+        ],
+        "x-cameracontrol-feature": "timelapse",
+        "x-flask-endpoint": "timelapse.download_timelapse_capture",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/timelapse/capture/preview": {
+      "get": {
+        "operationId": "timelapse.preview_timelapse_capture",
+        "tags": [
+          "timelapse"
+        ],
+        "x-cameracontrol-feature": "timelapse",
+        "x-flask-endpoint": "timelapse.preview_timelapse_capture",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/timelapse/captures/download": {
+      "post": {
+        "operationId": "timelapse.download_selected_captures",
+        "tags": [
+          "timelapse"
+        ],
+        "x-cameracontrol-feature": "timelapse",
+        "x-flask-endpoint": "timelapse.download_selected_captures",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptureSelectionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timelapse/folders/{folder_name}": {
+      "delete": {
+        "operationId": "timelapse.delete_timelapse_folder",
+        "tags": [
+          "timelapse"
+        ],
+        "x-cameracontrol-feature": "timelapse",
+        "x-flask-endpoint": "timelapse.delete_timelapse_folder",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "folder_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/tuya/status": {
+      "get": {
+        "operationId": "tuya.get_tuya_status",
+        "tags": [
+          "tuya"
+        ],
+        "x-cameracontrol-feature": "tuya",
+        "x-flask-endpoint": "tuya.get_tuya_status",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/tuya/on": {
+      "post": {
+        "operationId": "tuya.turn_on_plug",
+        "tags": [
+          "tuya"
+        ],
+        "x-cameracontrol-feature": "tuya",
+        "x-flask-endpoint": "tuya.turn_on_plug",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/tuya/off": {
+      "post": {
+        "operationId": "tuya.turn_off_plug",
+        "tags": [
+          "tuya"
+        ],
+        "x-cameracontrol-feature": "tuya",
+        "x-flask-endpoint": "tuya.turn_off_plug",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/tuya/devices": {
+      "get": {
+        "operationId": "tuya.list_tuya_devices",
+        "tags": [
+          "tuya"
+        ],
+        "x-cameracontrol-feature": "tuya",
+        "x-flask-endpoint": "tuya.list_tuya_devices",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TuyaDeviceList"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "tuya.add_tuya_device",
+        "tags": [
+          "tuya"
+        ],
+        "x-cameracontrol-feature": "tuya",
+        "x-flask-endpoint": "tuya.add_tuya_device",
+        "responses": {
+          "201": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TuyaDeviceResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TuyaDeviceCreateRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tuya/devices/{device_pk}": {
+      "patch": {
+        "operationId": "tuya.update_tuya_device",
+        "tags": [
+          "tuya"
+        ],
+        "x-cameracontrol-feature": "tuya",
+        "x-flask-endpoint": "tuya.update_tuya_device",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TuyaDeviceResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TuyaDeviceUpdateRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "device_pk",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/api/tuya/devices/{device_pk}/details": {
+      "post": {
+        "operationId": "tuya.refresh_tuya_device_details",
+        "tags": [
+          "tuya"
+        ],
+        "x-cameracontrol-feature": "tuya",
+        "x-flask-endpoint": "tuya.refresh_tuya_device_details",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TuyaDeviceResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "device_pk",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/api/tuya/devices/{device_pk}/status": {
+      "post": {
+        "operationId": "tuya.set_tuya_device_status",
+        "tags": [
+          "tuya"
+        ],
+        "x-cameracontrol-feature": "tuya",
+        "x-flask-endpoint": "tuya.set_tuya_device_status",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TuyaStatusRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "device_pk",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      },
+      "get": {
+        "operationId": "tuya.refresh_tuya_device_status",
+        "tags": [
+          "tuya"
+        ],
+        "x-cameracontrol-feature": "tuya",
+        "x-flask-endpoint": "tuya.refresh_tuya_device_status",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TuyaDeviceResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "device_pk",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ]
+      },
+      "OkError": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "const": false
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "ok",
+          "error"
+        ]
+      },
+      "StatusMessage": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "status"
+        ]
+      },
+      "OpenResult": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "Features": {
+        "type": "object",
+        "properties": {
+          "camera": {
+            "type": "boolean"
+          },
+          "timelapse": {
+            "type": "boolean"
+          },
+          "esp32": {
+            "type": "boolean"
+          },
+          "pan_tilt": {
+            "type": "boolean"
+          },
+          "lighting": {
+            "type": "boolean"
+          },
+          "sensors": {
+            "type": "boolean"
+          },
+          "tuya": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "required": [
+          "camera",
+          "timelapse",
+          "esp32",
+          "pan_tilt",
+          "lighting",
+          "sensors",
+          "tuya"
+        ]
+      },
+      "Capabilities": {
+        "type": "object",
+        "properties": {
+          "api_version": {
+            "type": "string",
+            "const": "1"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "features": {
+            "$ref": "#/components/schemas/Features"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "api_version",
+          "profile",
+          "instance",
+          "features"
+        ]
+      },
+      "ConfirmationRequest": {
+        "type": "object",
+        "properties": {
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "confirm"
+        ]
+      },
+      "SystemStatus": {
+        "type": "object",
+        "properties": {
+          "cpu_temperature_c": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "cpu_usage_percent": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "power": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "storage": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "cpu_temperature_c",
+          "cpu_usage_percent",
+          "power",
+          "storage"
+        ]
+      },
+      "PresetRequest": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "preset"
+        ]
+      },
+      "StreamState": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "stream_enabled": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "stream_enabled"
+        ]
+      },
+      "CameraSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "rotation": {
+            "type": "integer",
+            "enum": [
+              0,
+              90,
+              180,
+              270
+            ]
+          },
+          "timelapse": {
+            "type": "string",
+            "enum": [
+              "start",
+              "stop"
+            ]
+          },
+          "interval": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "t_width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "t_height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "Brightness": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "Contrast": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 32
+          },
+          "Saturation": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 32
+          },
+          "Sharpness": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 16
+          },
+          "AfMode": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2
+          },
+          "LensPosition": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 32
+          },
+          "ExposureTime": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000
+          },
+          "AnalogueGain": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 16
+          },
+          "AeEnable": {
+            "type": "boolean"
+          },
+          "AwbMode": {},
+          "DigitalGain": {}
+        },
+        "additionalProperties": false,
+        "minProperties": 1
+      },
+      "CameraUpdateResult": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "current_rotation": {
+            "type": "integer"
+          },
+          "pipeline_rotation": {
+            "type": "integer"
+          },
+          "display_rotation": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "current_rotation",
+          "pipeline_rotation",
+          "display_rotation"
+        ]
+      },
+      "CameraStatus": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "stream_enabled": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
+      },
+      "Esp32CommandRequest": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "command"
+        ]
+      },
+      "Esp32Status": {
+        "type": "object",
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "device_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_state": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      },
+      "MoveRequest": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right",
+              "up",
+              "down"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "direction"
+        ]
+      },
+      "SpeedRequest": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "mode"
+        ]
+      },
+      "LightRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "on": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "on"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "intensity": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "intensity"
+            ]
+          }
+        ]
+      },
+      "SensorLoggingConfigRequest": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "interval_seconds": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 86400
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "enabled",
+          "interval_seconds"
+        ]
+      },
+      "SensorLoggingConfig": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "interval_seconds": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": true
+      },
+      "IdSelectionRequest": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5000,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "ids"
+        ]
+      },
+      "DeleteResult": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "deleted": {
+            "type": "integer"
+          },
+          "folder": {
+            "type": "string"
+          },
+          "deleted_folder": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "ok"
+        ]
+      },
+      "SensorReading": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "temperature_air": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "humidity_air": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "temperature_soil": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "humidity_soil": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "pan_pulse_us": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "tilt_pulse_us": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "timelapse_folder_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "timelapse_folder_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": true
+      },
+      "SensorReadingsPage": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "per_page": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "pages": {
+            "type": "integer"
+          },
+          "readings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SensorReading"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "page",
+          "per_page",
+          "total",
+          "pages",
+          "readings"
+        ]
+      },
+      "TimelapseConfigRequest": {
+        "type": "object",
+        "properties": {
+          "interval_seconds": {
+            "type": "integer",
+            "minimum": 2
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "auto_resume": {
+            "type": "boolean"
+          },
+          "light_enabled": {
+            "type": "boolean"
+          },
+          "light_intensity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "light_warmup_seconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 60
+          },
+          "folder_name": {
+            "type": "string"
+          },
+          "save_sensor_readings": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "interval_seconds",
+          "width",
+          "height",
+          "auto_resume"
+        ]
+      },
+      "TimelapseStatus": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": true
+      },
+      "CaptureSelectionRequest": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "type": "string"
+          },
+          "captures": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5000,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "folder",
+          "captures"
+        ]
+      },
+      "CaptureList": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "type": "string"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "per_page": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "captures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "pages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "folder",
+          "page",
+          "per_page",
+          "captures",
+          "total",
+          "pages"
+        ]
+      },
+      "FolderList": {
+        "type": "object",
+        "properties": {
+          "folders": {
+            "type": "array",
+            "items": {}
+          },
+          "selected": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "folders",
+          "selected"
+        ]
+      },
+      "TuyaDeviceCreateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "device_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "switch_code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "default": "switch_1"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "device_id"
+        ]
+      },
+      "TuyaDeviceUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ]
+      },
+      "TuyaStatusRequest": {
+        "type": "object",
+        "properties": {
+          "on": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "on"
+        ]
+      },
+      "TuyaDevice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tuya_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "device_id": {
+            "type": "string"
+          },
+          "switch_code": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
+      },
+      "TuyaDeviceList": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TuyaDevice"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "ok",
+          "devices"
+        ]
+      },
+      "TuyaDeviceResult": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "device": {
+            "$ref": "#/components/schemas/TuyaDevice"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Error según el envelope histórico del módulo",
+        "content": {
+          "application/json": {
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Error"
+                },
+                {
+                  "$ref": "#/components/schemas/OkError"
+                },
+                {
+                  "$ref": "#/components/schemas/StatusMessage"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -35,9 +35,98 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    margin-right: auto;
+    margin-right: 0;
     color: #d8d8d8;
     font-weight: 700;
+}
+
+.operational-status {
+    position: relative;
+    margin-left: auto;
+}
+
+.operational-status > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    box-sizing: border-box;
+    padding: 6px 10px;
+    border: 1px solid #444;
+    border-radius: 999px;
+    background: #242424;
+    color: #e5e5e5;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    list-style: none;
+}
+
+.operational-status > summary::-webkit-details-marker {
+    display: none;
+}
+
+.operational-status > summary:hover,
+.operational-status > summary:focus-visible,
+.operational-status[open] > summary {
+    border-color: #686868;
+    background: #2c2c2c;
+}
+
+.operational-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #777;
+    box-shadow: 0 0 0 3px rgba(119, 119, 119, 0.12);
+}
+
+.operational-status-dot.state-ok { background: var(--accent); box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.12); }
+.operational-status-dot.state-warning { background: #ffbd45; box-shadow: 0 0 0 3px rgba(255, 189, 69, 0.12); }
+.operational-status-dot.state-error { background: #ff6464; box-shadow: 0 0 0 3px rgba(255, 100, 100, 0.12); }
+
+.operational-status-chevron {
+    color: #888;
+    transition: transform 150ms ease;
+}
+
+.operational-status[open] .operational-status-chevron {
+    transform: rotate(180deg);
+}
+
+.operational-status-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: min(480px, calc(100vw - 20px));
+    box-sizing: border-box;
+    padding: 14px;
+    border: 1px solid #444;
+    border-radius: 10px;
+    background: #202020;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.62);
+    z-index: 30;
+}
+
+.operational-status-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.operational-status-heading h2 {
+    margin: 0;
+    color: #f2f2f2;
+    font-size: 1rem;
+}
+
+.operational-status-heading p {
+    margin: 3px 0 0;
+    color: #929292;
+    font-size: 0.72rem;
 }
 
 .light-toggle-btn {
@@ -332,6 +421,18 @@ body.panel-resizing .controls-panel {
         padding-inline: 10px;
     }
 
+    .operational-status {
+        order: 2;
+    }
+
+    .operational-status-panel {
+        position: fixed;
+        top: 56px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+    }
+
     .raspberry-status {
         order: 3;
         width: 100%;
@@ -365,6 +466,136 @@ body.panel-resizing .controls-panel {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 10px;
+}
+
+.home-identity-grid,
+.home-health-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.home-identity-grid {
+    margin-bottom: 8px;
+}
+
+.home-identity-grid > div {
+    min-width: 0;
+    padding: 7px 8px;
+    border: 1px solid #363636;
+    border-radius: 6px;
+    background: #1c1c1c;
+}
+
+.home-identity-grid span,
+.home-identity-grid strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.home-identity-grid span {
+    margin-bottom: 2px;
+    color: #888;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+}
+
+.home-identity-grid strong {
+    color: #f0f0f0;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.home-health-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid #3b3b3b;
+    border-radius: 7px;
+    background: #232323;
+}
+
+.home-health-card > div {
+    min-width: 0;
+}
+
+.home-health-card strong,
+.home-health-card small {
+    display: block;
+}
+
+.home-health-card strong {
+    color: #eee;
+    font-size: 0.78rem;
+}
+
+.home-health-card small {
+    margin-top: 2px;
+    color: #999;
+    font-size: 0.68rem;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.home-health-dot {
+    flex: 0 0 8px;
+    width: 8px;
+    height: 8px;
+    margin-top: 4px;
+    border-radius: 50%;
+    background: #777;
+    box-shadow: 0 0 0 3px rgba(119, 119, 119, 0.12);
+}
+
+.home-health-card.state-ok { border-color: #286c4b; }
+.home-health-card.state-ok .home-health-dot { background: var(--accent); box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.12); }
+.home-health-card.state-warning { border-color: #8b6726; }
+.home-health-card.state-warning .home-health-dot { background: #ffbd45; box-shadow: 0 0 0 3px rgba(255, 189, 69, 0.12); }
+.home-health-card.state-error { border-color: #8e3939; }
+.home-health-card.state-error .home-health-dot { background: #ff6464; box-shadow: 0 0 0 3px rgba(255, 100, 100, 0.12); }
+.home-health-card.state-disabled { opacity: 0.58; }
+
+.home-feature-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 9px;
+}
+
+.home-feature-chip {
+    padding: 3px 7px;
+    border: 1px solid #444;
+    border-radius: 999px;
+    color: #aaa;
+    font-size: 0.64rem;
+    text-transform: capitalize;
+}
+
+.home-feature-chip.enabled {
+    border-color: #286c4b;
+    color: #8debbd;
+    background: rgba(0, 255, 136, 0.06);
+}
+
+.home-feature-chip.disabled {
+    text-decoration: line-through;
+    opacity: 0.55;
+}
+
+.home-status-updated {
+    margin: 8px 0 0;
+    color: #777;
+    font-size: 0.65rem;
+    text-align: right;
+}
+
+@media (max-width: 720px) {
+    .home-health-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 .home-capture {
@@ -1099,6 +1330,16 @@ button:disabled {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+}
+
+.timelapse-capture-preview {
+    display: block;
+    width: 120px;
+    height: 80px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #1b1b1b;
+    object-fit: cover;
 }
 
 .timelapse-inline-fields input,

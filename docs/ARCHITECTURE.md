@@ -17,6 +17,31 @@ La aplicación debe mantener desacoplados:
 
 ## Componentes principales
 
+### Composición por perfiles
+
+`profiles.py` define la identidad del producto y los módulos habilitados. El
+perfil se resuelve al crear Flask, antes de inicializar controladores, registrar
+blueprints o iniciar workers. Si no se configura `CAMERACONTROL_PROFILE`, el
+perfil `default` conserva todos los módulos históricos.
+
+El backend es la autoridad de esta composición. El dashboard HTML recibe el
+perfil desde Flask y omite pestañas y llamadas de módulos deshabilitados. Los
+futuros frontends satélite deben consultar `GET /api/system/capabilities`, pero
+no pueden habilitar funcionalidades del servidor.
+
+Los perfiles y su matriz vigente se documentan en
+`docs/PROJECT_PROFILES.md`.
+
+La superficie HTTP vigente está inventariada en `docs/API.md` y protegida por
+`tests/test_api_contracts.py`. Esa instantánea permite refactorizar internamente
+sin alterar de forma accidental URLs, métodos o envelopes consumidos por el
+dashboard y por futuros frontends.
+
+`api_contract.py` contiene la descripción OpenAPI libre de dependencias de
+Flask y hardware; genera `docs/openapi.json`. La evolución de estos modelos se
+rige por `docs/API_COMPATIBILITY.md`: los campos nuevos deben ser opcionales y
+los cambios incompatibles requieren migración explícita o una nueva versión.
+
 ### Frontend
 
 El dashboard se renderiza con Jinja a partir de un shell mínimo y componentes
@@ -33,6 +58,12 @@ parciales organizados por dominio:
 Los scripts son clásicos y se cargan en un orden explícito. Esta organización
 mantiene los contratos actuales basados en IDs y atributos `data-*`, a la vez
 que delimita los futuros componentes para la migración a Vue.js.
+
+La barra superior incluye un indicador de estado operativo desplegable,
+implementado por `static/js/components/home.js`. Reutiliza las consultas de
+cámara, ESP32 y salud de Raspberry, descubre perfil/instancia mediante
+`/api/system/capabilities` y ofrece una actualización manual. No consulta Tuya
+Cloud ni crea intervalos de polling adicionales.
 
 ### `app.py`
 
@@ -58,6 +89,11 @@ Responsable de:
 - Inicializar integraciones opcionales.
 - Ejecutar limpieza al terminar.
 
+La creación de la cámara también pertenece a la factory: importar el blueprint
+no debe enumerar `/dev/media*`. La factory inicializa el controlador compartido
+únicamente si el perfil habilita `camera`; las rutas conservan un mecanismo de
+reintento controlado cuando la cámara estaba ausente.
+
 La conexión inicial con Tuya se ejecuta en un hilo daemon para no bloquear la
 creación de Flask. El controlador se registra antes en `app.config`.
 
@@ -70,9 +106,45 @@ Ejemplos conceptuales:
 
 Las integraciones opcionales no deben impedir que Flask inicie.
 
+### Configuración de aplicación
+
+`config.py` contiene únicamente configuración consumida durante la creación de
+servicios: logging, timelapse, persistencia periódica de sensores, Tuya y zona
+horaria. La cámara no recibe configuración desde `AppConfig`; utiliza defaults
+de `rpicam-z`, capacidades runtime y ajustes persistidos por `camera_key` en
+SQLite.
+
+Las instancias de `TuyaConfig` leen el entorno al construirse. Sus campos de
+credenciales y `device_id` están excluidos de la representación de la dataclass
+para reducir filtraciones accidentales en logs.
+
+`InstanceConfig` separa la identidad física de la composición del perfil y
+resuelve los paths de SQLite, timelapse y logs antes de inicializar esos
+servicios. La instancia `default` conserva las ubicaciones históricas; las
+instancias nombradas usan `data/<instancia>/`. Consultar `docs/INSTANCES.md`.
+
 ### Blueprints
 
 La API se organiza por dominios.
+
+Los blueprints de dominio se registran únicamente cuando el perfil activo los
+habilita. `system_bp` y `admin_bp` son infraestructura común y siempre se
+registran.
+
+Las capacidades del ESP32 comparten un solo transporte BLE, pero tienen
+blueprints independientes bajo el prefijo estable `/api/esp32`:
+
+- `esp32_bp`: conexión, desconexión, estado y comando manual validado.
+- `pan_tilt_bp`: movimiento, centro, velocidad y posiciones.
+- `lighting_bp`: iluminación PWM.
+
+El comando manual aplica la misma política de capacidades y no puede enviar
+órdenes de movimiento o iluminación deshabilitadas por el perfil.
+
+#### Sistema
+
+`GET /api/system/capabilities` expone el perfil, la versión del contrato y las
+features configuradas. No consulta cámara, BLE ni servicios externos.
 
 #### Cámara
 

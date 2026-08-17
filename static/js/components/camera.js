@@ -112,6 +112,9 @@ function setCameraStreamUi(enabled, detail) {
 function setCameraUnavailable(message) {
     cameraAvailable = false;
     setCameraStreamUi(false, message || 'Cámara no disponible. El resto de la app sigue operativo.');
+    if (typeof renderHomeCameraHealth === 'function') {
+        renderHomeCameraHealth(null, new Error(message || 'Cámara no disponible'));
+    }
 }
 
 async function fetchCameraStatus() {
@@ -122,6 +125,7 @@ async function fetchCameraStatus() {
     }
     cameraAvailable = true;
     setCameraStreamUi(Boolean(data.stream_enabled), data.stream_enabled ? '' : 'Streaming apagado.');
+    if (typeof renderHomeCameraHealth === 'function') renderHomeCameraHealth(data);
     return data;
 }
 

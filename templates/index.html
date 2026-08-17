@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <script>
+        window.CAMERA_CONTROL = {{ camera_control | tojson }};
+    </script>
     {% include 'components/layout/top-bar.html' %}
     <div class="dashboard">
         {% include 'components/layout/stream-panel.html' %}
@@ -18,18 +21,33 @@
             {% include 'components/layout/tabs-header.html' %}
             {% include 'components/tabs/home.html' %}
             {% include 'components/tabs/camera.html' %}
-            {% include 'components/tabs/devices.html' %}
-            {% include 'components/tabs/timelapse.html' %}
-            {% include 'components/tabs/esp32.html' %}
-            {% include 'components/tabs/sensors.html' %}
+            {% if camera_control.features.tuya %}
+                {% include 'components/tabs/devices.html' %}
+            {% endif %}
+            {% if camera_control.features.timelapse %}
+                {% include 'components/tabs/timelapse.html' %}
+            {% endif %}
+            {% if camera_control.features.esp32 %}
+                {% include 'components/tabs/esp32.html' %}
+            {% endif %}
+            {% if camera_control.features.sensors %}
+                {% include 'components/tabs/sensors.html' %}
+            {% endif %}
         </div>
     </div>
     <script src="{{ url_for('static', filename='js/components/core.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/components/home.js') }}"></script>
     <script src="{{ url_for('static', filename='js/components/esp32.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/components/devices.js') }}"></script>
+    {% if camera_control.features.tuya %}
+        <script src="{{ url_for('static', filename='js/components/devices.js') }}"></script>
+    {% endif %}
     <script src="{{ url_for('static', filename='js/components/camera.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/components/timelapse.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/components/sensors.js') }}"></script>
+    {% if camera_control.features.timelapse %}
+        <script src="{{ url_for('static', filename='js/components/timelapse.js') }}"></script>
+    {% endif %}
+    {% if camera_control.features.sensors %}
+        <script src="{{ url_for('static', filename='js/components/sensors.js') }}"></script>
+    {% endif %}
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>

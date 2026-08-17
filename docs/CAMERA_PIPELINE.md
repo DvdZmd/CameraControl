@@ -15,6 +15,21 @@ El stack de cámara puede incluir:
 
 El código actual determina qué biblioteca posee la instancia real de cámara.
 
+## Fuente de configuración
+
+La configuración efectiva de cámara no se obtiene de constantes globales en
+`config.py`. Sus fuentes vigentes son:
+
+1. Los valores iniciales y el lifecycle del controlador `rpicam-z`.
+2. Las capacidades y controles soportados que reporta el hardware en runtime.
+3. Los ajustes confirmados por cámara que CameraControl guarda en
+   `CameraSettings` y restaura durante el arranque.
+
+No existe actualmente una `CameraConfig` de aplicación. Añadir una política de
+arranque por perfil o instancia requiere definir explícitamente su precedencia
+respecto de SQLite y `rpicam-z`; no debe conectarse otra fuente de defaults sin
+validar resolución, autofocus, exposición y estabilidad del streaming.
+
 ## Cámaras conocidas
 
 - Camera v1.3 — OV5647 — 5 MP.
@@ -94,6 +109,17 @@ El servicio Flask debe poder arrancar aunque la cámara no esté conectada. Un
 fallo al crear el controlador de cámara debe degradar las rutas de cámara a un
 error claro, preferentemente HTTP 503, sin impedir que ESP32, Tuya, base de
 datos y frontend sigan disponibles.
+
+Importar `routes.camera_routes` no crea ni enumera hardware. `create_app()`
+llama explícitamente a `initialize_camera()` sólo cuando el perfil habilita la
+feature `camera`, antes de restaurar ajustes persistidos y reanudar timelapse.
+La inicialización es idempotente dentro del proceso. Si el primer intento
+falla, se conserva un controlador no disponible y `POST /stream/start` puede
+forzar un nuevo intento sin reiniciar Flask.
+
+Este límite permite importar blueprints, inspeccionar contratos y ejecutar
+tests sin abrir libcamera. No cambia la propiedad de la instancia: continúa
+existiendo un único controlador compartido por rutas y timelapse.
 
 El streaming MJPEG se controla explícitamente desde el frontend:
 

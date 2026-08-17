@@ -178,10 +178,26 @@ frontend. Encender/apagar es la operación prioritaria para gastar llamadas API.
 
 ## Base de datos
 
+Primero consultar la identidad activa:
+
+```bash
+curl -s http://localhost:5000/api/system/capabilities
+```
+
+La instancia `default` utiliza el path histórico:
+
 ```bash
 ls -l database/
 sqlite3 database/app.db ".tables"
 ```
+
+Una instancia nombrada utiliza por defecto:
+
+```bash
+sqlite3 data/<instancia>/app.db ".tables"
+```
+
+`DATABASE_PATH` puede reemplazar ambas ubicaciones.
 
 Revisar:
 

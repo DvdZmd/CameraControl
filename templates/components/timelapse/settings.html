@@ -38,10 +38,15 @@
                         <input type="checkbox" id="tl-auto-resume" checked>
                         Reanudar automáticamente después de reiniciar
                     </label>
+                    {% if camera_control.features.sensors %}
                     <label class="timelapse-checkbox">
                         <input type="checkbox" id="tl-save-sensor-readings" checked>
                         Guardar sensores y posición pan/tilt con cada captura
                     </label>
+                    {% else %}
+                    <input type="checkbox" id="tl-save-sensor-readings" hidden>
+                    {% endif %}
+                    {% if camera_control.features.lighting %}
                     <label class="timelapse-checkbox">
                         <input type="checkbox" id="tl-light-enabled">
                         Prender la luz para cada foto
@@ -57,6 +62,12 @@
                         </label>
                         <input id="tl-light-intensity" type="range" min="1" max="100" value="100">
                     </div>
+                    {% else %}
+                    <input type="checkbox" id="tl-light-enabled" hidden>
+                    <input type="hidden" id="tl-light-warmup" value="0">
+                    <input type="hidden" id="tl-light-intensity" value="100">
+                    <span id="tl-light-intensity-value" hidden>100%</span>
+                    {% endif %}
                     <button class="btn-primary" data-action="save-timelapse-config" type="button">
                         Guardar configuración
                     </button>

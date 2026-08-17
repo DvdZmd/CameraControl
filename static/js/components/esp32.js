@@ -15,6 +15,7 @@ function renderRaspberryStatus(data) {
     const powerStatus = document.getElementById('pi-power-status');
     const powerValue = document.getElementById('pi-power-value');
     renderStorageStatus(data.storage);
+    if (typeof renderHomeSystemHealth === 'function') renderHomeSystemHealth(data);
     if (temperature) {
         temperature.textContent = Number.isFinite(data.cpu_temperature_c)
             ? `${data.cpu_temperature_c.toFixed(1)} °C`
@@ -257,6 +258,7 @@ async function refreshEsp32Status() {
         const homeConnectionLabel = document.getElementById('home-esp32-connection-label');
 
         esp32Connected = Boolean(data.connected);
+        if (typeof renderHomeEsp32Health === 'function') renderHomeEsp32Health(data);
 
         if (badge) {
             badge.textContent = esp32Connected ? 'Conectado' : 'Desconectado';
@@ -335,12 +337,18 @@ async function refreshEsp32Status() {
         const panPulse = stateValue(lastState, 'P');
         const tiltPulse = stateValue(lastState, 'T');
         const currentPosition = data.current_position || {};
-        document.getElementById('servo-pan-pulse').textContent = formatAxisPosition(
-            currentPosition.pan || (panPulse !== null ? { pulse_us: panPulse, angle_deg: null } : null)
-        );
-        document.getElementById('servo-tilt-pulse').textContent = formatAxisPosition(
-            currentPosition.tilt || (tiltPulse !== null ? { pulse_us: tiltPulse, angle_deg: null } : null)
-        );
+        const panPosition = document.getElementById('servo-pan-pulse');
+        const tiltPosition = document.getElementById('servo-tilt-pulse');
+        if (panPosition) {
+            panPosition.textContent = formatAxisPosition(
+                currentPosition.pan || (panPulse !== null ? { pulse_us: panPulse, angle_deg: null } : null)
+            );
+        }
+        if (tiltPosition) {
+            tiltPosition.textContent = formatAxisPosition(
+                currentPosition.tilt || (tiltPulse !== null ? { pulse_us: tiltPulse, angle_deg: null } : null)
+            );
+        }
         if (currentPositionEl) {
             currentPositionEl.textContent = formatPositionDetails(data.current_position);
         }
@@ -350,6 +358,7 @@ async function refreshEsp32Status() {
 
     } catch (error) {
         console.error('Error obteniendo estado ESP32:', error);
+        if (typeof renderHomeEsp32Health === 'function') renderHomeEsp32Health(null, error);
     }
 }
 

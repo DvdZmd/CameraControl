@@ -9,6 +9,12 @@ El frontend actual usa HTML, CSS y JavaScript servidos por Flask. Se utiliza
 como interfaz de desarrollo y está previsto migrarlo a una webapp Vue cuando
 las funcionalidades y contratos estén estabilizados.
 
+El backend se compone mediante perfiles de producto. `default` mantiene el
+comportamiento completo actual, mientras que `starseek` evita inicializar y
+exponer iluminación, sensores y Tuya. `fungiforge` conserva la composición
+completa y `fungiforge_monitor` deshabilita pan/tilt para instalaciones sin
+servos. Consultar `docs/PROJECT_PROFILES.md` para el contrato y alcance.
+
 ## Componentes
 
 - Cámara: `rpicam-z`, librería externa y reutilizable instalada desde GitHub.
@@ -18,6 +24,10 @@ las funcionalidades y contratos estén estabilizados.
 - IoT: Tuya Smart Life mediante `tuya-iot-py-sdk`.
 - Persistencia backend: SQLite con Flask-SQLAlchemy.
 - Frontend actual: `templates/index.html` y `static/`.
+
+Los ajustes de cámara se obtienen de `rpicam-z`, de las capacidades reportadas
+por el hardware y de `CameraSettings` en SQLite. `config.py` no mantiene una
+segunda colección de defaults de cámara.
 
 La aplicación intenta degradar de forma controlada cuando falta hardware
 opcional. La conexión inicial con Tuya se realiza en segundo plano para no
@@ -166,9 +176,45 @@ source venv/bin/activate
 python app.py
 ```
 
+Seleccionar un producto desde `.env` o el entorno:
+
+```dotenv
+CAMERACONTROL_PROFILE=starseek
+```
+
+Si no se configura, se utiliza `default`. Los nombres desconocidos provocan un
+error de arranque en lugar de activar módulos silenciosamente.
+
+Para aislar SQLite, capturas y logs de una instalación física:
+
+```dotenv
+CAMERACONTROL_INSTANCE=observatorio
+```
+
+Las instancias nombradas usan `data/<instancia>/`; la instancia `default`
+conserva los paths históricos. No existe migración automática. Consultar
+`docs/INSTANCES.md` antes de cambiar una instalación existente.
+
 La interfaz queda disponible en `http://<ip-de-la-pi>:5000`.
 
+El indicador `Estado operativo` de la barra superior despliega perfil,
+instancia, versión de API y estado de Raspberry Pi, cámara y ESP32. El botón
+`Actualizar` ejecuta sólo consultas locales; no consulta Tuya Cloud
+automáticamente.
+
 ## API actual
+
+El inventario contractual completo —49 reglas, features requeridas, formatos,
+efectos y restricciones de Tuya— está en [`docs/API.md`](docs/API.md). Los
+frontends futuros deben comenzar por `GET /api/system/capabilities`.
+
+La especificación [OpenAPI 3.1](docs/openapi.json) permite inspeccionar modelos
+o generar clientes, y [`docs/API_COMPATIBILITY.md`](docs/API_COMPATIBILITY.md)
+define qué cambios pueden hacerse sin incrementar la versión del contrato.
+
+### Sistema — `/api/system`
+
+- `GET /capabilities`: perfil y módulos configurados, sin consultar hardware.
 
 ### Cámara — `/api/camera`
 
@@ -274,7 +320,9 @@ Raspberry Pi y el ESP32 reales.
 - `docs/CAMERA_PIPELINE.md`
 - `docs/ESP32_BLE_PROTOCOL.md`
 - `docs/HARDWARE.md`
+- `docs/INSTANCES.md`
 - `docs/PROJECT_HISTORY.md`
+- `docs/PROJECT_PROFILES.md`
 - `docs/SECURITY.md`
 - `docs/TROUBLESHOOTING.md`
 

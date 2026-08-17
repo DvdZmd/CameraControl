@@ -102,6 +102,12 @@ class TimelapseService:
         self._compat_thread = None
         self._compat_last_error = None
 
+    def _feature_enabled(self, name):
+        features = self.app.config.get("FEATURES")
+        # Los tests unitarios y consumidores anteriores pueden construir el
+        # servicio sin composición por perfiles.
+        return True if not isinstance(features, dict) else bool(features.get(name))
+
     def ensure_schema(self):
         TimelapseFolder.__table__.create(bind=db.engine, checkfirst=True)
         with db.engine.begin() as connection:
@@ -302,6 +308,10 @@ class TimelapseService:
         folder_name=DEFAULT_FOLDER_NAME,
         save_sensor_readings=True,
     ):
+        if light_enabled and not self._feature_enabled("lighting"):
+            raise ValueError("La iluminación está deshabilitada en el perfil activo")
+        if save_sensor_readings and not self._feature_enabled("sensors"):
+            raise ValueError("Los sensores están deshabilitados en el perfil activo")
         if not 0 <= light_warmup_seconds <= MAX_LIGHT_WARMUP_SECONDS:
             raise ValueError(
                 f"light_warmup_seconds debe estar entre 0 y {MAX_LIGHT_WARMUP_SECONDS}"
@@ -635,7 +645,7 @@ class TimelapseService:
             state = getattr(self.ble_controller, "last_state", None)
             reading = (
                 reading_from_ble_state(state)
-                if config.save_sensor_readings
+                if config.save_sensor_readings and self._feature_enabled("sensors")
                 else None
             )
             if reading is not None:
@@ -676,6 +686,8 @@ class TimelapseService:
 
     def _on_before_capture(self, metadata):
         """Apply this timelapse's light policy in the capture worker."""
+        if not self._feature_enabled("lighting"):
+            return
         with self.app.app_context():
             config = self.ensure_default_config()
             light_enabled = bool(config.light_enabled)
@@ -702,6 +714,8 @@ class TimelapseService:
             )
 
     def _restore_manual_light(self):
+        if not self._feature_enabled("lighting"):
+            return
         settings = db.session.get(Esp32Settings, ESP32_SETTINGS_ID)
         intensity = 0
         if settings is not None and settings.light_on:
