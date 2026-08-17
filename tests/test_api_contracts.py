@@ -61,6 +61,7 @@ EXPECTED_API_RULES = {
     ("sensors.delete_all_sensor_readings", "/api/sensors/readings/all", ("DELETE",)),
     ("system.capabilities", "/api/system/capabilities", ("GET",)),
     ("timelapse.download_timelapse_capture", "/api/timelapse/capture/download", ("GET",)),
+    ("timelapse.preview_timelapse_capture", "/api/timelapse/capture/preview", ("GET",)),
     ("timelapse.delete_timelapse_captures", "/api/timelapse/captures", ("DELETE",)),
     ("timelapse.timelapse_captures", "/api/timelapse/captures", ("GET",)),
     ("timelapse.download_selected_captures", "/api/timelapse/captures/download", ("POST",)),

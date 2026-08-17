@@ -1,3 +1,4 @@
+import math
 import os
 import tempfile
 import zipfile
@@ -6,6 +7,7 @@ from flask import Blueprint, after_this_request, current_app, jsonify, request, 
 
 
 timelapse_bp = Blueprint("timelapse", __name__, url_prefix="/api/timelapse")
+MAX_CAPTURES_PER_PAGE = 100
 
 
 def get_timelapse_service():
@@ -26,6 +28,17 @@ def _positive_int(data, name, minimum=1):
     if parsed < minimum:
         raise ValueError(f"{name} debe ser mayor o igual a {minimum}")
     return parsed
+
+
+def _positive_query_int(name, default, maximum=None):
+    raw = request.args.get(name, default)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{name} debe ser un entero") from error
+    if value < 1:
+        raise ValueError(f"{name} debe ser mayor que cero")
+    return min(value, maximum) if maximum else value
 
 
 @timelapse_bp.route("/status", methods=["GET"])
@@ -132,8 +145,20 @@ def timelapse_folders():
 def timelapse_captures():
     folder = request.args.get("folder", "")
     try:
+        page = _positive_query_int("page", 1)
+        per_page = _positive_query_int("per_page", 20, MAX_CAPTURES_PER_PAGE)
         captures = get_timelapse_service().list_captures(folder)
-        return jsonify({"folder": folder, "captures": captures, "total": len(captures)})
+        total = len(captures)
+        pages = math.ceil(total / per_page)
+        start = (page - 1) * per_page
+        return jsonify({
+            "folder": folder,
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "pages": pages,
+            "captures": captures[start:start + per_page],
+        })
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
     except FileNotFoundError as error:
@@ -192,6 +217,19 @@ def download_timelapse_capture():
             request.args.get("folder", ""), request.args.get("path", "")
         )
         return send_file(path, as_attachment=True, download_name=path.name)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except FileNotFoundError as error:
+        return jsonify({"error": str(error)}), 404
+
+
+@timelapse_bp.route("/capture/preview", methods=["GET"])
+def preview_timelapse_capture():
+    try:
+        path = get_timelapse_service().capture_path(
+            request.args.get("folder", ""), request.args.get("path", "")
+        )
+        return send_file(path, as_attachment=False, conditional=True, max_age=3600)
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
     except FileNotFoundError as error:

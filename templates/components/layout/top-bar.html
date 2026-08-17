@@ -5,6 +5,70 @@
             <span>Iluminación</span>
         </div>
         {% endif %}
+        <details id="operational-status" class="operational-status">
+            <summary aria-label="Abrir estado operativo">
+                <span id="operational-status-indicator" class="operational-status-dot state-pending" aria-hidden="true"></span>
+                <span id="operational-status-label">Consultando</span>
+                <span class="operational-status-chevron" aria-hidden="true">⌄</span>
+            </summary>
+            <div class="operational-status-panel">
+                <div class="operational-status-heading">
+                    <div>
+                        <h2>Estado operativo</h2>
+                        <p>Diagnóstico local de esta instancia</p>
+                    </div>
+                    <button id="home-refresh-status-btn" class="home-action-btn"
+                            data-action="refresh-dashboard-status" type="button">
+                        <span class="btn-spinner hidden" aria-hidden="true"></span>
+                        <span>Actualizar</span>
+                    </button>
+                </div>
+
+                <div class="home-identity-grid" aria-label="Identidad del backend">
+                    <div><span>Perfil</span><strong id="home-profile-name">{{ camera_control.name }}</strong></div>
+                    <div><span>Instancia</span><strong id="home-instance-name">{{ camera_control.instance }}</strong></div>
+                    <div><span>API</span><strong id="home-api-version">--</strong></div>
+                </div>
+
+                <div class="home-health-grid">
+                    <article id="home-system-health" class="home-health-card state-pending">
+                        <span class="home-health-dot" aria-hidden="true"></span>
+                        <div><strong>Raspberry Pi</strong><small id="home-system-health-detail">Consultando…</small></div>
+                    </article>
+                    {% if camera_control.features.camera %}
+                    <article id="home-camera-health" class="home-health-card state-pending">
+                        <span class="home-health-dot" aria-hidden="true"></span>
+                        <div><strong>Cámara</strong><small id="home-camera-health-detail">Consultando…</small></div>
+                    </article>
+                    {% else %}
+                    <article class="home-health-card state-disabled">
+                        <span class="home-health-dot" aria-hidden="true"></span>
+                        <div><strong>Cámara</strong><small>Deshabilitada por perfil</small></div>
+                    </article>
+                    {% endif %}
+                    {% if camera_control.features.esp32 %}
+                    <article id="home-esp32-health" class="home-health-card state-pending">
+                        <span class="home-health-dot" aria-hidden="true"></span>
+                        <div><strong>ESP32</strong><small id="home-esp32-health-detail">Consultando…</small></div>
+                    </article>
+                    {% else %}
+                    <article class="home-health-card state-disabled">
+                        <span class="home-health-dot" aria-hidden="true"></span>
+                        <div><strong>ESP32</strong><small>Deshabilitado por perfil</small></div>
+                    </article>
+                    {% endif %}
+                </div>
+
+                <div class="home-feature-list" aria-label="Módulos configurados">
+                    {% for feature_name, enabled in camera_control.features.items() %}
+                    <span class="home-feature-chip {{ 'enabled' if enabled else 'disabled' }}">
+                        {{ feature_name | replace('_', ' ') }}
+                    </span>
+                    {% endfor %}
+                </div>
+                <p id="home-status-updated" class="home-status-updated" aria-live="polite">Sin actualizar</p>
+            </div>
+        </details>
         <div class="raspberry-status" aria-label="Estado de Raspberry Pi">
             <span class="raspberry-status-item" title="Temperatura del procesador">
                 Temp <strong id="pi-temperature">--</strong>

@@ -1043,6 +1043,24 @@
         }
       }
     },
+    "/api/timelapse/capture/preview": {
+      "get": {
+        "operationId": "timelapse.preview_timelapse_capture",
+        "tags": [
+          "timelapse"
+        ],
+        "x-cameracontrol-feature": "timelapse",
+        "x-flask-endpoint": "timelapse.preview_timelapse_capture",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/timelapse/captures/download": {
       "post": {
         "operationId": "timelapse.download_selected_captures",
@@ -2066,6 +2084,15 @@
           "folder": {
             "type": "string"
           },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "per_page": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
           "captures": {
             "type": "array",
             "items": {
@@ -2075,13 +2102,20 @@
           },
           "total": {
             "type": "integer"
+          },
+          "pages": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "additionalProperties": false,
         "required": [
           "folder",
+          "page",
+          "per_page",
           "captures",
-          "total"
+          "total",
+          "pages"
         ]
       },
       "FolderList": {
@@ -2239,4 +2273,3 @@
     }
   }
 }
-

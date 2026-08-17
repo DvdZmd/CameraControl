@@ -319,6 +319,15 @@ class TimelapseRoutesTests(unittest.TestCase):
         captures = captures_response.get_json()["captures"]
         self.assertEqual(len(captures), 2)
 
+        preview = self.client.get(
+            "/api/timelapse/capture/preview",
+            query_string={"folder": "prueba-01", "path": captures[0]["path"]},
+        )
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(preview.mimetype, "image/jpeg")
+        self.assertNotIn("attachment", preview.headers.get("Content-Disposition", ""))
+        preview.close()
+
         single = self.client.get(
             "/api/timelapse/capture/download",
             query_string={"folder": "prueba-01", "path": captures[0]["path"]},
@@ -335,6 +344,28 @@ class TimelapseRoutesTests(unittest.TestCase):
         with zipfile.ZipFile(BytesIO(archive.data)) as downloaded:
             self.assertEqual(len(downloaded.namelist()), 2)
         archive.close()
+
+    def test_paginates_captures(self):
+        folder = self.service.folder_path("many", create=True)
+        for index in range(25):
+            (folder / f"shot_{index:02d}.jpg").write_bytes(b"jpeg")
+
+        first = self.client.get(
+            "/api/timelapse/captures?folder=many&page=1&per_page=20"
+        ).get_json()
+        second = self.client.get(
+            "/api/timelapse/captures?folder=many&page=2&per_page=20"
+        ).get_json()
+
+        self.assertEqual(first["total"], 25)
+        self.assertEqual(first["pages"], 2)
+        self.assertEqual(len(first["captures"]), 20)
+        self.assertEqual(len(second["captures"]), 5)
+
+        invalid = self.client.get(
+            "/api/timelapse/captures?folder=many&page=0"
+        )
+        self.assertEqual(invalid.status_code, 400)
 
     def test_rejects_folder_and_capture_path_traversal(self):
         response = self.client.put("/api/timelapse/config", json={

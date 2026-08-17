@@ -59,6 +59,12 @@ Los scripts son clásicos y se cargan en un orden explícito. Esta organización
 mantiene los contratos actuales basados en IDs y atributos `data-*`, a la vez
 que delimita los futuros componentes para la migración a Vue.js.
 
+La barra superior incluye un indicador de estado operativo desplegable,
+implementado por `static/js/components/home.js`. Reutiliza las consultas de
+cámara, ESP32 y salud de Raspberry, descubre perfil/instancia mediante
+`/api/system/capabilities` y ofrece una actualización manual. No consulta Tuya
+Cloud ni crea intervalos de polling adicionales.
+
 ### `app.py`
 
 Punto de entrada mínimo.

@@ -47,6 +47,7 @@ API_OPERATIONS = (
     ("GET", "/api/timelapse/captures", "timelapse.timelapse_captures", "timelapse", None, "CaptureList"),
     ("GET", "/api/timelapse/folders/{folder_name}/download", "timelapse.download_timelapse_folder", "timelapse", None, None),
     ("GET", "/api/timelapse/capture/download", "timelapse.download_timelapse_capture", "timelapse", None, None),
+    ("GET", "/api/timelapse/capture/preview", "timelapse.preview_timelapse_capture", "timelapse", None, None),
     ("POST", "/api/timelapse/captures/download", "timelapse.download_selected_captures", "timelapse", "CaptureSelectionRequest", None),
     ("DELETE", "/api/timelapse/captures", "timelapse.delete_timelapse_captures", "timelapse", "CaptureSelectionRequest", "DeleteResult"),
     ("DELETE", "/api/timelapse/folders/{folder_name}", "timelapse.delete_timelapse_folder", "timelapse", None, "DeleteResult"),
@@ -272,10 +273,13 @@ SCHEMAS = {
     "CaptureList": _object(
         {
             "folder": {"type": "string"},
+            "page": {"type": "integer", "minimum": 1},
+            "per_page": {"type": "integer", "minimum": 1, "maximum": 100},
             "captures": {"type": "array", "items": {"type": "object", "additionalProperties": True}},
             "total": {"type": "integer"},
+            "pages": {"type": "integer", "minimum": 0},
         },
-        required=("folder", "captures", "total"),
+        required=("folder", "page", "per_page", "captures", "total", "pages"),
     ),
     "FolderList": _object(
         {"folders": {"type": "array", "items": {}}, "selected": {"type": "string"}},

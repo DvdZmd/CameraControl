@@ -22,6 +22,7 @@ function setupEventListeners() {
 
         switch (action) {
             case 'toggle-controls': toggleControlPanel(); break;
+            case 'refresh-dashboard-status': refreshOperationalDashboard(); break;
             case 'toggle-camera-stream': toggleCameraStream(); break;
             case 'toggle-esp32-light': toggleEsp32Light(); break;
             case 'apply-custom-resolution': applyCustomResolution(); break;
@@ -258,7 +259,8 @@ async function initializeDashboard() {
     setupEventListeners();
     setupPanelResize();
     restoreControlPanelState();
-    const cameraStatus = await initCameraSpecs();
+    await refreshHomeCapabilities();
+    const cameraStatus = features.camera ? await initCameraSpecs() : null;
     if (cameraStatus) {
         hydrateCameraControls(cameraStatus);
         await checkCameraCapabilities();
@@ -269,6 +271,7 @@ async function initializeDashboard() {
     }
     if (features.esp32) await refreshEsp32Status();
     await refreshRaspberryStatus();
+    markHomeStatusUpdated();
     setTimeout(refreshRaspberryStatus, 500);
     if (features.tuya) await refreshTuyaStatus();
     if (features.timelapse) {

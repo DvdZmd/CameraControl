@@ -197,6 +197,11 @@ conserva los paths históricos. No existe migración automática. Consultar
 
 La interfaz queda disponible en `http://<ip-de-la-pi>:5000`.
 
+El indicador `Estado operativo` de la barra superior despliega perfil,
+instancia, versión de API y estado de Raspberry Pi, cámara y ESP32. El botón
+`Actualizar` ejecuta sólo consultas locales; no consulta Tuya Cloud
+automáticamente.
+
 ## API actual
 
 El inventario contractual completo —49 reglas, features requeridas, formatos,

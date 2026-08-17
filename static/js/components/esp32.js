@@ -15,6 +15,7 @@ function renderRaspberryStatus(data) {
     const powerStatus = document.getElementById('pi-power-status');
     const powerValue = document.getElementById('pi-power-value');
     renderStorageStatus(data.storage);
+    if (typeof renderHomeSystemHealth === 'function') renderHomeSystemHealth(data);
     if (temperature) {
         temperature.textContent = Number.isFinite(data.cpu_temperature_c)
             ? `${data.cpu_temperature_c.toFixed(1)} °C`
@@ -257,6 +258,7 @@ async function refreshEsp32Status() {
         const homeConnectionLabel = document.getElementById('home-esp32-connection-label');
 
         esp32Connected = Boolean(data.connected);
+        if (typeof renderHomeEsp32Health === 'function') renderHomeEsp32Health(data);
 
         if (badge) {
             badge.textContent = esp32Connected ? 'Conectado' : 'Desconectado';
@@ -356,6 +358,7 @@ async function refreshEsp32Status() {
 
     } catch (error) {
         console.error('Error obteniendo estado ESP32:', error);
+        if (typeof renderHomeEsp32Health === 'function') renderHomeEsp32Health(null, error);
     }
 }
 
