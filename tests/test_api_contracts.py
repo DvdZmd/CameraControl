@@ -32,6 +32,7 @@ ALL_BLUEPRINTS = (
 # Snapshot intencional del contrato HTTP existente. Un cambio en esta tabla debe
 # tratarse como un cambio de API y revisarse junto con sus consumidores.
 EXPECTED_API_RULES = {
+    ("admin.enable_bluetooth", "/api/admin/bluetooth/enable", ("POST",)),
     ("admin.trigger_reboot", "/api/admin/reboot", ("POST",)),
     ("admin.system_status", "/api/admin/system-status", ("GET",)),
     ("admin.trigger_update", "/api/admin/update", ("POST",)),

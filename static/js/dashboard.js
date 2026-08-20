@@ -82,6 +82,7 @@ function setupEventListeners() {
                 break;
             }
             case 'esp32-connect': connectEsp32(); break;
+            case 'bluetooth-enable': enableBluetooth(); break;
             case 'esp32-disconnect': disconnectEsp32(); break;
             case 'esp32-toggle-connection': toggleEsp32Connection(); break;
             case 'esp32-center': sendEsp32Center(); break;

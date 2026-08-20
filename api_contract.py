@@ -12,6 +12,7 @@ import json
 API_OPERATIONS = (
     ("GET", "/api/system/capabilities", "system.capabilities", "common", None, "Capabilities"),
     ("GET", "/api/admin/system-status", "admin.system_status", "common", None, "SystemStatus"),
+    ("POST", "/api/admin/bluetooth/enable", "admin.enable_bluetooth", "common", "ConfirmationRequest", "StatusMessage"),
     ("POST", "/api/admin/update", "admin.trigger_update", "common", None, "StatusMessage"),
     ("POST", "/api/admin/reboot", "admin.trigger_reboot", "common", "ConfirmationRequest", "StatusMessage"),
     ("GET", "/api/camera/", "camera_controller.index", "camera", None, None),

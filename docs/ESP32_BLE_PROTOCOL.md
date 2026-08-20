@@ -213,6 +213,13 @@ Endpoints específicos del dashboard:
 - `POST /api/esp32/position/return`: valida la posición persistida y envía
   `SET_ABS:<pan>,<tilt>`.
 
+La administración local también expone `POST /api/admin/bluetooth/enable`, con
+payload `{"confirm": true}`. El endpoint actúa sobre el adaptador de la
+Raspberry Pi: ejecuta `rfkill unblock bluetooth`, habilita/inicia
+`bluetooth.service` y enciende el controlador con `bluetoothctl`. No modifica
+el firmware del ESP32. Si CameraControl no corre como root, la cuenta del
+servicio debe poder ejecutar `rfkill` y `systemctl` mediante `sudo -n`.
+
 El botón `Parar` no forma parte del dashboard actual. Aunque el firmware acepta
 `STOP` para limpiar órdenes pendientes, no hay movimiento continuo que requiera
 un botón dedicado de parada.

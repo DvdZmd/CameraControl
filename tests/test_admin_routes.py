@@ -21,6 +21,30 @@ class AdminRoutesTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.get_json()["status"], "error")
 
+    def test_enable_bluetooth_requires_confirmation(self):
+        response = self.client.post("/api/admin/bluetooth/enable", json={})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["status"], "error")
+
+    @patch("routes.admin_routes._enable_bluetooth_adapter", return_value={
+        "enabled": True, "powered": True,
+    })
+    def test_enable_bluetooth_runs_system_operation(self, enable_adapter):
+        response = self.client.post(
+            "/api/admin/bluetooth/enable", json={"confirm": True},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["status"], "enabled")
+        enable_adapter.assert_called_once_with()
+
+    @patch("routes.admin_routes._enable_bluetooth_adapter", side_effect=RuntimeError("sin permisos"))
+    def test_enable_bluetooth_reports_controlled_error(self, _enable_adapter):
+        response = self.client.post(
+            "/api/admin/bluetooth/enable", json={"confirm": True},
+        )
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.get_json()["message"], "sin permisos")
+
     @patch("routes.admin_routes._throttled_flags", return_value={
         "raw": "0x1",
         "undervoltage_now": True,

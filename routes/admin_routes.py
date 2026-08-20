@@ -28,6 +28,53 @@ _cpu_sample_lock = threading.Lock()
 _previous_cpu_sample = None
 
 
+def _privileged_command(*args):
+    """Build a non-interactive privileged command for local administration."""
+    command = list(args)
+    if os.geteuid() != 0:
+        sudo = shutil.which("sudo")
+        if sudo is None:
+            raise RuntimeError("Se requieren permisos de administrador y sudo no está instalado")
+        command = [sudo, "-n", *command]
+    return command
+
+
+def _enable_bluetooth_adapter():
+    """Unblock Bluetooth, start its service and power the default controller."""
+    rfkill = shutil.which("rfkill")
+    systemctl = shutil.which("systemctl")
+    bluetoothctl = shutil.which("bluetoothctl")
+    if not rfkill or not systemctl or not bluetoothctl:
+        missing = [
+            name for name, path in (
+                ("rfkill", rfkill),
+                ("systemctl", systemctl),
+                ("bluetoothctl", bluetoothctl),
+            ) if not path
+        ]
+        raise RuntimeError(f"Faltan herramientas del sistema: {', '.join(missing)}")
+
+    commands = (
+        _privileged_command(rfkill, "unblock", "bluetooth"),
+        _privileged_command(systemctl, "enable", "--now", "bluetooth.service"),
+        [bluetoothctl, "power", "on"],
+    )
+    for command in commands:
+        try:
+            subprocess.run(
+                command, capture_output=True, check=True, text=True, timeout=10,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError("Timeout activando Bluetooth") from exc
+        except subprocess.CalledProcessError as exc:
+            detail = (exc.stderr or exc.stdout or "").strip()
+            if command[0].endswith("sudo") and exc.returncode == 1:
+                detail = "sudo requiere autorización no interactiva para rfkill/systemctl"
+            raise RuntimeError(detail or "El sistema rechazó la activación de Bluetooth") from exc
+
+    return {"enabled": True, "powered": True}
+
+
 def _read_cpu_sample():
     line = CPU_STAT_PATH.read_text(encoding="ascii").splitlines()[0]
     fields = line.split()
@@ -230,6 +277,29 @@ def trigger_update():
     return jsonify({
         "status": "updating",
         "message": "Script de actualización disparado correctamente.",
+    })
+
+
+@admin_bp.route("/bluetooth/enable", methods=["POST"])
+def enable_bluetooth():
+    """Enable and power the Raspberry Pi Bluetooth adapter on demand."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or data.get("confirm") is not True:
+        return jsonify({
+            "status": "error",
+            "message": "Confirmación requerida para activar Bluetooth.",
+        }), 400
+
+    try:
+        adapter = _enable_bluetooth_adapter()
+    except RuntimeError as exc:
+        logger.warning("No se pudo activar Bluetooth: %s", exc)
+        return jsonify({"status": "error", "message": str(exc)}), 503
+
+    return jsonify({
+        "status": "enabled",
+        "message": "Bluetooth activado correctamente.",
+        "adapter": adapter,
     })
 
 

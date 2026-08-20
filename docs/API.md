@@ -68,11 +68,12 @@ no disponibilidad física instantánea.
 |---|---|---|---|
 | `GET` | `/api/system/capabilities` | JSON de versión, perfil, instancia y features | Sin acceso a hardware |
 | `GET` | `/api/admin/system-status` | JSON de CPU, temperatura, alimentación y disco | Lee información local del sistema |
+| `POST` | `/api/admin/bluetooth/enable` | JSON `status`/`message`; exige `{"confirm": true}` | Desbloquea, habilita y enciende Bluetooth local |
 | `POST` | `/api/admin/update` | JSON `status`/`message` | Inicia `update.sh` en segundo plano |
 | `POST` | `/api/admin/reboot` | JSON `status`/`message`; exige `{"confirm": true}` | Ordena reinicio del sistema |
 
-Administración y sistema se registran en todos los perfiles. `update` y
-`reboot` tienen efectos operativos y no son consultas idempotentes.
+Administración y sistema se registran en todos los perfiles. `bluetooth/enable`,
+`update` y `reboot` tienen efectos operativos y no son consultas idempotentes.
 
 ### Cámara — feature `camera`
 

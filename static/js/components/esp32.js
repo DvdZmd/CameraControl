@@ -380,6 +380,33 @@ async function connectEsp32() {
     }
 }
 
+async function enableBluetooth() {
+    const button = document.getElementById('bluetooth-enable-btn');
+    const label = document.getElementById('bluetooth-enable-label');
+    const spinner = button ? button.querySelector('.btn-spinner') : null;
+    if (button) button.disabled = true;
+    if (label) label.textContent = 'Activando...';
+    if (spinner) spinner.classList.remove('hidden');
+    showEsp32Feedback('Activando Bluetooth en esta FungiForge...');
+    try {
+        const response = await fetch('/api/admin/bluetooth/enable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ confirm: true })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'No se pudo activar Bluetooth');
+        showEsp32Feedback('Bluetooth activado. Buscando el ESP32...');
+        await connectEsp32();
+    } catch (error) {
+        showEsp32Feedback(error.message || 'No se pudo activar Bluetooth', true);
+    } finally {
+        if (button) button.disabled = false;
+        if (label) label.textContent = 'Activar Bluetooth';
+        if (spinner) spinner.classList.add('hidden');
+    }
+}
+
 async function disconnectEsp32() {
     setEsp32ConnectLoading(true, 'disconnect');
     showEsp32Feedback('Desconectando ESP32...');
