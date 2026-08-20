@@ -261,6 +261,7 @@ SCHEMAS = {
             "light_intensity": {"type": "integer", "minimum": 1, "maximum": 100},
             "light_warmup_seconds": {"type": "integer", "minimum": 0, "maximum": 60},
             "folder_name": {"type": "string"}, "save_sensor_readings": {"type": "boolean"},
+            "capture_overlay_enabled": {"type": "boolean"},
         },
         required=("interval_seconds", "width", "height", "auto_resume"),
     ),

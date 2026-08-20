@@ -20,7 +20,8 @@ function syncTimelapseIntervalMinimum() {
 function setTimelapseControlsDisabled(disabled) {
     ['tl-interval', 'tl-interval-unit', 'tl-w', 'tl-h', 'tl-auto-resume',
         'tl-light-enabled', 'tl-light-intensity', 'tl-folder-name',
-        'tl-light-warmup', 'tl-resolution-preset', 'tl-save-sensor-readings'].forEach(id => {
+        'tl-light-warmup', 'tl-resolution-preset', 'tl-save-sensor-readings',
+        'tl-capture-overlay'].forEach(id => {
         const element = document.getElementById(id);
         if (element) element.disabled = disabled;
     });
@@ -74,6 +75,7 @@ function hydrateTimelapseConfig(data) {
     preset.value = hasPreset ? resolution : 'custom';
     document.getElementById('tl-custom-resolution').style.display = hasPreset ? 'none' : 'flex';
     document.getElementById('tl-auto-resume').checked = Boolean(data.auto_resume);
+    document.getElementById('tl-capture-overlay').checked = Boolean(data.capture_overlay_enabled);
     document.getElementById('tl-save-sensor-readings').checked = Boolean(
         features.sensors && data.save_sensor_readings
     );
@@ -122,6 +124,7 @@ async function saveTimelapseConfig() {
         height: parseInt(document.getElementById('tl-h').value, 10),
         auto_resume: document.getElementById('tl-auto-resume').checked,
         save_sensor_readings: document.getElementById('tl-save-sensor-readings').checked,
+        capture_overlay_enabled: document.getElementById('tl-capture-overlay').checked,
         light_enabled: lightEnabled,
         light_intensity: parseInt(document.getElementById('tl-light-intensity').value, 10),
         light_warmup_seconds: lightWarmupSeconds,

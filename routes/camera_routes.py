@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from database.models import CameraSettings, db
+from camera.capture_overlay import add_capture_overlay
 from rpicam_z.rpicam_z import CAMERA_IMPORT_ERROR, UnavailableCamera, rpicam_z
 import time
 import io
@@ -36,6 +37,11 @@ SETTINGS_FIELDS = {
 
 
 def _photo_download_name():
+    captured_at = _local_now()
+    return f"{captured_at.strftime('%Y_%m_%d_%H-%M-%S')}.jpg"
+
+
+def _local_now():
     timezone_name = current_app.config.get(
         "APP_TIMEZONE", "America/Argentina/Buenos_Aires"
     )
@@ -43,7 +49,7 @@ def _photo_download_name():
         captured_at = datetime.now(ZoneInfo(timezone_name))
     except ZoneInfoNotFoundError:
         captured_at = datetime.now().astimezone()
-    return f"{captured_at.strftime('%Y_%m_%d_%H-%M-%S')}.jpg"
+    return captured_at
 
 camera_bp = Blueprint(
     'camera_controller', 
@@ -521,6 +527,12 @@ def take_photo_custom():
     except RuntimeError as error:
         return _camera_unavailable_response(error)
     
+    if request.args.get('overlay', 'false').lower() == 'true':
+        controller = current_app.config.get("BLE_CAMERA_CONTROLLER")
+        image_binary = add_capture_overlay(
+            image_binary, _local_now(), getattr(controller, "last_state", None)
+        )
+
     return send_file(
         io.BytesIO(image_binary),
         mimetype='image/jpeg',

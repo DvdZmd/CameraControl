@@ -85,7 +85,7 @@ Administración y sistema se registran en todos los perfiles. `bluetooth/enable`
 | `GET` | `/api/camera/video_feed_sync` | `multipart/x-mixed-replace` MJPEG sincronizado | Requiere streaming habilitado |
 | `POST` | `/api/camera/stream/start` | JSON con `stream_enabled` | Habilita entrega de stream |
 | `POST` | `/api/camera/stream/stop` | JSON con `stream_enabled` | Detiene entrega sin cerrar la cámara |
-| `GET` | `/api/camera/take_photo_custom?w=…&h=…` | JPEG adjunto | Captura en resolución solicitada |
+| `GET` | `/api/camera/take_photo_custom?w=…&h=…&overlay=true\|false` | JPEG adjunto | Captura en resolución solicitada; el rótulo es opcional |
 | `POST` | `/api/camera/update_settings` | JSON `status`/`message` | Objeto con controles soportados |
 | `POST` | `/api/camera/apply_preset` | JSON `status`/`message` | Aplica preset persistido |
 | `POST` | `/api/camera/reset` | JSON `status`/`message` | Restablece el recurso de cámara |
@@ -138,7 +138,7 @@ interpretan usando `APP_TIMEZONE`.
 | Método | Ruta | Resultado principal | Entrada o efecto |
 |---|---|---|---|
 | `GET` | `/api/timelapse/status` | JSON de estado y configuración | Consulta servicio local |
-| `PUT` | `/api/timelapse/config` | JSON de estado o `error` | Configura intervalo, captura, luz y sensores |
+| `PUT` | `/api/timelapse/config` | JSON de estado o `error` | Configura intervalo, captura, luz, sensores y `capture_overlay_enabled` |
 | `POST` | `/api/timelapse/start` | JSON de estado o `error` | Inicia capturas |
 | `POST` | `/api/timelapse/stop` | JSON de estado o `error` | Detiene capturas |
 | `GET` | `/api/timelapse/folders` | JSON `folders`/`selected` | Lista almacenamiento local |
@@ -148,6 +148,10 @@ interpretan usando `APP_TIMEZONE`.
 | `DELETE` | `/api/timelapse/captures` | JSON `ok`/`deleted`/`folder` | Borra selección explícita, incluso del timelapse activo |
 | `GET` | `/api/timelapse/folders/<folder_name>/download` | ZIP adjunto | Descarga carpeta |
 | `DELETE` | `/api/timelapse/folders/<folder_name>` | JSON `ok`/`deleted_folder`/`timelapse_resumed` | Borra carpeta validada; si está activa, pausa y reanuda el timelapse sobre una carpeta vacía |
+
+Con `capture_overlay_enabled=true`, cada JPEG guardado incluye fecha/hora local
+(`DD/MM/AAAA HH:MM:SS`) y la última telemetría BLE cacheada. Los sensores sin
+dato se muestran como `--`; esta función no provoca lecturas BLE adicionales.
 
 ### Tuya — feature `tuya`
 

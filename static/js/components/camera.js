@@ -330,7 +330,8 @@ async function captureCustomPhoto() {
     
     try {
         // Construimos la URL con los parámetros custom
-        const response = await fetch(cameraApiUrl(`/take_photo_custom?w=${w}&h=${h}`));
+        const overlay = document.getElementById('manual-capture-overlay')?.checked === true;
+        const response = await fetch(cameraApiUrl(`/take_photo_custom?w=${w}&h=${h}&overlay=${overlay}`));
         if (!response.ok) throw new Error("Error en la captura");
 
         const blob = await response.blob();
@@ -402,6 +403,10 @@ function captureVisibleFrame() {
         context.translate(canvas.width / 2, canvas.height / 2);
         context.rotate(rotation * Math.PI / 180);
         context.drawImage(video, -video.naturalWidth / 2, -video.naturalHeight / 2);
+        context.setTransform(1, 0, 0, 1, 0, 0);
+        if (document.getElementById('manual-capture-overlay')?.checked === true) {
+            drawManualCaptureOverlay(context, canvas, new Date());
+        }
     } catch (error) {
         console.error('Error capturando el frame visible:', error);
         showHomeCaptureFeedback('No se pudo leer el frame actual del stream.', true);
@@ -438,6 +443,31 @@ function captureVisibleFrame() {
         showHomeCaptureFeedback('Frame capturado.');
         if (button) button.disabled = false;
     }, 'image/jpeg', 0.95);
+}
+
+function drawManualCaptureOverlay(context, canvas, capturedAt) {
+    const value = id => document.getElementById(id)?.textContent?.trim() || '--';
+    const pad = number => String(number).padStart(2, '0');
+    const lines = [
+        `${pad(capturedAt.getDate())}/${pad(capturedAt.getMonth() + 1)}/${capturedAt.getFullYear()} ${pad(capturedAt.getHours())}:${pad(capturedAt.getMinutes())}:${pad(capturedAt.getSeconds())}`,
+        `Temp Ambiente: ${value('home-sensor-dht-temp')}   Humedad Ambiente: ${value('home-sensor-dht-humidity')}`,
+        `Temp Cultivo: ${value('home-sensor-ds-temp')}   Humedad Cultivo: ${value('home-sensor-soil-percent')}`
+    ];
+    const fontSize = Math.max(8, Math.min(30, Math.round(canvas.width * 0.012)));
+    const padding = Math.max(8, Math.round(fontSize / 2));
+    const spacing = Math.max(3, Math.round(fontSize / 4));
+    const lineHeight = Math.round(fontSize * 1.25);
+    context.font = `${fontSize}px sans-serif`;
+    const width = Math.max(...lines.map(line => context.measureText(line).width));
+    const height = lines.length * lineHeight + (lines.length - 1) * spacing;
+    const top = canvas.height - height - padding * 2;
+    context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    context.fillRect(padding, top, width + padding * 2, height + padding);
+    context.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    context.textBaseline = 'top';
+    lines.forEach((line, index) => {
+        context.fillText(line, padding * 2, top + padding + index * (lineHeight + spacing));
+    });
 }
 
 

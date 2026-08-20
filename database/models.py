@@ -85,6 +85,7 @@ class TimelapseConfig(db.Model):
     light_warmup_seconds = db.Column(db.Integer, nullable=False, default=3)
     folder_name = db.Column(db.String(120), nullable=False, default="default")
     save_sensor_readings = db.Column(db.Boolean, nullable=False, default=True)
+    capture_overlay_enabled = db.Column(db.Boolean, nullable=False, default=False)
 
 
 class TimelapseFolder(db.Model):

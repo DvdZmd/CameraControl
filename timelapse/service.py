@@ -16,6 +16,7 @@ from database.models import (
     db,
 )
 from logs.sensor_logger import reading_from_ble_state
+from camera.capture_overlay import add_capture_overlay
 
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,7 @@ class TimelapseService:
                 "light_warmup_seconds": "ALTER TABLE timelapse_config ADD COLUMN light_warmup_seconds INTEGER NOT NULL DEFAULT 3",
                 "folder_name": "ALTER TABLE timelapse_config ADD COLUMN folder_name VARCHAR(120) NOT NULL DEFAULT 'default'",
                 "save_sensor_readings": "ALTER TABLE timelapse_config ADD COLUMN save_sensor_readings BOOLEAN NOT NULL DEFAULT 1",
+                "capture_overlay_enabled": "ALTER TABLE timelapse_config ADD COLUMN capture_overlay_enabled BOOLEAN NOT NULL DEFAULT 0",
             }
             added_interval_seconds = "interval_seconds" not in columns
             for column, statement in migrations.items():
@@ -339,6 +341,7 @@ class TimelapseService:
         light_warmup_seconds=DEFAULT_LIGHT_WARMUP_SECONDS,
         folder_name=DEFAULT_FOLDER_NAME,
         save_sensor_readings=True,
+        capture_overlay_enabled=False,
     ):
         if light_enabled and not self._feature_enabled("lighting"):
             raise ValueError("La iluminación está deshabilitada en el perfil activo")
@@ -364,6 +367,7 @@ class TimelapseService:
         config.light_intensity = light_intensity
         config.light_warmup_seconds = light_warmup_seconds
         config.save_sensor_readings = save_sensor_readings
+        config.capture_overlay_enabled = capture_overlay_enabled
         config.folder_name = self.validate_folder_name(folder_name)
         config.save_path = str(self.folder_path(config.folder_name, create=True))
         config.updated_at = _utc_now()
@@ -497,6 +501,7 @@ class TimelapseService:
             "light_intensity": config.light_intensity,
             "light_warmup_seconds": config.light_warmup_seconds,
             "save_sensor_readings": bool(config.save_sensor_readings),
+            "capture_overlay_enabled": bool(config.capture_overlay_enabled),
             "folder_name": config.folder_name or DEFAULT_FOLDER_NAME,
             "root_path": str(self.root_path),
             "save_path": config.save_path,
@@ -668,13 +673,24 @@ class TimelapseService:
                             directory = parent
                     capture_path = str(destination)
                     metadata["path"] = capture_path
+            state = getattr(self.ble_controller, "last_state", None)
+            if config.capture_overlay_enabled and capture_path:
+                path = Path(capture_path)
+                local_captured_at = _local_capture_datetime(captured_at, timezone_name)
+                try:
+                    path.write_bytes(add_capture_overlay(
+                        path.read_bytes(), local_captured_at, state
+                    ))
+                except Exception:
+                    # La captura original ya está completa: un fallo cosmético
+                    # no debe perderla ni detener el timelapse.
+                    logger.exception("No se pudo escribir información sobre %s", path)
             config.capture_count = (config.capture_count or 0) + 1
             config.last_capture_at = captured_at
             config.last_capture_path = capture_path
             config.last_error = None
             config.updated_at = _utc_now()
 
-            state = getattr(self.ble_controller, "last_state", None)
             reading = (
                 reading_from_ble_state(state)
                 if config.save_sensor_readings and self._feature_enabled("sensors")

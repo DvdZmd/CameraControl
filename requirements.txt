@@ -1,5 +1,6 @@
 # Core camera and image processing
 picamera2                # Raspberry Pi camera library for capturing images and video
+Pillow                   # Texto discreto sobre capturas manuales y timelapse
 RpiCamZ @ git+https://github.com/DvdZmd/rpicam-z.git@main
 
 # Flask for web server or REST API

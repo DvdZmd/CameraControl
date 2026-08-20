@@ -2080,6 +2080,9 @@
           },
           "save_sensor_readings": {
             "type": "boolean"
+          },
+          "capture_overlay_enabled": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false,

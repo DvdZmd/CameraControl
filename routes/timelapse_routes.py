@@ -57,6 +57,7 @@ def update_timelapse_config():
             "light_enabled", "light_intensity", "folder_name",
             "light_warmup_seconds",
             "save_sensor_readings",
+            "capture_overlay_enabled",
         }
         unknown = sorted(set(data) - allowed)
         if unknown:
@@ -98,6 +99,9 @@ def update_timelapse_config():
         save_sensor_readings = data.get("save_sensor_readings", True)
         if not isinstance(save_sensor_readings, bool):
             raise ValueError("save_sensor_readings debe ser booleano")
+        capture_overlay_enabled = data.get("capture_overlay_enabled", False)
+        if not isinstance(capture_overlay_enabled, bool):
+            raise ValueError("capture_overlay_enabled debe ser booleano")
         status = get_timelapse_service().configure(
             interval_seconds=interval,
             width=width,
@@ -108,6 +112,7 @@ def update_timelapse_config():
             light_warmup_seconds=light_warmup_seconds,
             folder_name=folder_name,
             save_sensor_readings=save_sensor_readings,
+            capture_overlay_enabled=capture_overlay_enabled,
         )
         return jsonify(status)
     except ValueError as error:
