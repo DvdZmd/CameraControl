@@ -28,6 +28,7 @@ CAPTURE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 FOLDER_MARKER = ".cameracontrol-timelapse"
 DEFAULT_LIGHT_WARMUP_SECONDS = 3
 MAX_LIGHT_WARMUP_SECONDS = 60
+TIMELAPSE_CONVERGENCE_TIMEOUT_SECONDS = 2.0
 
 
 def _utc_now():
@@ -415,6 +416,7 @@ class TimelapseService:
 
         try:
             if self._supports_native_callbacks(camera):
+                stability_options = self._native_capture_stability_options(camera)
                 started = camera.start_timelapse(
                     config.interval_seconds,
                     config.width,
@@ -423,7 +425,18 @@ class TimelapseService:
                     on_error=self._on_error,
                     on_complete=self._on_complete,
                     on_before_capture=self._on_before_capture,
+                    **stability_options,
                 )
+                if stability_options:
+                    logger.info(
+                        "Estabilidad fotométrica de timelapse solicitada a rpicam-z: %s",
+                        stability_options,
+                    )
+                else:
+                    logger.warning(
+                        "La versión instalada de rpicam-z no soporta estabilización "
+                        "y bloqueo de AE/AWB para timelapse"
+                    )
             else:
                 started = self._start_compat_timelapse(camera, config)
         except Exception as error:
@@ -551,6 +564,28 @@ class TimelapseService:
         }
         return required_callbacks.issubset(parameters)
 
+    @staticmethod
+    def _native_capture_stability_options(camera):
+        """Return only stability options supported by the installed rpicam-z.
+
+        The first calibration happens inside rpicam-z after on_before_capture,
+        so a timelapse-controlled light is already at its capture intensity.
+        Older releases keep working without receiving unknown keyword arguments.
+        """
+        try:
+            parameters = inspect.signature(camera.start_timelapse).parameters
+        except (TypeError, ValueError):
+            return {}
+        # These options change capture semantics, so **kwargs alone is not an
+        # adequate capability declaration. rpicam-z must expose them by name.
+        supported = set(parameters)
+        requested = {
+            "stabilize_controls": True,
+            "lock_auto_controls": True,
+            "convergence_timeout_seconds": TIMELAPSE_CONVERGENCE_TIMEOUT_SECONDS,
+        }
+        return {name: value for name, value in requested.items() if name in supported}
+
     def _start_compat_timelapse(self, camera, config):
         if self._compat_thread and self._compat_thread.is_alive():
             return False
@@ -641,6 +676,20 @@ class TimelapseService:
     def _on_capture(self, metadata):
         with self.app.app_context():
             self._restore_manual_light()
+            camera_metadata = metadata.get("camera_metadata")
+            if isinstance(camera_metadata, dict):
+                logger.info(
+                    "Metadatos de cámara de captura timelapse: "
+                    "ExposureTime=%s AnalogueGain=%s DigitalGain=%s "
+                    "ColourGains=%s AeState=%s AwbState=%s controls_locked=%s",
+                    camera_metadata.get("ExposureTime"),
+                    camera_metadata.get("AnalogueGain"),
+                    camera_metadata.get("DigitalGain"),
+                    camera_metadata.get("ColourGains"),
+                    camera_metadata.get("AeState"),
+                    camera_metadata.get("AwbState"),
+                    metadata.get("controls_locked"),
+                )
             config = self.ensure_default_config()
             timezone_name = self.app.config.get(
                 "APP_TIMEZONE", "America/Argentina/Buenos_Aires"

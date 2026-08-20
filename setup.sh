@@ -11,7 +11,7 @@
 #-------------------------------------------
 
 echo "Updating system packages..."
-sudo apt update
+sudo apt git-
 
 # Install required system packages for camera and Python development
 echo "Installing required system dependencies..."

@@ -235,6 +235,32 @@ Al usar exposición manual, puede ser necesario desactivar AE.
 
 No asumir que todos los controles se aplican inmediatamente.
 
+### Estabilidad fotométrica del timelapse
+
+CameraControl solicita a las versiones compatibles de `rpicam-z` que cada
+timelapse estabilice los algoritmos automáticos y bloquee sus resultados. La
+calibración inicial debe ejecutarse después de `on_before_capture`, porque ese
+callback puede encender la luz usada exclusivamente durante las capturas.
+
+El contrato solicitado a `start_timelapse()` es:
+
+- `stabilize_controls=True`: esperar convergencia de AE/AWB después de crear la
+  configuración still y antes de guardar el primer JPEG.
+- `lock_auto_controls=True`: conservar `ExposureTime`, `AnalogueGain` y
+  `ColourGains` de esa convergencia, deshabilitar AE/AWB y reutilizar los mismos
+  valores en las capturas posteriores del timelapse.
+- `convergence_timeout_seconds=2.0`: límite de espera; una cámara que no exponga
+  estados de convergencia debe descartar frames durante ese período sin quedar
+  bloqueada indefinidamente.
+
+El callback `on_capture` puede incluir `camera_metadata` y `controls_locked`.
+CameraControl registra exposición, ganancias, estados AE/AWB y estado del
+bloqueo para diagnóstico, pero no persiste esos datos en SQLite.
+
+La integración detecta la firma de `rpicam-z` en runtime. Una versión anterior
+continúa capturando con el comportamiento histórico y emite un warning; no se
+le envían argumentos que no soporte.
+
 ## Persistencia de configuración
 
 La última configuración aplicada de stream e imagen se persiste en SQLite por

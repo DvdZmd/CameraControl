@@ -81,6 +81,29 @@ class PartialCallbackTimelapseCamera(LegacyTimelapseCamera):
     ):
         raise AssertionError("No debe usarse sin on_before_capture")
 
+
+class StableTimelapseCamera(FakeTimelapseCamera):
+    def start_timelapse(
+        self, interval, width, height, *, on_before_capture=None,
+        on_capture=None, on_error=None, on_complete=None,
+        stabilize_controls=False, lock_auto_controls=False,
+        convergence_timeout_seconds=None,
+    ):
+        self.stability_options = {
+            "stabilize_controls": stabilize_controls,
+            "lock_auto_controls": lock_auto_controls,
+            "convergence_timeout_seconds": convergence_timeout_seconds,
+        }
+        return super().start_timelapse(
+            interval,
+            width,
+            height,
+            on_before_capture=on_before_capture,
+            on_capture=on_capture,
+            on_error=on_error,
+            on_complete=on_complete,
+        )
+
 class TimelapseRoutesTests(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -505,6 +528,43 @@ class TimelapseRoutesTests(unittest.TestCase):
     def test_partial_callback_api_also_uses_compatibility_worker(self):
         camera = PartialCallbackTimelapseCamera()
         self.assertFalse(self.service._supports_native_callbacks(camera))
+
+    def test_requests_supported_ae_awb_stability_options(self):
+        camera = StableTimelapseCamera()
+        self.camera = camera
+
+        response = self.client.post("/api/timelapse/start")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(camera.stability_options, {
+            "stabilize_controls": True,
+            "lock_auto_controls": True,
+            "convergence_timeout_seconds": 2.0,
+        })
+
+    def test_legacy_native_api_does_not_receive_unknown_stability_options(self):
+        class OldNativeCamera(FakeTimelapseCamera):
+            def start_timelapse(
+                self, interval, width, height, *, on_before_capture=None,
+                on_capture=None, on_error=None, on_complete=None,
+            ):
+                return super().start_timelapse(
+                    interval,
+                    width,
+                    height,
+                    on_before_capture=on_before_capture,
+                    on_capture=on_capture,
+                    on_error=on_error,
+                    on_complete=on_complete,
+                )
+
+        camera = OldNativeCamera()
+        self.camera = camera
+
+        response = self.client.post("/api/timelapse/start")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(camera.running)
 
     def test_configuration_cannot_change_while_running(self):
         self.camera.running = True
