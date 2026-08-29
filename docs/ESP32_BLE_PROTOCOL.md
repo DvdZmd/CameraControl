@@ -49,6 +49,7 @@ Comandos históricos o actuales:
 - `STOP`
 - `SET_SPEED:<valor>`
 - `SET_ABS:<pan>,<tilt>`
+- `SET_ABS:<pan>,<tiltA>,<tiltB>`
 - `LIGHT_ON`
 - `LIGHT_OFF`
 - `SET_LIGHT:<0..100>`
@@ -196,6 +197,11 @@ Formato vigente de posición absoluta:
 Ambos valores son pulsos en microsegundos dentro del rango configurado por el
 firmware.
 
+Para `ESP32-PanTiltPro`, que usa dos servos de tilt contrapuestos, la posición
+absoluta usa tres pulsos:
+
+`SET_ABS:<pan>,<tiltA>,<tiltB>`
+
 ## API Flask
 
 Endpoints específicos del dashboard:
@@ -222,10 +228,11 @@ Endpoints específicos del dashboard:
   aplica la intensidad persistida, en lugar de asumir 100% desde el navegador.
 - `POST /api/esp32/speed`: acepta `mode` entre 0 y 4, envía `SET_SPEED` y
   persiste el perfil seleccionado para rehidratar el dashboard.
-- `POST /api/esp32/position/current`: guarda en SQLite la posición `P`/`T`
-  recibida en la última telemetría válida. No mueve los servos.
+- `POST /api/esp32/position/current`: guarda en SQLite la posición `P`/`T` de
+  `FungiESP` o `PAN`/`TILTA`/`TILTB` de `PanTiltPro` recibida en la última
+  telemetría válida. No mueve los servos.
 - `POST /api/esp32/position/return`: valida la posición persistida y envía
-  `SET_ABS:<pan>,<tilt>`.
+  `SET_ABS:<pan>,<tilt>` o `SET_ABS:<pan>,<tiltA>,<tiltB>`.
 
 La administración local también expone `POST /api/admin/bluetooth/enable`, con
 payload `{"confirm": true}`. El endpoint actúa sobre el adaptador de la

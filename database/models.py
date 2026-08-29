@@ -144,6 +144,7 @@ class Esp32Settings(db.Model):
     ble_device_name = db.Column(db.String(64), nullable=True)
     custom_pan_pulse = db.Column(db.Integer, nullable=True)
     custom_tilt_pulse = db.Column(db.Integer, nullable=True)
+    custom_tilt_b_pulse = db.Column(db.Integer, nullable=True)
     speed_mode = db.Column(db.Integer, nullable=True)
     light_on = db.Column(db.Boolean, nullable=False, default=False)
     light_intensity = db.Column(db.Integer, nullable=False, default=100)

@@ -400,12 +400,13 @@ class ApiValidationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(self.ble.commands, [])
 
-    def test_esp32_rejects_three_axis_set_abs(self):
+    def test_esp32_accepts_three_axis_set_abs(self):
         response = self.client.post(
             "/api/esp32/command",
             json={"command": "SET_ABS:1450,1450,1450"},
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.ble.commands, ["SET_ABS:1450,1450,1450"])
 
     def test_esp32_accepts_fungi_absolute_position(self):
         response = self.client.post(
@@ -693,6 +694,39 @@ class ApiValidationTests(unittest.TestCase):
             db.drop_all()
             db.engine.dispose()
 
+    def test_esp32_saves_pantiltpro_current_position_from_telemetry(self):
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        ble = FakeBleController()
+        ble.last_state = {"PAN": "1500", "TILTA": "1550", "TILTB": "1350", "SPEED": "3"}
+        app.config["BLE_CAMERA_CONTROLLER"] = ble
+        app.config["FEATURES"] = {"pan_tilt": True, "lighting": True}
+        db.init_app(app)
+        app.register_blueprint(esp32_bp)
+        app.register_blueprint(pan_tilt_bp)
+
+        with app.app_context():
+            db.create_all()
+
+        client = app.test_client()
+        response = client.post("/api/esp32/position/current")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json()["saved_position"],
+            {"pan": 1500, "tilt": 1550, "tilt_b": 1350},
+        )
+        with app.app_context():
+            saved = db.session.get(Esp32Settings, 1)
+            self.assertEqual(saved.custom_pan_pulse, 1500)
+            self.assertEqual(saved.custom_tilt_pulse, 1550)
+            self.assertEqual(saved.custom_tilt_b_pulse, 1350)
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
+
     def test_esp32_returns_to_saved_position(self):
         app = Flask(__name__)
         app.config["TESTING"] = True
@@ -719,6 +753,38 @@ class ApiValidationTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(ble.commands, ["SET_ABS:1600,1400"])
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
+
+    def test_esp32_returns_to_saved_three_axis_position(self):
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        ble = FakeBleController()
+        app.config["BLE_CAMERA_CONTROLLER"] = ble
+        app.config["FEATURES"] = {"pan_tilt": True, "lighting": True}
+        db.init_app(app)
+        app.register_blueprint(esp32_bp)
+        app.register_blueprint(pan_tilt_bp)
+
+        with app.app_context():
+            db.create_all()
+            db.session.add(Esp32Settings(
+                id=1,
+                custom_pan_pulse=1600,
+                custom_tilt_pulse=1400,
+                custom_tilt_b_pulse=1500,
+            ))
+            db.session.commit()
+
+        client = app.test_client()
+        response = client.post("/api/esp32/position/return")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(ble.commands, ["SET_ABS:1600,1400,1500"])
         with app.app_context():
             db.session.remove()
             db.drop_all()

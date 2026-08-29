@@ -48,7 +48,7 @@ SIMPLE_COMMANDS = {
     "LIGHT_OFF",
 }
 SET_SPEED_PATTERN = re.compile(r"SET_SPEED:([0-4])")
-SET_ABS_PATTERN = re.compile(r"SET_ABS:(\d+),(\d+)")
+SET_ABS_PATTERN = re.compile(r"SET_ABS:(\d+),(\d+)(?:,(\d+))?")
 SET_LIGHT_PATTERN = re.compile(r"SET_LIGHT:(\d{1,3})")
 BLE_DEVICE_NAME_PATTERN = re.compile(r"^[^\x00-\x1f\x7f]{1,64}$")
 SERVO_PULSE_MIN_US = 500
@@ -74,8 +74,8 @@ def _pulse_to_angle_deg(pulse):
     )
 
 
-def _servo_position_payload(pan, tilt):
-    return {
+def _servo_position_payload(pan, tilt, tilt_b=None):
+    payload = {
         "pan": {
             "pulse_us": pan,
             "angle_deg": _pulse_to_angle_deg(pan),
@@ -85,6 +85,12 @@ def _servo_position_payload(pan, tilt):
             "angle_deg": _pulse_to_angle_deg(tilt),
         },
     }
+    if tilt_b is not None:
+        payload["tilt_b"] = {
+            "pulse_us": tilt_b,
+            "angle_deg": _pulse_to_angle_deg(tilt_b),
+        }
+    return payload
 
 
 def _json_object():
@@ -114,10 +120,10 @@ def _validate_command(raw_command):
 
     absolute_match = SET_ABS_PATTERN.fullmatch(command)
     if absolute_match:
-        pan, tilt = (int(value) for value in absolute_match.groups())
-        if all(SERVO_PULSE_MIN_US <= value <= SERVO_PULSE_MAX_US for value in (pan, tilt)):
+        pulses = [int(value) for value in absolute_match.groups() if value is not None]
+        if all(SERVO_PULSE_MIN_US <= value <= SERVO_PULSE_MAX_US for value in pulses):
             return command, None
-        return None, f"pan y tilt deben estar entre {SERVO_PULSE_MIN_US} y {SERVO_PULSE_MAX_US} us"
+        return None, f"los pulsos deben estar entre {SERVO_PULSE_MIN_US} y {SERVO_PULSE_MAX_US} us"
 
     return None, f"Comando no permitido o formato inválido: {command}"
 
@@ -156,6 +162,7 @@ def _saved_position_payload(settings=None):
     return {
         "pan": settings.custom_pan_pulse,
         "tilt": settings.custom_tilt_pulse,
+        **({"tilt_b": settings.custom_tilt_b_pulse} if settings.custom_tilt_b_pulse is not None else {}),
     }
 
 
@@ -163,7 +170,11 @@ def _saved_position_details_payload(settings=None):
     saved_position = _saved_position_payload(settings)
     if saved_position is None:
         return None
-    return _servo_position_payload(saved_position["pan"], saved_position["tilt"])
+    return _servo_position_payload(
+        saved_position["pan"],
+        saved_position["tilt"],
+        saved_position.get("tilt_b"),
+    )
 
 
 def _saved_speed_mode(settings=None):
@@ -271,6 +282,10 @@ def ensure_esp32_settings_schema(logger=None):
                 )
             if "speed_mode" not in columns:
                 connection.exec_driver_sql("ALTER TABLE esp32_settings ADD COLUMN speed_mode INTEGER")
+            if "custom_tilt_b_pulse" not in columns:
+                connection.exec_driver_sql(
+                    "ALTER TABLE esp32_settings ADD COLUMN custom_tilt_b_pulse INTEGER"
+                )
             if "light_on" not in columns:
                 connection.exec_driver_sql(
                     "ALTER TABLE esp32_settings ADD COLUMN light_on BOOLEAN NOT NULL DEFAULT 0"
@@ -297,22 +312,45 @@ def _parse_servo_pulse(value, name):
     return pulse
 
 
+def _position_from_state(last_state):
+    if last_state.get("P") is not None or last_state.get("T") is not None:
+        return {
+            "pan": _parse_servo_pulse(last_state.get("P"), "pan"),
+            "tilt": _parse_servo_pulse(last_state.get("T"), "tilt"),
+            "tilt_b": None,
+        }
+
+    if (
+        last_state.get("PAN") is not None
+        or last_state.get("TILTA") is not None
+        or last_state.get("TILTB") is not None
+    ):
+        return {
+            "pan": _parse_servo_pulse(last_state.get("PAN"), "pan"),
+            "tilt": _parse_servo_pulse(last_state.get("TILTA"), "tiltA"),
+            "tilt_b": _parse_servo_pulse(last_state.get("TILTB"), "tiltB"),
+        }
+
+    raise ValueError("pan no estÃ¡ disponible en la telemetrÃ­a ESP32")
+
+
 def _current_servo_position(controller):
     status = controller.get_status_sync()
     last_state = status.get("last_state") or {}
-    pan = _parse_servo_pulse(last_state.get("P"), "pan")
-    tilt = _parse_servo_pulse(last_state.get("T"), "tilt")
-    return pan, tilt
+    return _position_from_state(last_state)
 
 
 def _current_position_payload_from_status(status):
     last_state = status.get("last_state") or {}
     try:
-        pan = _parse_servo_pulse(last_state.get("P"), "pan")
-        tilt = _parse_servo_pulse(last_state.get("T"), "tilt")
+        position = _position_from_state(last_state)
     except ValueError:
         return None
-    return _servo_position_payload(pan, tilt)
+    return _servo_position_payload(
+        position["pan"],
+        position["tilt"],
+        position.get("tilt_b"),
+    )
 
 
 def _cache_speed_mode(controller, mode):
@@ -562,23 +600,23 @@ def esp32_save_current_position():
     """
     Persist the current ESP32 pan/tilt position from cached telemetry.
 
-    The route does not move the servos. It requires valid ``P`` and ``T`` values
-    in the latest ESP32 notification and stores them as the custom return
-    position.
+    The route does not move the servos. It accepts the FungiESP ``P``/``T``
+    telemetry and the PanTiltPro ``PAN``/``TILTA``/``TILTB`` telemetry.
     """
     controller = get_ble_controller()
     if not _database_ready():
         return jsonify({"ok": False, "error": "Base de datos no disponible"}), 503
 
     try:
-        pan, tilt = _current_servo_position(controller)
+        position = _current_servo_position(controller)
         settings = db.session.get(Esp32Settings, DEFAULT_SETTINGS_ID)
         if settings is None:
             settings = Esp32Settings(id=DEFAULT_SETTINGS_ID)
             db.session.add(settings)
 
-        settings.custom_pan_pulse = pan
-        settings.custom_tilt_pulse = tilt
+        settings.custom_pan_pulse = position["pan"]
+        settings.custom_tilt_pulse = position["tilt"]
+        settings.custom_tilt_b_pulse = position.get("tilt_b")
         db.session.commit()
         return jsonify({
             "ok": True,
@@ -608,16 +646,21 @@ def esp32_return_to_saved_position():
     if saved_position is None:
         return jsonify({"ok": False, "error": "No hay una posición configurada"}), 404
 
-    pan = saved_position["pan"]
-    tilt = saved_position["tilt"]
-    if not all(SERVO_PULSE_MIN_US <= value <= SERVO_PULSE_MAX_US for value in (pan, tilt)):
+    pulses = [saved_position["pan"], saved_position["tilt"]]
+    if saved_position.get("tilt_b") is not None:
+        pulses.append(saved_position["tilt_b"])
+    if not all(SERVO_PULSE_MIN_US <= value <= SERVO_PULSE_MAX_US for value in pulses):
         return jsonify({"ok": False, "error": "La posición guardada es inválida"}), 400
 
     try:
-        command = f"SET_ABS:{pan},{tilt}"
+        command = "SET_ABS:" + ",".join(str(value) for value in pulses)
         result = controller.send_command_sync(command)
         result["saved_position"] = saved_position
-        result["saved_position_details"] = _servo_position_payload(pan, tilt)
+        result["saved_position_details"] = _servo_position_payload(
+            saved_position["pan"],
+            saved_position["tilt"],
+            saved_position.get("tilt_b"),
+        )
         return jsonify(result), 200
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 500

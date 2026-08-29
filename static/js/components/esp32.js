@@ -132,7 +132,8 @@ function formatSavedPosition(savedPosition) {
     if (!savedPosition || savedPosition.pan === undefined || savedPosition.tilt === undefined) {
         return '--';
     }
-    return `P ${savedPosition.pan} / T ${savedPosition.tilt}`;
+    const tiltB = savedPosition.tilt_b === undefined ? '' : ` / TB ${savedPosition.tilt_b}`;
+    return `P ${savedPosition.pan} / T ${savedPosition.tilt}${tiltB}`;
 }
 
 function formatAxisPosition(position) {
@@ -154,7 +155,10 @@ function formatAxisPosition(position) {
 
 function formatPositionDetails(positionDetails, fallbackPosition = null) {
     if (positionDetails && positionDetails.pan && positionDetails.tilt) {
-        return `P ${formatAxisPosition(positionDetails.pan)} / T ${formatAxisPosition(positionDetails.tilt)}`;
+        const tiltB = positionDetails.tilt_b
+            ? ` / TB ${formatAxisPosition(positionDetails.tilt_b)}`
+            : '';
+        return `P ${formatAxisPosition(positionDetails.pan)} / T ${formatAxisPosition(positionDetails.tilt)}${tiltB}`;
     }
 
     return formatSavedPosition(fallbackPosition);
@@ -336,12 +340,12 @@ async function refreshEsp32Status() {
         }
         if (lastStateEl) {
             // La clave para velocidad es 'S'
-            const speedMode = stateValue(lastState, 'S') ?? data.current_speed_mode ?? data.saved_speed_mode;
+            const speedMode = stateValue(lastState, 'S') ?? stateValue(lastState, 'SPEED') ?? data.current_speed_mode ?? data.saved_speed_mode;
             lastStateEl.textContent = speedMode !== null ? `Perfil Vel. ${speedMode}` : 'N/A';
         }
         if (speedSelect) {
             const savedSpeedMode = normalizeSpeedMode(data.saved_speed_mode);
-            const telemetrySpeedMode = normalizeSpeedMode(stateValue(lastState, 'S'));
+            const telemetrySpeedMode = normalizeSpeedMode(stateValue(lastState, 'S') ?? stateValue(lastState, 'SPEED'));
             const speedMode = savedSpeedMode || telemetrySpeedMode;
             if (speedMode !== null) {
                 speedSelect.value = speedMode;
@@ -373,8 +377,8 @@ async function refreshEsp32Status() {
         setStatusText(['sensor-soil-raw', 'home-sensor-soil-raw'], soilRaw !== null ? soilRaw : '--');
 
         // Estado de Movimiento (Servos)
-        const panPulse = stateValue(lastState, 'P');
-        const tiltPulse = stateValue(lastState, 'T');
+        const panPulse = stateValue(lastState, 'P') ?? stateValue(lastState, 'PAN');
+        const tiltPulse = stateValue(lastState, 'T') ?? stateValue(lastState, 'TILTA');
         const currentPosition = data.current_position || {};
         const panPosition = document.getElementById('servo-pan-pulse');
         const tiltPosition = document.getElementById('servo-tilt-pulse');
