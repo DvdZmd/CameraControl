@@ -168,6 +168,37 @@ function normalizeSpeedMode(value) {
     return Number.isInteger(mode) && mode >= 0 && mode <= 4 ? String(mode) : null;
 }
 
+function ensureEsp32TargetOption(select, deviceName) {
+    if (!select || !deviceName) return;
+    const exists = Array.from(select.options).some(option => option.value === deviceName);
+    if (!exists) {
+        const option = document.createElement('option');
+        option.value = deviceName;
+        option.textContent = deviceName;
+        select.appendChild(option);
+    }
+}
+
+function selectedEsp32TargetDeviceName() {
+    const select = document.getElementById('esp32-target-device-name');
+    return select ? select.value : null;
+}
+
+async function setEsp32TargetDevice(deviceName = selectedEsp32TargetDeviceName(), options = {}) {
+    const { silent = false } = options;
+    if (!deviceName) return null;
+
+    const response = await fetch('/api/esp32/target', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_name: deviceName })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'No se pudo guardar el destino BLE');
+    if (!silent) showEsp32Feedback(`Destino BLE configurado: ${data.configured_device_name || deviceName}`);
+    return data;
+}
+
 function renderEsp32Light(intensity, savedIntensity = null) {
     const normalizedIntensity = Math.max(0, Math.min(100, Number(intensity) || 0));
     const normalizedSavedIntensity = Number(savedIntensity);
@@ -253,6 +284,7 @@ async function refreshEsp32Status() {
         const savedPositionEl = document.getElementById('esp32-saved-position');
         const currentPositionEl = document.getElementById('esp32-current-position');
         const speedSelect = document.getElementById('esp32-speed-select');
+        const targetSelect = document.getElementById('esp32-target-device-name');
         const homeBadge = document.getElementById('home-esp32-status-badge');
         const homeConnectionButton = document.getElementById('home-esp32-connection-btn');
         const homeConnectionLabel = document.getElementById('home-esp32-connection-label');
@@ -277,7 +309,14 @@ async function refreshEsp32Status() {
             homeConnectionLabel.textContent = esp32Connected ? 'Desconectar ESP32' : 'Conectar ESP32';
         }
         
-        if (deviceName) deviceName.textContent = data.device_name || '--';
+        if (targetSelect) {
+            (data.known_device_names || []).forEach(name => ensureEsp32TargetOption(targetSelect, name));
+            const configuredDeviceName = data.configured_device_name || data.device_name;
+            ensureEsp32TargetOption(targetSelect, configuredDeviceName);
+            if (configuredDeviceName) targetSelect.value = configuredDeviceName;
+            targetSelect.disabled = esp32Connected;
+        }
+        if (deviceName) deviceName.textContent = data.device_name || data.configured_device_name || '--';
         if (address) address.textContent = data.address || '--';
         
         // Actualizar estado y sensores
@@ -366,6 +405,10 @@ async function connectEsp32() {
     setEsp32ConnectLoading(true);
     showEsp32Feedback('Conectando con ESP32...');
     try {
+        const targetDeviceName = selectedEsp32TargetDeviceName();
+        if (targetDeviceName) {
+            await setEsp32TargetDevice(targetDeviceName, { silent: true });
+        }
         const response = await fetch('/api/esp32/connect', { method: 'POST' });
         const data = await response.json();
         if (!response.ok || data.connected === false) {
@@ -516,6 +559,16 @@ async function setEsp32Speed(mode) {
         await refreshEsp32Status();
     } catch (error) {
         showEsp32Feedback(error.message || 'No se pudo actualizar la velocidad', true);
+    }
+}
+
+async function saveEsp32TargetDeviceName(deviceName) {
+    try {
+        await setEsp32TargetDevice(deviceName);
+        await refreshEsp32Status();
+    } catch (error) {
+        showEsp32Feedback(error.message || 'No se pudo guardar el destino BLE', true);
+        await refreshEsp32Status();
     }
 }
 

@@ -473,6 +473,41 @@
         }
       }
     },
+    "/api/esp32/target": {
+      "post": {
+        "operationId": "camera.esp32_target",
+        "tags": [
+          "esp32"
+        ],
+        "x-cameracontrol-feature": "esp32",
+        "x-flask-endpoint": "camera.esp32_target",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Esp32TargetRequest"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/esp32/command": {
       "post": {
         "operationId": "camera.esp32_command",
@@ -1793,6 +1828,20 @@
           "command"
         ]
       },
+      "Esp32TargetRequest": {
+        "type": "object",
+        "properties": {
+          "device_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "device_name"
+        ]
+      },
       "Esp32Status": {
         "type": "object",
         "properties": {
@@ -1810,6 +1859,18 @@
               "string",
               "null"
             ]
+          },
+          "configured_device_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "known_device_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "last_state": {
             "type": "object",

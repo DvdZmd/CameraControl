@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <ESP32Servo.h>
 #include <NimBLEDevice.h>
+#include <Preferences.h>
 
 // =====================================================
 // CONFIG GENERAL
@@ -9,6 +10,7 @@ static constexpr float FILTER_ALPHA = 0.25f;   // 0..1, más bajo = más filtrad
 static constexpr int DEAD_ZONE = 250;          // zona muerta del joystick
 static constexpr uint32_t LOOP_INTERVAL_MS = 10;
 static constexpr uint32_t BUTTON_DEBOUNCE_MS = 180;
+static constexpr uint32_t RETURN_BUTTON_LONG_PRESS_MS = 1200;
 
 // =====================================================
 // PINES
@@ -26,7 +28,7 @@ static constexpr uint32_t BUTTON_DEBOUNCE_MS = 180;
 // =====================================================
 // BLE UUIDs
 // =====================================================
-static const char* BLE_DEVICE_NAME = "ESP32-CameraHead";
+static const char* BLE_DEVICE_NAME = "ESP32-PanTiltPro";
 
 // Servicio custom
 static const char* SERVICE_UUID        = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
@@ -47,6 +49,10 @@ const int centerPulse = 1450;
 int panPulse   = centerPulse;
 int tiltAPulse = centerPulse;
 int tiltBPulse = centerPulse;
+
+int returnPanPulse   = centerPulse;
+int returnTiltAPulse = centerPulse;
+int returnTiltBPulse = centerPulse;
 
 // =====================================================
 // JOYSTICK / FILTRO
@@ -75,14 +81,62 @@ speedProfiles[] = {
   {20, 180}   // rápido
 };
 
+static constexpr int SPEED_PROFILE_COUNT =
+  sizeof(speedProfiles) / sizeof(speedProfiles[0]);
+
 int speedMode = 2;
 int currentServoStep = 5;
 int currentDeadZone = 250;
 
 void applySpeedMode() {
-  speedMode = constrain(speedMode, 0, 4);
+  speedMode = constrain(speedMode, 0, SPEED_PROFILE_COUNT - 1);
   currentServoStep = speedProfiles[speedMode].servoStep;
   currentDeadZone  = speedProfiles[speedMode].deadZone;
+}
+
+// =====================================================
+// PERSISTENCIA EN NVS
+// =====================================================
+Preferences preferences;
+
+static constexpr const char* PREF_NAMESPACE = "panTiltPro";
+static constexpr const char* PREF_KEY_SPEED = "speed";
+static constexpr const char* PREF_KEY_RETURN_PAN = "returnPan";
+static constexpr const char* PREF_KEY_RETURN_TILT_A = "returnTiltA";
+static constexpr const char* PREF_KEY_RETURN_TILT_B = "returnTiltB";
+
+void loadPersistentSettings() {
+  preferences.begin(PREF_NAMESPACE, true);
+
+  speedMode = preferences.getInt(PREF_KEY_SPEED, 2);
+  returnPanPulse = preferences.getInt(PREF_KEY_RETURN_PAN, centerPulse);
+  returnTiltAPulse = preferences.getInt(PREF_KEY_RETURN_TILT_A, centerPulse);
+  returnTiltBPulse = preferences.getInt(PREF_KEY_RETURN_TILT_B, centerPulse);
+
+  preferences.end();
+
+  speedMode = constrain(speedMode, 0, SPEED_PROFILE_COUNT - 1);
+  returnPanPulse = constrain(returnPanPulse, minPulse, maxPulse);
+  returnTiltAPulse = constrain(returnTiltAPulse, minPulse, maxPulse);
+  returnTiltBPulse = constrain(returnTiltBPulse, minPulse, maxPulse);
+}
+
+void saveSpeedMode() {
+  preferences.begin(PREF_NAMESPACE, false);
+  preferences.putInt(PREF_KEY_SPEED, speedMode);
+  preferences.end();
+}
+
+void saveReturnPosition() {
+  returnPanPulse = panPulse;
+  returnTiltAPulse = tiltAPulse;
+  returnTiltBPulse = tiltBPulse;
+
+  preferences.begin(PREF_NAMESPACE, false);
+  preferences.putInt(PREF_KEY_RETURN_PAN, returnPanPulse);
+  preferences.putInt(PREF_KEY_RETURN_TILT_A, returnTiltAPulse);
+  preferences.putInt(PREF_KEY_RETURN_TILT_B, returnTiltBPulse);
+  preferences.end();
 }
 
 // =====================================================
@@ -111,6 +165,16 @@ void centerServos() {
   panPulse = centerPulse;
   tiltAPulse = centerPulse;
   tiltBPulse = centerPulse;
+
+  servoPan.writeMicroseconds(panPulse);
+  servoTiltA.writeMicroseconds(tiltAPulse);
+  servoTiltB.writeMicroseconds(tiltBPulse);
+}
+
+void moveToReturnPosition() {
+  panPulse = constrain(returnPanPulse, minPulse, maxPulse);
+  tiltAPulse = constrain(returnTiltAPulse, minPulse, maxPulse);
+  tiltBPulse = constrain(returnTiltBPulse, minPulse, maxPulse);
 
   servoPan.writeMicroseconds(panPulse);
   servoTiltA.writeMicroseconds(tiltAPulse);
@@ -161,10 +225,11 @@ void applyTiltStep(int step) {
 void notifyState() {
   if (!deviceConnected || pTxCharacteristic == nullptr) return;
 
-  char payload[80];
+  char payload[128];
   snprintf(payload, sizeof(payload),
-           "PAN:%d,TILTA:%d,TILTB:%d,SPEED:%d",
-           panPulse, tiltAPulse, tiltBPulse, speedMode);
+           "PAN:%d,TILTA:%d,TILTB:%d,SPEED:%d,RPAN:%d,RTILTA:%d,RTILTB:%d",
+           panPulse, tiltAPulse, tiltBPulse, speedMode,
+           returnPanPulse, returnTiltAPulse, returnTiltBPulse);
 
   pTxCharacteristic->setValue(payload);
   pTxCharacteristic->notify();
@@ -207,7 +272,9 @@ class RxCallbacks : public NimBLECharacteristicCallbacks {
       bleCommand = CommandType::STOP;
     } else if (cmd.startsWith("SET_SPEED:")) {
       int newMode = cmd.substring(10).toInt();
-      bleSpeedMode = newMode;
+      if (newMode >= 0 && newMode < SPEED_PROFILE_COUNT) {
+        bleSpeedMode = newMode;
+      }
     } else if (cmd.startsWith("SET_ABS:")) {
       // Formato: SET_ABS:1500,1450,1450
       int p1 = cmd.indexOf(':');
@@ -284,6 +351,7 @@ void setup() {
   pinMode(JOY_BUTTON_X, INPUT_PULLUP);
   pinMode(SPEED_BUTTON, INPUT_PULLUP);
 
+  loadPersistentSettings();
   calibrateJoystick();
   applySpeedMode();
   centerServos();
@@ -295,8 +363,11 @@ void setup() {
 // =====================================================
 void loop() {
   static uint32_t lastLoop = 0;
-  static uint32_t lastSpeedButtonTime = 0;
+  static uint32_t speedButtonPressedAt = 0;
   static int lastSpeedButtonState = HIGH;
+  static uint32_t joyButtonPressedAt = 0;
+  static int lastJoyButtonState = HIGH;
+  static bool speedLongPressHandled = false;
   static uint32_t lastNotify = 0;
 
   uint32_t now = millis();
@@ -306,32 +377,66 @@ void loop() {
   lastLoop = now;
 
   // ---------------------------------
-  // Botón de velocidad con debounce
+  // Boton de velocidad: corto = cambiar velocidad, largo = guardar retorno
   // ---------------------------------
   int speedButtonState = digitalRead(SPEED_BUTTON);
   if (speedButtonState == LOW && lastSpeedButtonState == HIGH) {
-    if (now - lastSpeedButtonTime > BUTTON_DEBOUNCE_MS) {
-      speedMode = (speedMode + 1) % 5;
-      applySpeedMode();
-      lastSpeedButtonTime = now;
-    }
+    speedButtonPressedAt = now;
+    speedLongPressHandled = false;
+  }
+
+  if (
+      speedButtonState == LOW &&
+      !speedLongPressHandled &&
+      now - speedButtonPressedAt >= RETURN_BUTTON_LONG_PRESS_MS
+  ) {
+    saveReturnPosition();
+    speedLongPressHandled = true;
+    notifyState();
+  }
+
+  if (
+      speedButtonState == HIGH &&
+      lastSpeedButtonState == LOW &&
+      !speedLongPressHandled &&
+      now - speedButtonPressedAt > BUTTON_DEBOUNCE_MS
+  ) {
+    speedMode = (speedMode + 1) % SPEED_PROFILE_COUNT;
+    applySpeedMode();
+    saveSpeedMode();
+    notifyState();
   }
   lastSpeedButtonState = speedButtonState;
 
   // ---------------------------------
-  // Botón de centrado
+  // Boton del joystick: volver a la posicion guardada
   // ---------------------------------
-  if (digitalRead(JOY_BUTTON_X) == LOW) {
-    centerServos();
-    bleCommand = CommandType::NONE;
+  int joyButtonState = digitalRead(JOY_BUTTON_X);
+  if (joyButtonState == LOW && lastJoyButtonState == HIGH) {
+    joyButtonPressedAt = now;
   }
+
+  if (
+      joyButtonState == HIGH &&
+      lastJoyButtonState == LOW &&
+      now - joyButtonPressedAt > BUTTON_DEBOUNCE_MS
+  ) {
+    moveToReturnPosition();
+    bleCommand = CommandType::NONE;
+    notifyState();
+  }
+  lastJoyButtonState = joyButtonState;
 
   // ---------------------------------
   // Cambios de velocidad via BLE
   // ---------------------------------
   if (bleSpeedMode >= 0) {
-    speedMode = bleSpeedMode;
-    applySpeedMode();
+    if (speedMode != bleSpeedMode) {
+      speedMode = bleSpeedMode;
+      applySpeedMode();
+      saveSpeedMode();
+      notifyState();
+    }
     bleSpeedMode = -1;
   }
 
@@ -372,7 +477,7 @@ void loop() {
         break;
     }
     bleCommand = CommandType::NONE;
-  } else {
+  } else if (joyButtonState == HIGH) {
     // ---------------------------------
     // Control local por joystick
     // ---------------------------------

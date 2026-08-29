@@ -50,6 +50,7 @@ EXPECTED_API_RULES = {
     ("camera.esp32_connect", "/api/esp32/connect", ("POST",)),
     ("camera.esp32_disconnect", "/api/esp32/disconnect", ("POST",)),
     ("camera.esp32_status", "/api/esp32/status", ("GET",)),
+    ("camera.esp32_target", "/api/esp32/target", ("POST",)),
     ("lighting.esp32_light", "/api/esp32/light", ("POST",)),
     ("pan_tilt.esp32_center", "/api/esp32/center", ("POST",)),
     ("pan_tilt.esp32_move", "/api/esp32/move", ("POST",)),

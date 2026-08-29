@@ -141,6 +141,7 @@ class CameraSettings(db.Model):
 
 class Esp32Settings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    ble_device_name = db.Column(db.String(64), nullable=True)
     custom_pan_pulse = db.Column(db.Integer, nullable=True)
     custom_tilt_pulse = db.Column(db.Integer, nullable=True)
     speed_mode = db.Column(db.Integer, nullable=True)

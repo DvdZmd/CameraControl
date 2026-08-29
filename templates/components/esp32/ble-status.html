@@ -9,6 +9,14 @@
                             <span class="esp32-label">Dispositivo</span>
                             <span id="esp32-device-name">--</span>
                         </div>
+                        <label class="esp32-status-row" for="esp32-target-device-name">
+                            <span class="esp32-label">Destino BLE</span>
+                            <select id="esp32-target-device-name" class="esp32-input" data-action="esp32-set-target">
+                                <option value="ESP32-FungiESP">ESP32-FungiESP</option>
+                                <option value="ESP32-PanTiltPro">ESP32-PanTiltPro</option>
+                                <option value="ESP32-CameraHead">ESP32-CameraHead</option>
+                            </select>
+                        </label>
                         <div class="esp32-status-row">
                             <span class="esp32-label">Dirección</span>
                             <span id="esp32-address">--</span>

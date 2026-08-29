@@ -6,9 +6,19 @@ El ESP32 controla el cabezal pan/tilt y puede centralizar sensores ambientales.
 
 La Raspberry Pi se comunica mediante BLE.
 
-Nombre habitual del dispositivo:
+Nombre legacy del dispositivo:
 
 `ESP32-CameraHead`
+
+Variantes actuales con nombres BLE diferenciados:
+
+- `ESP32-FungiESP`: dos servos, sensores y sin joystick.
+- `ESP32-PanTiltPro`: tres servos, joystick y sin sensores.
+
+El dashboard persiste en SQLite el `BLE_DEVICE_NAME` objetivo y lo aplica antes
+de escanear/conectar. Los UUID de servicio y características pueden mantenerse
+iguales mientras el backend sólo abra una conexión activa hacia el dispositivo
+seleccionado.
 
 El firmware vigente y confirmado es:
 
@@ -190,11 +200,15 @@ firmware.
 
 Endpoints específicos del dashboard:
 
-- `GET /api/esp32/status`: estado BLE, última telemetría, posición configurada
-  y perfil de velocidad persistidos cuando existan.
+- `GET /api/esp32/status`: estado BLE, dispositivo objetivo configurado,
+  última telemetría, posición configurada y perfil de velocidad persistidos
+  cuando existan.
 - `POST /api/esp32/connect`: conecta por BLE. Puede bloquear mientras escanea y
   negocia GATT.
 - `POST /api/esp32/disconnect`: cierra la conexión BLE activa.
+- `POST /api/esp32/target`: acepta `device_name` y persiste el nombre BLE
+  anunciado que se usará en próximos intentos de conexión. Si ya hay una
+  conexión BLE activa, se debe desconectar antes de cambiar a otro dispositivo.
 - `POST /api/esp32/move`: acepta `direction` con `left`, `right`, `up` o
   `down`; cada request envía un único paso.
 - `POST /api/esp32/center`: envía `CENTER`.

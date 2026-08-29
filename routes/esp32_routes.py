@@ -50,11 +50,18 @@ SIMPLE_COMMANDS = {
 SET_SPEED_PATTERN = re.compile(r"SET_SPEED:([0-4])")
 SET_ABS_PATTERN = re.compile(r"SET_ABS:(\d+),(\d+)")
 SET_LIGHT_PATTERN = re.compile(r"SET_LIGHT:(\d{1,3})")
+BLE_DEVICE_NAME_PATTERN = re.compile(r"^[^\x00-\x1f\x7f]{1,64}$")
 SERVO_PULSE_MIN_US = 500
 SERVO_PULSE_MAX_US = 2400
 SERVO_ANGLE_MIN_DEG = 0
 SERVO_ANGLE_MAX_DEG = 180
 DEFAULT_SETTINGS_ID = 1
+DEFAULT_BLE_DEVICE_NAME = "ESP32-FungiESP"
+KNOWN_BLE_DEVICE_NAMES = (
+    DEFAULT_BLE_DEVICE_NAME,
+    "ESP32-PanTiltPro",
+    "ESP32-CameraHead",
+)
 
 
 def _pulse_to_angle_deg(pulse):
@@ -166,6 +173,58 @@ def _saved_speed_mode(settings=None):
     return settings.speed_mode
 
 
+def _configured_ble_device_name(settings=None):
+    settings = settings or _saved_esp32_settings()
+    if settings is not None and settings.ble_device_name:
+        return settings.ble_device_name
+    controller = current_app.config.get("BLE_CAMERA_CONTROLLER")
+    return getattr(controller, "device_name", DEFAULT_BLE_DEVICE_NAME)
+
+
+def _validate_ble_device_name(raw_name):
+    if not isinstance(raw_name, str):
+        return None, "device_name debe ser un string"
+    device_name = raw_name.strip()
+    if not BLE_DEVICE_NAME_PATTERN.fullmatch(device_name):
+        return None, "device_name debe tener entre 1 y 64 caracteres visibles"
+    return device_name, None
+
+
+def _persist_ble_device_name(device_name):
+    settings = db.session.get(Esp32Settings, DEFAULT_SETTINGS_ID)
+    if settings is None:
+        settings = Esp32Settings(id=DEFAULT_SETTINGS_ID)
+        db.session.add(settings)
+    settings.ble_device_name = device_name
+    db.session.commit()
+    return settings
+
+
+def apply_saved_ble_target(controller=None, logger=None):
+    if not _database_ready():
+        return None
+
+    active_controller = controller or current_app.config.get("BLE_CAMERA_CONTROLLER")
+    if active_controller is None:
+        return None
+
+    settings = _saved_esp32_settings()
+    device_name = _configured_ble_device_name(settings)
+    if not device_name:
+        return None
+
+    try:
+        if hasattr(active_controller, "set_target_sync"):
+            active_controller.set_target_sync(device_name)
+        else:
+            active_controller.device_name = device_name
+        return device_name
+    except Exception:
+        active_logger = logger or module_logger
+        active_logger.exception("No se pudo aplicar el dispositivo BLE configurado")
+        return None
+
+
 def _saved_light_payload(settings=None):
     settings = settings or _saved_esp32_settings()
     if settings is None:
@@ -206,6 +265,10 @@ def ensure_esp32_settings_schema(logger=None):
                 row[1]
                 for row in connection.exec_driver_sql("PRAGMA table_info(esp32_settings)")
             }
+            if "ble_device_name" not in columns:
+                connection.exec_driver_sql(
+                    "ALTER TABLE esp32_settings ADD COLUMN ble_device_name VARCHAR(64)"
+                )
             if "speed_mode" not in columns:
                 connection.exec_driver_sql("ALTER TABLE esp32_settings ADD COLUMN speed_mode INTEGER")
             if "light_on" not in columns:
@@ -283,7 +346,42 @@ def esp32_status():
         status["current_position"] = _current_position_payload_from_status(status)
     if _feature_enabled("lighting"):
         status["saved_light"] = _saved_light_payload(settings)
+    status["configured_device_name"] = _configured_ble_device_name(settings)
+    status["known_device_names"] = list(KNOWN_BLE_DEVICE_NAMES)
     return jsonify(status), 200
+
+
+@esp32_bp.route("/target", methods=["POST"])
+def esp32_target():
+    """
+    Persist the BLE advertised device name used by future connection attempts.
+    """
+    controller = get_ble_controller()
+    if not _database_ready():
+        return jsonify({"ok": False, "error": "Base de datos no disponible"}), 503
+
+    data, error_response = _json_object()
+    if error_response:
+        return error_response
+
+    device_name, validation_error = _validate_ble_device_name(data.get("device_name"))
+    if validation_error:
+        return jsonify({"ok": False, "error": validation_error}), 400
+
+    try:
+        result = controller.set_target_sync(device_name)
+        settings = _persist_ble_device_name(device_name)
+        result["configured_device_name"] = settings.ble_device_name
+        result["known_device_names"] = list(KNOWN_BLE_DEVICE_NAMES)
+        return jsonify(result), 200
+    except RuntimeError as ex:
+        return jsonify({"ok": False, "error": str(ex)}), 409
+    except Exception as ex:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": str(ex)}), 500
 
 
 @esp32_bp.route("/connect", methods=["POST"])
@@ -303,6 +401,7 @@ def esp32_connect():
     """
     controller = get_ble_controller()
     try:
+        apply_saved_ble_target(controller)
         result = controller.connect_sync()
         if _feature_enabled("lighting"):
             saved_light = _apply_saved_light(controller)

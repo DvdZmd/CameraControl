@@ -101,6 +101,7 @@ no debe asumir autofocus u otros controles.
 | `GET` | `/api/esp32/status` | JSON de conexión y última telemetría | Consulta el controlador BLE compartido |
 | `POST` | `/api/esp32/connect` | JSON `ok` o `error` | Escaneo/conexión BLE |
 | `POST` | `/api/esp32/disconnect` | JSON `ok` o `error` | Desconexión BLE |
+| `POST` | `/api/esp32/target` | JSON `ok` o `error` | Persiste `{"device_name": "ESP32-FungiESP"}` como destino BLE |
 | `POST` | `/api/esp32/command` | JSON `ok` o `error` | `{"command": "…"}` validado y filtrado por feature |
 
 ### Pan/tilt — features `esp32` y `pan_tilt`

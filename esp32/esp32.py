@@ -9,7 +9,7 @@ from bleak import BleakClient, BleakScanner
 class Esp32Controller:
     #TODO make this a singleton or manage multiple devices if needed in the future
     #TODO make these values configurable from a file or database
-    DEVICE_NAME = "ESP32-CameraHead"
+    DEVICE_NAME = "ESP32-FungiESP"
     CHAR_RX_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
     CHAR_TX_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
     CONNECT_RETRIES = 3
@@ -139,6 +139,36 @@ class Esp32Controller:
             None
         """
         self.client = None
+
+    def set_target_sync(self, device_name: str, address: str | None = None) -> dict:
+        """
+        Configure the BLE target used by future connection attempts.
+
+        The active BLE connection is not retargeted in place. Callers must
+        disconnect before switching to a different advertised device.
+        """
+        requested_name = device_name.strip()
+        requested_address = (
+            address.strip()
+            if isinstance(address, str)
+            else (self.address if requested_name == self.device_name else None)
+        )
+        connected = bool(self.client and self.client.is_connected)
+        target_changed = (
+            requested_name != self.device_name
+            or requested_address != self.address
+        )
+        if connected and target_changed:
+            raise RuntimeError("Desconecte el ESP32 antes de cambiar el dispositivo BLE")
+
+        self.device_name = requested_name
+        self.address = requested_address
+        return {
+            "ok": True,
+            "device_name": self.device_name,
+            "address": self.address,
+            "connected": connected,
+        }
 
     async def _reset_client(self):
         """

@@ -110,6 +110,8 @@ function setupEventListeners() {
             applyPreset(e.target.value);
         } else if (action === 'esp32-set-speed') {
             setEsp32Speed(e.target.value);
+        } else if (action === 'esp32-set-target') {
+            saveEsp32TargetDeviceName(e.target.value);
         } else if (action === 'set-light-intensity') {
             setEsp32LightIntensity(e.target.value);
         } else if (e.target.id === 'tl-resolution-preset') {

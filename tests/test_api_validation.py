@@ -99,6 +99,9 @@ class FakeBleController:
     def __init__(self):
         self.commands = []
         self.last_state = {"P": "1450", "T": "1500", "S": "2"}
+        self.device_name = "ESP32-FungiESP"
+        self.address = "AA:BB:CC:DD:EE:FF"
+        self.connected = True
 
     def send_command_sync(self, command):
         self.commands.append(command)
@@ -110,10 +113,23 @@ class FakeBleController:
 
     def get_status_sync(self):
         return {
-            "connected": True,
-            "address": "AA:BB:CC:DD:EE:FF",
-            "device_name": "ESP32-CameraHead",
+            "connected": self.connected,
+            "address": self.address,
+            "device_name": self.device_name,
             "last_state": self.last_state,
+        }
+
+    def set_target_sync(self, device_name, address=None):
+        requested_address = address or (self.address if device_name == self.device_name else None)
+        if self.connected and (device_name != self.device_name or requested_address != self.address):
+            raise RuntimeError("Desconecte el ESP32 antes de cambiar el dispositivo BLE")
+        self.device_name = device_name
+        self.address = requested_address
+        return {
+            "ok": True,
+            "device_name": self.device_name,
+            "address": self.address,
+            "connected": self.connected,
         }
 
 
@@ -556,6 +572,59 @@ class ApiValidationTests(unittest.TestCase):
             },
         )
         with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
+
+    def test_esp32_persists_ble_target_device_name(self):
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        ble = FakeBleController()
+        ble.connected = False
+        app.config["BLE_CAMERA_CONTROLLER"] = ble
+        app.config["FEATURES"] = {"pan_tilt": True, "lighting": True}
+        db.init_app(app)
+        app.register_blueprint(esp32_bp)
+
+        with app.app_context():
+            db.create_all()
+
+        client = app.test_client()
+        response = client.post("/api/esp32/target", json={"device_name": "ESP32-PanTiltPro"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["configured_device_name"], "ESP32-PanTiltPro")
+        self.assertEqual(ble.device_name, "ESP32-PanTiltPro")
+        with app.app_context():
+            saved = db.session.get(Esp32Settings, 1)
+            self.assertEqual(saved.ble_device_name, "ESP32-PanTiltPro")
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
+
+    def test_esp32_target_rejects_switch_while_connected(self):
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        ble = FakeBleController()
+        app.config["BLE_CAMERA_CONTROLLER"] = ble
+        app.config["FEATURES"] = {"pan_tilt": True, "lighting": True}
+        db.init_app(app)
+        app.register_blueprint(esp32_bp)
+
+        with app.app_context():
+            db.create_all()
+
+        client = app.test_client()
+        response = client.post("/api/esp32/target", json={"device_name": "ESP32-PanTiltPro"})
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(ble.device_name, "ESP32-FungiESP")
+        with app.app_context():
+            self.assertIsNone(db.session.get(Esp32Settings, 1))
             db.session.remove()
             db.drop_all()
             db.engine.dispose()

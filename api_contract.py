@@ -28,6 +28,7 @@ API_OPERATIONS = (
     ("GET", "/api/esp32/status", "camera.esp32_status", "esp32", None, "Esp32Status"),
     ("POST", "/api/esp32/connect", "camera.esp32_connect", "esp32", None, "OpenResult"),
     ("POST", "/api/esp32/disconnect", "camera.esp32_disconnect", "esp32", None, "OpenResult"),
+    ("POST", "/api/esp32/target", "camera.esp32_target", "esp32", "Esp32TargetRequest", "OpenResult"),
     ("POST", "/api/esp32/command", "camera.esp32_command", "esp32", "Esp32CommandRequest", "OpenResult"),
     ("POST", "/api/esp32/center", "pan_tilt.esp32_center", "pan_tilt", None, "OpenResult"),
     ("POST", "/api/esp32/move", "pan_tilt.esp32_move", "pan_tilt", "MoveRequest", "OpenResult"),
@@ -175,11 +176,17 @@ SCHEMAS = {
     "Esp32CommandRequest": _object(
         {"command": {"type": "string"}}, required=("command",)
     ),
+    "Esp32TargetRequest": _object(
+        {"device_name": {"type": "string", "minLength": 1, "maxLength": 64}},
+        required=("device_name",),
+    ),
     "Esp32Status": _object(
         {
             "connected": {"type": "boolean"},
             "address": {"type": ["string", "null"]},
             "device_name": {"type": ["string", "null"]},
+            "configured_device_name": {"type": ["string", "null"]},
+            "known_device_names": {"type": "array", "items": {"type": "string"}},
             "last_state": {"type": "object", "additionalProperties": True},
         },
         additional=True,

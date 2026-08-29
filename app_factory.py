@@ -176,6 +176,9 @@ def create_app(profile_name: str | None = None):
         ensure_esp32_schema = getattr(esp32_routes, "ensure_esp32_settings_schema", None)
         if features.esp32 and callable(ensure_esp32_schema):
             ensure_esp32_schema(logger)
+        apply_saved_ble_target = getattr(esp32_routes, "apply_saved_ble_target", None)
+        if features.esp32 and callable(apply_saved_ble_target):
+            apply_saved_ble_target(ble_controller, logger)
         ensure_tuya_schema = getattr(tuya_routes, "ensure_tuya_devices_schema", None)
         if features.tuya and callable(ensure_tuya_schema):
             ensure_tuya_schema(logger)

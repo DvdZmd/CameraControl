@@ -1201,6 +1201,10 @@ button:disabled {
     box-sizing: border-box;
 }
 
+.esp32-status-row .esp32-input {
+    max-width: 190px;
+}
+
 .status-message {
     color: var(--accent);
     font-size: 0.85rem;
