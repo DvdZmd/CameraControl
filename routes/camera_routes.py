@@ -351,6 +351,21 @@ def _apply_control(name, value):
     if result is False:
         module_logger.warning("Control de cámara no aplicado: %s=%r", name, value)
         raise CameraControlError(f"La cámara rechazó el control {name}={value!r}")
+    picam2 = getattr(rpicamz, 'picam2', None)
+    set_controls = getattr(picam2, 'set_controls', None)
+    if callable(set_controls):
+        try:
+            set_controls({name: value})
+        except Exception as error:
+            module_logger.warning(
+                "Picamera2 rechazo el control runtime %s=%r: %s",
+                name,
+                value,
+                error,
+            )
+            raise CameraControlError(
+                f"La camara rechazo el control {name}={value!r}"
+            ) from error
     return result
 
 
@@ -859,4 +874,6 @@ def update_settings():
         "current_rotation": rotation['rotation'],
         "pipeline_rotation": rotation['pipeline_rotation'],
         "display_rotation": rotation['display_rotation'],
+        "applied_controls": sorted(validated['controls']),
+        "stream_restarted": 'resolution' in validated,
     })

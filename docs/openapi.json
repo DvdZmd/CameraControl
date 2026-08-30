@@ -1794,6 +1794,15 @@
           },
           "display_rotation": {
             "type": "integer"
+          },
+          "applied_controls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stream_restarted": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false,

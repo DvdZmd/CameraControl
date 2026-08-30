@@ -166,6 +166,8 @@ SCHEMAS = {
             "current_rotation": {"type": "integer"},
             "pipeline_rotation": {"type": "integer"},
             "display_rotation": {"type": "integer"},
+            "applied_controls": {"type": "array", "items": {"type": "string"}},
+            "stream_restarted": {"type": "boolean"},
         },
         required=("status", "current_rotation", "pipeline_rotation", "display_rotation"),
     ),

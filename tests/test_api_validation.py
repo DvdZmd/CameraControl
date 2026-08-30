@@ -1,6 +1,6 @@
 import unittest
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 from flask import Flask
 from database.models import CameraSettings, Esp32Settings, db
@@ -205,6 +205,23 @@ class ApiValidationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(("resolution", 1280, 720), self.camera.calls)
         self.assertIn(("control", "Brightness", 0.2), self.camera.calls)
+
+    def test_camera_runtime_control_is_sent_to_picamera2(self):
+        picamera_controls = []
+        self.camera.picam2 = SimpleNamespace(
+            set_controls=lambda controls: picamera_controls.append(controls)
+        )
+
+        response = self.client.post(
+            "/api/camera/update_settings",
+            json={"Brightness": 0.2},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(("control", "Brightness", 0.2), self.camera.calls)
+        self.assertEqual(picamera_controls, [{"Brightness": 0.2}])
+        self.assertEqual(response.get_json()["applied_controls"], ["Brightness"])
+        self.assertFalse(response.get_json()["stream_restarted"])
 
     def test_manual_focus_forces_manual_mode_before_lens_position(self):
         self.camera.af_supported = True

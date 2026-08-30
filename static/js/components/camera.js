@@ -3,9 +3,11 @@ let cameraMaxW = 1280;
 let cameraMaxH = 720;
 let cameraAvailable = false;
 let cameraStreamEnabled = false;
+let cameraStreamRefreshTimeout = null;
 const CUSTOM_STREAM_RESOLUTION_KEY = 'cameraCustomStreamResolution';
 const CUSTOM_PHOTO_RESOLUTION_KEY = 'cameraCustomPhotoResolution';
 const PHOTO_RESOLUTION_PRESET_KEY = 'cameraPhotoResolutionPreset';
+const LIVE_REFRESH_CONTROLS = new Set(['Brightness', 'Contrast', 'Saturation', 'Sharpness']);
 
 function readStoredResolution(key) {
     try {
@@ -107,6 +109,18 @@ function setCameraStreamUi(enabled, detail) {
         toggle.classList.toggle('active', enabled);
         toggle.disabled = false;
     }
+}
+
+function refreshCameraStreamImage() {
+    if (!cameraStreamEnabled) return;
+    clearTimeout(cameraStreamRefreshTimeout);
+    cameraStreamRefreshTimeout = setTimeout(() => {
+        if (!cameraStreamEnabled) return;
+        const video = document.getElementById('video-feed');
+        if (!video) return;
+        const streamUrl = video.dataset.streamUrl || cameraApiUrl('/video_feed');
+        video.src = `${streamUrl}?t=${Date.now()}`;
+    }, 150);
 }
 
 function setCameraUnavailable(message) {
@@ -608,6 +622,10 @@ async function updateCameraSettings(data) {
             throw new Error(result.message || 'No se pudo actualizar la cámara');
         }
         console.log("Configuración actualizada:", result);
+        const appliedControls = result.applied_controls || [];
+        if (!result.stream_restarted && appliedControls.some(control => LIVE_REFRESH_CONTROLS.has(control))) {
+            refreshCameraStreamImage();
+        }
         return result;
     } catch (err) {
         console.error("Error actualizando cámara:", err);
