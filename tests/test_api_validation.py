@@ -223,6 +223,32 @@ class ApiValidationTests(unittest.TestCase):
         self.assertEqual(response.get_json()["applied_controls"], ["Brightness"])
         self.assertFalse(response.get_json()["stream_restarted"])
 
+    def test_camera_isp_control_reconfigures_active_stream(self):
+        camera_routes.stream_enabled = True
+
+        response = self.client.post(
+            "/api/camera/update_settings",
+            json={"Brightness": 0.2},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(("control", "Brightness", 0.2), self.camera.calls)
+        self.assertIn(("resolution", 1280, 720), self.camera.calls)
+        self.assertTrue(response.get_json()["stream_restarted"])
+
+    def test_camera_sensor_control_does_not_reconfigure_active_stream(self):
+        camera_routes.stream_enabled = True
+
+        response = self.client.post(
+            "/api/camera/update_settings",
+            json={"AnalogueGain": 2.0},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(("control", "AnalogueGain", 2.0), self.camera.calls)
+        self.assertNotIn(("resolution", 1280, 720), self.camera.calls)
+        self.assertFalse(response.get_json()["stream_restarted"])
+
     def test_manual_focus_forces_manual_mode_before_lens_position(self):
         self.camera.af_supported = True
 

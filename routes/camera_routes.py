@@ -23,6 +23,7 @@ CONTROL_RANGES = {
     'AnalogueGain': (1.0, 16.0),
 }
 BOOLEAN_CONTROLS = {'AeEnable'}
+ISP_CONTROLS = {'Brightness', 'Contrast', 'Saturation', 'Sharpness'}
 PERSISTABLE_CONTROLS = {
     *CONTROL_RANGES,
     *BOOLEAN_CONTROLS,
@@ -391,6 +392,17 @@ def _apply_image_controls(controls):
 
     for name, value in controls.items():
         _apply_control(name, value)
+
+
+def _reconfigure_stream_for_isp_controls(controls):
+    if not stream_enabled or not ISP_CONTROLS.intersection(controls):
+        return False
+
+    capabilities = rpicamz.get_capabilities()
+    width = capabilities.get('current_width') or getattr(rpicamz, 'current_width', 1280)
+    height = capabilities.get('current_height') or getattr(rpicamz, 'current_height', 720)
+    rpicamz.set_resolution(width, height)
+    return True
 
 
 def _database_ready():
@@ -850,10 +862,12 @@ def update_settings():
             else:
                 rpicamz.stop_timelapse()
 
-        image_params = {'Brightness', 'Contrast', 'Saturation', 'Sharpness', 'AfMode', 'LensPosition', 'AeEnable'}
         _apply_image_controls(validated['controls'])
+        stream_restarted = 'resolution' in validated
+        if not stream_restarted:
+            stream_restarted = _reconfigure_stream_for_isp_controls(validated['controls'])
         for param in validated['controls']:
-            if param in image_params:
+            if param in ISP_CONTROLS or param in {'AfMode', 'LensPosition', 'AeEnable'}:
                 # Add a small delay to allow image processing settings to apply before the next frame is requested.
                 # This helps prevent the UI from appearing to "freeze" for these specific controls.
                 time.sleep(0.05)
@@ -875,5 +889,5 @@ def update_settings():
         "pipeline_rotation": rotation['pipeline_rotation'],
         "display_rotation": rotation['display_rotation'],
         "applied_controls": sorted(validated['controls']),
-        "stream_restarted": 'resolution' in validated,
+        "stream_restarted": stream_restarted,
     })

@@ -623,7 +623,7 @@ async function updateCameraSettings(data) {
         }
         console.log("Configuración actualizada:", result);
         const appliedControls = result.applied_controls || [];
-        if (!result.stream_restarted && appliedControls.some(control => LIVE_REFRESH_CONTROLS.has(control))) {
+        if (result.stream_restarted || appliedControls.some(control => LIVE_REFRESH_CONTROLS.has(control))) {
             refreshCameraStreamImage();
         }
         return result;
