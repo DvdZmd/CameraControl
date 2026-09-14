@@ -66,6 +66,19 @@ ejecutar `sudo systemctl reboot` sin requerir TTY ni contraseña interactiva.
 Probar el endpoint sólo cuando sea aceptable interrumpir streaming, BLE, Tuya y
 cualquier captura en curso.
 
+El botón «Reiniciar servicio» llama a `POST /api/admin/service/restart` con
+`{"confirm": true}`. Usa `systemctl --no-block restart cameracontrol.service`,
+que solicita a systemd detener y arrancar el servicio sin depender de un proceso
+que será terminado durante la parada. Si Flask corre como usuario normal, usa
+`sudo -n`: configurar en sudoers un permiso sin contraseña exclusivamente para
+`/usr/bin/systemctl --no-block restart cameracontrol.service` (comprobar la ruta
+real con `command -v systemctl`). Por ejemplo, con `sudo visudo -f
+/etc/sudoers.d/cameracontrol-restart`, agregar una línea como
+`dvdzmd ALL=(root) NOPASSWD: /usr/bin/systemctl --no-block restart cameracontrol.service`,
+reemplazando `dvdzmd` por el usuario configurado en la unidad. El dashboard conserva la pestaña y el ancho
+del panel mientras espera a que vuelva a responder. El reinicio interrumpe el
+streaming y las operaciones en curso.
+
 ## Cámara
 
 ```bash

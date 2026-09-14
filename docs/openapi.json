@@ -156,6 +156,41 @@
         }
       }
     },
+    "/api/admin/service/restart": {
+      "post": {
+        "operationId": "admin.trigger_service_restart",
+        "tags": [
+          "common"
+        ],
+        "x-cameracontrol-feature": "common",
+        "x-flask-endpoint": "admin.trigger_service_restart",
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusMessage"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationRequest"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/camera/": {
       "get": {
         "operationId": "camera_controller.index",

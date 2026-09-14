@@ -15,6 +15,7 @@ API_OPERATIONS = (
     ("POST", "/api/admin/bluetooth/enable", "admin.enable_bluetooth", "common", "ConfirmationRequest", "StatusMessage"),
     ("POST", "/api/admin/update", "admin.trigger_update", "common", None, "StatusMessage"),
     ("POST", "/api/admin/reboot", "admin.trigger_reboot", "common", "ConfirmationRequest", "StatusMessage"),
+    ("POST", "/api/admin/service/restart", "admin.trigger_service_restart", "common", "ConfirmationRequest", "StatusMessage"),
     ("GET", "/api/camera/", "camera_controller.index", "camera", None, None),
     ("POST", "/api/camera/apply_preset", "camera_controller.apply_preset", "camera", "PresetRequest", "StatusMessage"),
     ("GET", "/api/camera/camera_status", "camera_controller.camera_status", "camera", None, "CameraStatus"),

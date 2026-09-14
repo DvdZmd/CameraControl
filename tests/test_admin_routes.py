@@ -21,6 +21,27 @@ class AdminRoutesTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.get_json()["status"], "error")
 
+    def test_service_restart_requires_confirmation(self):
+        response = self.client.post("/api/admin/service/restart", json={})
+        self.assertEqual(response.status_code, 400)
+
+    @patch("routes.admin_routes.threading.Thread")
+    @patch("routes.admin_routes._restart_service_command", return_value=["/usr/bin/systemctl", "--no-block", "restart", "cameracontrol.service"])
+    def test_service_restart_schedules_command(self, _command, thread_cls):
+        response = self.client.post("/api/admin/service/restart", json={"confirm": True})
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.get_json()["status"], "restarting")
+        thread_cls.return_value.start.assert_called_once_with()
+        self.assertEqual(thread_cls.call_args.kwargs["target"], admin_routes._run_restart_service)
+
+    @patch("routes.admin_routes.os.geteuid", return_value=1000)
+    @patch("routes.admin_routes.shutil.which", side_effect=lambda name: f"/usr/bin/{name}")
+    def test_service_restart_uses_noninteractive_sudo(self, _which, _euid):
+        self.assertEqual(admin_routes._restart_service_command(), [
+            "/usr/bin/sudo", "-n", "/usr/bin/systemctl", "--no-block",
+            "restart", "cameracontrol.service",
+        ])
+
     def test_enable_bluetooth_requires_confirmation(self):
         response = self.client.post("/api/admin/bluetooth/enable", json={})
         self.assertEqual(response.status_code, 400)

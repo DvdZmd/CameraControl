@@ -29,6 +29,7 @@ function setupEventListeners() {
             case 'capture-custom-photo': captureCustomPhoto(); break;
             case 'capture-visible-frame': captureVisibleFrame(); break;
             case 'reset-camera': resetCamera(); break;
+            case 'restart-service': triggerServiceRestart(); break;
             case 'update-software': triggerSoftwareUpdate(); break;
             case 'reboot-system': triggerSystemReboot(); break;
             case 'toggle-timelapse': toggleTimelapse(); break;

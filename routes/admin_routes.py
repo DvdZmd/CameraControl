@@ -243,6 +243,40 @@ def _run_reboot_command(command):
         logger.exception("Error al disparar reboot")
 
 
+def _restart_service_command():
+    systemctl = shutil.which("systemctl")
+    if systemctl is None:
+        raise RuntimeError("No se encontró systemctl en el sistema")
+    return _privileged_command(systemctl, "--no-block", "restart", "cameracontrol.service")
+
+
+def _run_restart_service(command):
+    # La respuesta HTTP debe salir antes de que systemd detenga este proceso.
+    time.sleep(0.5)
+    try:
+        subprocess.run(command, capture_output=True, check=True, text=True, timeout=10)
+    except subprocess.CalledProcessError as error:
+        logger.error("No se pudo reiniciar cameracontrol.service: %s", (error.stderr or error.stdout or str(error)).strip())
+    except (OSError, subprocess.SubprocessError):
+        logger.exception("No se pudo reiniciar cameracontrol.service")
+
+
+@admin_bp.route("/service/restart", methods=["POST"])
+def trigger_service_restart():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or data.get("confirm") is not True:
+        return jsonify({"status": "error", "message": "Confirmación requerida para reiniciar el servicio."}), 400
+
+    try:
+        command = _restart_service_command()
+        restart_thread = threading.Thread(target=_run_restart_service, args=(command,), daemon=True)
+        restart_thread.start()
+    except RuntimeError as error:
+        return jsonify({"status": "error", "message": str(error)}), 500
+
+    return jsonify({"status": "restarting", "message": "Reinicio del servicio solicitado."}), 202
+
+
 @admin_bp.route("/update", methods=["POST"])
 def trigger_update():
     """

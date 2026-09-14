@@ -554,6 +554,50 @@ async function resetCamera() {
     }
 }
 
+async function triggerServiceRestart() {
+    if (!window.confirm('Se interrumpirán el streaming y las operaciones en curso. ¿Reiniciar el servicio?')) return;
+    const button = document.getElementById('btn-restart-service');
+    const status = document.getElementById('restart-service-status');
+    button.disabled = true;
+    status.classList.remove('hidden', 'status-error');
+    status.textContent = 'Solicitando reinicio del servicio...';
+
+    try {
+        const response = await fetch('/api/admin/service/restart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ confirm: true })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'No se pudo solicitar el reinicio.');
+
+        status.textContent = 'Servicio reiniciándose. Esperando reconexión...';
+        await new Promise(resolve => setTimeout(resolve, 2500));
+        let ready = false;
+        for (let attempt = 0; attempt < 20; attempt++) {
+            try {
+                const check = await fetch('/api/admin/system-status', { cache: 'no-store' });
+                if (check.ok) {
+                    ready = true;
+                    break;
+                }
+            } catch (_) {
+                // El proceso está detenido temporalmente.
+            }
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        if (!ready) throw new Error('El servicio no volvió a responder. Revisá journalctl -u cameracontrol.service.');
+        if (cameraAvailable) await refreshCameraConfiguration();
+        status.textContent = 'Servicio disponible nuevamente.';
+    } catch (error) {
+        console.error('Error reiniciando servicio:', error);
+        status.classList.add('status-error');
+        status.textContent = error.message;
+    } finally {
+        button.disabled = false;
+    }
+}
+
 async function triggerSoftwareUpdate() {
     const btn = document.getElementById('btn-update-software');
     const status = document.getElementById('update-status');

@@ -34,6 +34,7 @@ ALL_BLUEPRINTS = (
 EXPECTED_API_RULES = {
     ("admin.enable_bluetooth", "/api/admin/bluetooth/enable", ("POST",)),
     ("admin.trigger_reboot", "/api/admin/reboot", ("POST",)),
+    ("admin.trigger_service_restart", "/api/admin/service/restart", ("POST",)),
     ("admin.system_status", "/api/admin/system-status", ("GET",)),
     ("admin.trigger_update", "/api/admin/update", ("POST",)),
     ("camera_controller.index", "/api/camera/", ("GET",)),
@@ -177,6 +178,7 @@ class ApiSurfaceContractTests(unittest.TestCase):
         client = _contract_app().test_client()
         cases = (
             ("post", "/api/admin/reboot", {}, 400, {"status", "message"}),
+            ("post", "/api/admin/service/restart", {}, 400, {"status", "message"}),
             ("post", "/api/camera/update_settings", [], 400, {"status", "message"}),
             ("post", "/api/esp32/command", [], 400, {"ok", "error"}),
             ("delete", "/api/sensors/readings", {}, 400, {"error"}),
