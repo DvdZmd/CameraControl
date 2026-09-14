@@ -246,7 +246,7 @@ function hydrateCameraControls(status) {
     }
 }
 
-function handleResolutionChange(val) {
+async function handleResolutionChange(val) {
     const customDiv = document.getElementById('custom-res-inputs');
     if (val === 'custom') {
         customDiv.style.display = 'flex';
@@ -254,7 +254,9 @@ function handleResolutionChange(val) {
     } else {
         customDiv.style.display = 'none';
         const [w, h] = val.split('x');
-        updateCameraSettings({ width: parseInt(w), height: parseInt(h) });
+        if (await updateCameraSettings({ width: parseInt(w), height: parseInt(h) })) {
+            await refreshCameraConfiguration();
+        }
     }
 }
 
@@ -314,7 +316,7 @@ function toggleControlPanel() {
     localStorage.setItem('controlsPanelHidden', hidden);
 }
 
-function applyCustomResolution() {
+async function applyCustomResolution() {
     let w = parseInt(document.getElementById('custom-w').value);
     let h = parseInt(document.getElementById('custom-h').value);
     
@@ -326,7 +328,9 @@ function applyCustomResolution() {
         document.getElementById('custom-w').value = w;
         document.getElementById('custom-h').value = h;
         storeResolution(CUSTOM_STREAM_RESOLUTION_KEY, w, h);
-        updateCameraSettings({ width: w, height: h });
+        if (await updateCameraSettings({ width: w, height: h })) {
+            await refreshCameraConfiguration();
+        }
     }
 }
 
@@ -510,6 +514,17 @@ async function checkCameraCapabilities() {
     }
 }
 
+// Refrescar únicamente el estado y la conexión MJPEG tras reconfigurar la cámara.
+async function refreshCameraConfiguration() {
+    try {
+        const status = await fetchCameraStatus();
+        hydrateCameraControls(status);
+    } catch (error) {
+        console.error('Error refrescando la configuración de cámara:', error);
+        setCameraUnavailable(error.message);
+    }
+}
+
 // Aplicar un preset desde el selector
 async function applyPreset(presetName) {
     if (!presetName) return;
@@ -521,10 +536,8 @@ async function applyPreset(presetName) {
             body: JSON.stringify({ preset: presetName })
         });
         
-        if (response.ok) {
-            // Recargar la página para actualizar los valores de los sliders
-            location.reload(); 
-        }
+        if (!response.ok) throw new Error((await response.json()).message || 'No se pudo aplicar el preset');
+        await refreshCameraConfiguration();
     } catch (err) {
         console.error("Error al aplicar preset:", err);
     }
@@ -534,9 +547,8 @@ async function applyPreset(presetName) {
 async function resetCamera() {
     try {
         const response = await fetch(cameraApiUrl('/reset'), { method: 'POST' });
-        if (response.ok) {
-            location.reload();
-        }
+        if (!response.ok) throw new Error((await response.json()).message || 'No se pudo resetear la cámara');
+        await refreshCameraConfiguration();
     } catch (err) {
         console.error("Error al resetear cámara:", err);
     }

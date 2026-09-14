@@ -91,7 +91,7 @@ def _create_camera_controller():
         return _unavailable_camera(CAMERA_IMPORT_ERROR)
 
     try:
-        return rpicam_z()
+        return rpicam_z(width=1640, height=1232)
     except Exception as error:
         return _unavailable_camera(error)
 

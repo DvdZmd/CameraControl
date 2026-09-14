@@ -343,11 +343,13 @@ class ApiValidationTests(unittest.TestCase):
     def test_camera_initialization_is_explicit_and_idempotent(self):
         previous_factory = camera_routes.rpicam_z
         created = []
+        dimensions = []
 
         class InitializedCamera(FakeCamera):
-            def __init__(self):
+            def __init__(self, *, width, height):
                 super().__init__()
                 created.append(self)
+                dimensions.append((width, height))
 
         camera_routes.rpicam_z = InitializedCamera
         camera_routes.camera_initialized = False
@@ -359,6 +361,7 @@ class ApiValidationTests(unittest.TestCase):
 
         self.assertIs(first, second)
         self.assertEqual(created, [first])
+        self.assertEqual(dimensions, [(1640, 1232)])
         self.assertTrue(camera_routes.camera_initialized)
 
     def test_camera_persists_applied_settings_when_database_is_available(self):
